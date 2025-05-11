@@ -72,6 +72,37 @@ At the core of Pulsum is its intelligent multi-agent system that analyzes your h
 - **Database**: SQLite
 - **AI**: OpenAI API for multi-agent system
 
+## Requirements
+
+### System Requirements
+- **Operating System**: macOS, Windows 10/11, or Linux
+- **Processor**: 1.6 GHz or faster
+- **Memory**: Minimum 4GB RAM (8GB+ recommended)
+- **Disk Space**: At least 500MB for the application and dependencies
+- **Internet Connection**: Required for API communication and data syncing
+
+### Software Requirements
+- **Node.js**: Version 16.0.0 or higher
+- **npm**: Version 8.0.0 or higher (comes with Node.js)
+- **Git**: For version control and cloning the repository
+
+### API Requirements
+- **OpenAI API Key**: Required for AI functionality
+  - Billing must be set up in your OpenAI account
+  - GPT-4 access recommended for optimal performance
+- **Oura Ring API**: 
+  - Oura Ring (Generation 2 or 3)
+  - Oura Cloud account with Personal Access Token
+- **Dexcom API** (Optional):
+  - Dexcom G6/G7 CGM device
+  - Dexcom Developer account
+
+### Browser Support
+- Chrome (latest 2 versions)
+- Firefox (latest 2 versions)
+- Safari (latest 2 versions)
+- Edge (latest 2 versions)
+
 ## Setup Instructions
 
 ### Prerequisites
