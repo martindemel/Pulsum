@@ -120,28 +120,41 @@ git clone https://github.com/martindemel/Pulsum.git
 cd Pulsum
 ```
 
-2. Install dependencies
+2. **Option 1 (Recommended)**: Use the automated installation script
+```
+chmod +x install-requirements.sh
+./install-requirements.sh
+```
+This script will:
+- Check for required software (Node.js, npm)
+- Create necessary directories
+- Install all dependencies (backend and frontend)
+- Set up environment configuration
+- Initialize the database
+- Configure Git hooks for security
+
+3. **Option 2**: Manual installation
 ```
 npm run install-all
 ```
 
-3. Create a `.env` file in the root directory using the provided example
+4. Create a `.env` file in the root directory using the provided example
 ```
 cp .env.example .env
 ```
 Then edit the `.env` file to add your API keys and secrets.
 
-4. Initialize the database
+5. Initialize the database
 ```
 npm run init-db
 ```
 
-5. Start the development server
+6. Start the development server
 ```
 npm run dev
 ```
 
-6. Open your browser and navigate to `http://localhost:3000`
+7. Open your browser and navigate to `http://localhost:3000`
 
 ### Setting Up Your Own GitHub Repository
 
