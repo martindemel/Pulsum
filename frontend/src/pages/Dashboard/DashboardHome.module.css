@@ -1,0 +1,99 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  width: 100%;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.heading {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  padding: 0 var(--spacing-sm);
+}
+
+.wellnessRow {
+  width: 100%;
+  margin-bottom: var(--spacing-md);
+}
+
+.columnsContainer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.columnHeading {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+}
+
+.columnHeading:first-child {
+  margin-top: 0;
+}
+
+.journalSection,
+.recommendationsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Media query for tablets */
+@media (max-width: 1024px) {
+  .columnsContainer {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+  }
+  
+  .column:last-child {
+    grid-column: span 2;
+  }
+  
+  .recommendationsSection {
+    max-width: 700px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+/* Media query for mobile */
+@media (max-width: 768px) {
+  .dashboard {
+    gap: var(--spacing-sm);
+  }
+  
+  .heading {
+    font-size: 1.5rem;
+  }
+  
+  .columnsContainer {
+    grid-template-columns: 1fr;
+  }
+  
+  .column:last-child {
+    grid-column: auto;
+  }
+  
+  .columnHeading {
+    font-size: 1.1rem;
+  }
+  
+  .wellnessRow {
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .column {
+    gap: var(--spacing-sm);
+  }
+} 

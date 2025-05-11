@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulsum Chat Debug</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #chatHistory {
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 300px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    #messageForm {
+      display: flex;
+    }
+    #messageInput {
+      flex-grow: 1;
+      padding: 8px;
+      margin-right: 10px;
+    }
+    .user-message {
+      text-align: right;
+      margin: 5px 0;
+    }
+    .assistant-message {
+      text-align: left;
+      margin: 5px 0;
+    }
+    .status {
+      color: #666;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pulsum Chat Debug</h1>
+  
+  <div>
+    <button id="checkStatus">Check OpenAI Status</button>
+    <button id="fetchHistory">Fetch Chat History</button>
+    <button id="clearHistory">Clear Chat History</button>
+  </div>
+  
+  <div class="status" id="statusOutput"></div>
+  
+  <div id="chatHistory"></div>
+  
+  <form id="messageForm">
+    <input type="text" id="messageInput" placeholder="Type a message..." required>
+    <button type="submit">Send</button>
+  </form>
+  
+  <script>
+    const statusOutput = document.getElementById('statusOutput');
+    const chatHistory = document.getElementById('chatHistory');
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const checkStatusBtn = document.getElementById('checkStatus');
+    const fetchHistoryBtn = document.getElementById('fetchHistory');
+    const clearHistoryBtn = document.getElementById('clearHistory');
+    
+    // Check OpenAI status
+    checkStatusBtn.addEventListener('click', async () => {
+      try {
+        statusOutput.textContent = 'Checking OpenAI status...';
+        const response = await fetch('/api/chat/status');
+        const data = await response.json();
+        statusOutput.textContent = `OpenAI Status: ${JSON.stringify(data)}`;
+        console.log('OpenAI status:', data);
+      } catch (error) {
+        statusOutput.textContent = `Error checking status: ${error.message}`;
+        console.error('Error checking status:', error);
+      }
+    });
+    
+    // Fetch chat history
+    async function fetchChatHistory() {
+      try {
+        statusOutput.textContent = 'Fetching chat history...';
+        const response = await fetch('/api/chat/history');
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        const data = await response.json();
+        displayChatHistory(data);
+        statusOutput.textContent = `Chat history fetched (${data.length} messages)`;
+        console.log('Chat history:', data);
+      } catch (error) {
+        statusOutput.textContent = `Error fetching history: ${error.message}`;
+        console.error('Error fetching history:', error);
+      }
+    }
+    
+    fetchHistoryBtn.addEventListener('click', fetchChatHistory);
+    
+    // Clear chat history
+    clearHistoryBtn.addEventListener('click', async () => {
+      try {
+        statusOutput.textContent = 'Clearing chat history...';
+        const response = await fetch('/api/chat/history', { method: 'DELETE' });
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        chatHistory.innerHTML = '';
+        statusOutput.textContent = 'Chat history cleared';
+      } catch (error) {
+        statusOutput.textContent = `Error clearing history: ${error.message}`;
+        console.error('Error clearing history:', error);
+      }
+    });
+    
+    // Display chat history
+    function displayChatHistory(messages) {
+      chatHistory.innerHTML = '';
+      messages.forEach(msg => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = msg.role === 'user' ? 'user-message' : 'assistant-message';
+        messageDiv.textContent = `${msg.role}: ${msg.content}`;
+        chatHistory.appendChild(messageDiv);
+      });
+      
+      // Scroll to bottom
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+    
+    // Send a message
+    messageForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const message = messageInput.value.trim();
+      if (!message) return;
+      
+      messageInput.value = '';
+      
+      // Show sending message
+      const userMessageDiv = document.createElement('div');
+      userMessageDiv.className = 'user-message';
+      userMessageDiv.textContent = `user: ${message}`;
+      chatHistory.appendChild(userMessageDiv);
+      
+      statusOutput.textContent = 'Sending message...';
+      
+      try {
+        console.log('Sending message:', message);
+        const response = await fetch('/api/chat/message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Response received:', data);
+        
+        // Display assistant response
+        const assistantMessageDiv = document.createElement('div');
+        assistantMessageDiv.className = 'assistant-message';
+        assistantMessageDiv.textContent = `assistant: ${data.response}`;
+        chatHistory.appendChild(assistantMessageDiv);
+        
+        // Scroll to bottom
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        
+        statusOutput.textContent = 'Message sent and response received';
+      } catch (error) {
+        statusOutput.textContent = `Error sending message: ${error.message}`;
+        console.error('Error sending message:', error);
+        
+        // Show error in chat
+        const errorMessageDiv = document.createElement('div');
+        errorMessageDiv.className = 'assistant-message';
+        errorMessageDiv.textContent = `Error: ${error.message}`;
+        chatHistory.appendChild(errorMessageDiv);
+      }
+    });
+    
+    // Load chat history on page load
+    fetchChatHistory();
+  </script>
+</body>
+</html> 

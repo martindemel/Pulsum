@@ -1,0 +1,311 @@
+.recommendationsList {
+  width: 100%;
+  position: relative;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  padding: var(--spacing-lg);
+}
+
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(76, 101, 255, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--primary);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.empty p {
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-secondary);
+}
+
+.refreshButton {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-xl);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(76, 101, 255, 0.3);
+}
+
+.refreshButton:hover {
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(76, 101, 255, 0.4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+  background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.item:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+}
+
+.item.completed {
+  border-left: 4px solid var(--success);
+  background: linear-gradient(to bottom right, rgba(46, 213, 115, 0.08), rgba(46, 213, 115, 0.03));
+}
+
+.content {
+  flex: 1;
+  margin-bottom: var(--spacing-md);
+}
+
+.title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.category, .timeToComplete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metaIcon {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.microaction {
+  font-size: 0.95rem;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(to right, rgba(76, 101, 255, 0.1), rgba(76, 101, 255, 0.05));
+  border: 1px solid rgba(76, 101, 255, 0.2);
+  margin-top: var(--spacing-md);
+  line-height: 1.5;
+}
+
+.microaction strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+}
+
+.actionButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.actionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.actionButton.processing {
+  position: relative;
+  overflow: hidden;
+}
+
+.actionButton.processing::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(to right, transparent, var(--primary), transparent);
+  animation: loadingBar 1.5s infinite ease-in-out;
+}
+
+@keyframes loadingBar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.btnText {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .btnText {
+    display: inline-block;
+  }
+}
+
+.actionButton.active {
+  background: var(--success);
+  color: white;
+  border-color: var(--success);
+}
+
+.actionButton.liked {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.actionButton.disliked {
+  background: var(--error);
+  color: white;
+  border-color: var(--error);
+}
+
+.feedbackButtons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.viewMore {
+  text-align: center;
+  margin-top: var(--spacing-lg);
+}
+
+.viewMore a {
+  display: inline-block;
+  color: var(--primary);
+  background: rgba(76, 101, 255, 0.1);
+  padding: 8px 20px;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.viewMore a:hover {
+  background: rgba(76, 101, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Toast notification */
+.toast {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-width: 90%;
+  text-align: center;
+}
+
+.toast.success {
+  background: linear-gradient(to right, var(--success), var(--success-dark));
+  color: white;
+}
+
+.toast.error {
+  background: linear-gradient(to right, var(--error), var(--error-dark));
+  color: white;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .item {
+    padding: var(--spacing-md);
+  }
+  
+  .actions {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    align-items: stretch;
+  }
+  
+  .feedbackButtons {
+    justify-content: center;
+  }
+  
+  .actionButton {
+    flex: 1;
+    justify-content: center;
+  }
+} 
