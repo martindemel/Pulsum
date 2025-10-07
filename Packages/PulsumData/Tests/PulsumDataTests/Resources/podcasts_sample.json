@@ -1,0 +1,20 @@
+[
+  {
+    "episodeNumber": "001",
+    "episodeTitle": "Sample Episode",
+    "recommendations": [
+      {
+        "timestamp": "approximate",
+        "recommendation": "Practice diaphragmatic breathing",
+        "shortDescription": "Reset your nervous system with a two-minute breathing drill.",
+        "detailedDescription": "Slow, deep breaths help stimulate the parasympathetic response. Arnold reminds listeners to anchor breath work before stressful tasks.",
+        "microActivity": "Breathe in for 4 seconds, hold 2, exhale 6 for 6 rounds.",
+        "researchLink": "https://pubmed.ncbi.nlm.nih.gov/29564973/",
+        "difficultyLevel": "Easy",
+        "timeToComplete": "2 min",
+        "tags": ["breathing", "stress"],
+        "category": "Mental Health"
+      }
+    ]
+  }
+]

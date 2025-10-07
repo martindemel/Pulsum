@@ -1,0 +1,71 @@
+URGENT: Fix SplineRuntime crash - app is crashing on launch due to missing SplineRuntime framework
+
+ISSUE: App crashes with objc_release error because SplineRuntime is imported but framework not available
+
+IMMEDIATE FIX REQUIRED:
+
+1. Remove SplineRuntime GitHub package from Xcode project:
+   - Open Pulsum.xcodeproj in Xcode
+   - Select project (blue icon)
+   - Go to "Package Dependencies" tab
+   - Find "Spline-iOS" package
+   - Click "-" button to remove it
+   - Confirm deletion
+
+2. Verify PulsumRootView.swift has proper fallback (should already be there):
+   File: Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift
+   
+   The AnimatedSplineBackgroundView should use:
+   ```swift
+   @ViewBuilder
+   private var splineScene: some View {
+       #if canImport(SplineRuntime)
+       if let url = cloudURL ?? localURL {
+           SplineView(sceneFileURL: url)
+       } else {
+           fallbackGradient
+       }
+       #else
+       fallbackGradient  // ← This will be used since SplineRuntime not available
+       #endif
+   }
+   
+   private var fallbackGradient: some View {
+       LinearGradient(
+           colors: [
+               Color(red: 0.09, green: 0.1, blue: 0.19), 
+               Color(red: 0.18, green: 0.12, blue: 0.35)
+           ],
+           startPoint: .topLeading,
+           endPoint: .bottomTrailing
+       )
+   }
+   ```
+
+3. Clean and rebuild:
+   - Product → Clean Build Folder (⇧⌘K)
+   - Product → Build (⌘B)
+   - Product → Run (⌘R)
+
+EXPECTED RESULT:
+- App launches successfully ✅
+- Shows beautiful purple-blue gradient background (not 3D scene)
+- All UI features work (Pulse button, Settings, navigation)
+- No crashes ✅
+
+VERIFICATION:
+- Launch app - should see gradient background
+- Tap Pulse button - should open PulseView sheet
+- Tap Avatar - should open SettingsView
+- Switch to Coach tab - should show CoachView
+- All features functional
+
+NOTES:
+- SplineRuntime will be added later when we have proper framework
+- Gradient looks professional and matches design
+- Cloud URL is saved in code for future use
+- This unblocks Milestone 4 testing and Milestone 5 work
+
+CRITICAL: Do not try to add SplineRuntime from any package manager - it's not available via SPM anymore. Remove it completely for now.
+
+

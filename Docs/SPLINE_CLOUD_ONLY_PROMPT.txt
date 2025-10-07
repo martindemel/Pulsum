@@ -1,0 +1,56 @@
+TASK: Fix SplineRuntime package resolution error
+
+ISSUE: The GitHub package reference "https://github.com/spline-design/Spline-iOS" doesn't exist (404 error), causing package resolution failures.
+
+SOLUTION: Remove the broken GitHub package reference from Xcode project and use cloud URL only with gradient fallback.
+
+SPLINE CONFIGURATION:
+- Cloud URL: https://build.spline.design/ke82QL0jX3kJzGuGErDD/scene.splineswift (WORKS - verified accessible)
+- This URL serves the .splineswift scene file directly
+- SplineRuntime framework will be added manually later
+
+IMPLEMENTATION:
+1. Remove SplineRuntime GitHub package from Pulsum.xcodeproj:
+   - Edit Pulsum.xcodeproj/project.pbxproj
+   - Find and remove XCRemoteSwiftPackageReference "Spline-iOS" section
+   - Remove SplineRuntime from packageReferences array
+   - Remove SplineRuntime product dependencies from all targets
+
+2. Keep the existing PulsumRootView implementation as-is:
+   - AnimatedSplineBackgroundView already has #if canImport(SplineRuntime) guards
+   - Already has fallbackGradient for when SplineRuntime unavailable
+   - Already has cloudURL configured correctly
+   - Code structure is perfect - don't change it!
+
+3. Update Package.swift if SplineRuntime was referenced there:
+   - Remove any SplineRuntime dependencies
+
+4. Build verification:
+   - swift build --package-path Packages/PulsumUI (should succeed)
+   - All local packages should resolve (PulsumAgents, PulsumML, PulsumServices, PulsumData, PulsumUI)
+
+EXPECTED BEHAVIOR AFTER FIX:
+- App builds successfully ✅
+- PulsumRootView shows beautiful gradient background (since SplineRuntime framework not available yet)
+- All UI functionality works (navigation, journal, sliders, recommendations, chat)
+- When SplineRuntime.xcframework is added manually later, the #if canImport check will activate and load the cloud Spline scene
+
+GRADIENT FALLBACK COLORS (already in code):
+- Deep blue-purple gradient from (0.09, 0.1, 0.19) to (0.18, 0.12, 0.35)
+- Looks professional and matches app theme
+
+DO NOT:
+- Don't try to add SplineRuntime from other sources
+- Don't modify the AnimatedSplineBackgroundView implementation (it's already correct)
+- Don't remove the cloud URL (we'll use it when framework is available)
+
+VERIFY:
+After making changes, confirm:
+1. swift build succeeds for all packages
+2. No package resolution errors
+3. App can be built in Xcode
+
+NOTE FOR LATER:
+SplineRuntime.xcframework will be added manually from official Spline distribution. The code is already structured to activate automatically when the framework becomes available (via #if canImport check).
+
+

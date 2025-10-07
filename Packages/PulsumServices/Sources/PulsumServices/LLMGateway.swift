@@ -1,0 +1,676 @@
+import Foundation
+import os.log
+import PulsumML
+import PulsumData
+
+/// Candidate micro-moment snippet for context (privacy-safe; no PHI)
+public struct CandidateMoment: Codable, Sendable {
+    public let title: String
+    public let oneLiner: String
+
+    public init(title: String, oneLiner: String) {
+        self.title = title
+        self.oneLiner = oneLiner
+    }
+}
+
+/// Convenience wrapper for app-internal payload handled downstream by UI & agents
+public struct CoachReplyPayload: Sendable {
+    public let coachReply: String
+    public let nextAction: String?
+
+    public init(coachReply: String, nextAction: String? = nil) {
+        self.coachReply = coachReply
+        self.nextAction = nextAction
+    }
+}
+
+public struct CoachPhrasing: Codable, Sendable {
+    public let coachReply: String
+    public let isOnTopic: Bool
+    public let groundingScore: Double
+    public let intentTopic: String
+    public let refusalReason: String?
+    public let nextAction: String?
+
+    enum CodingKeys: String, CodingKey {
+        case coachReply
+        case isOnTopic
+        case groundingScore
+        case intentTopic
+        case refusalReason
+        case nextAction
+    }
+
+    public init(coachReply: String,
+                isOnTopic: Bool,
+                groundingScore: Double,
+                intentTopic: String,
+                refusalReason: String? = nil,
+                nextAction: String? = nil) {
+        self.coachReply = coachReply
+        self.isOnTopic = isOnTopic
+        self.groundingScore = groundingScore
+        self.intentTopic = intentTopic
+        self.refusalReason = refusalReason
+        self.nextAction = nextAction
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        coachReply = try container.decode(String.self, forKey: .coachReply)
+        isOnTopic = try container.decode(Bool.self, forKey: .isOnTopic)
+        groundingScore = try container.decode(Double.self, forKey: .groundingScore)
+        intentTopic = try container.decode(String.self, forKey: .intentTopic)
+
+        let refusal = (try? container.decode(String.self, forKey: .refusalReason)) ?? ""
+        let next = (try? container.decode(String.self, forKey: .nextAction)) ?? ""
+
+        let trimmedRefusal = refusal.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNext = next.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        refusalReason = trimmedRefusal.isEmpty ? nil : trimmedRefusal
+        nextAction = trimmedNext.isEmpty ? nil : trimmedNext
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(coachReply, forKey: .coachReply)
+        try container.encode(isOnTopic, forKey: .isOnTopic)
+        try container.encode(groundingScore, forKey: .groundingScore)
+        try container.encode(intentTopic, forKey: .intentTopic)
+        try container.encode(refusalReason ?? "", forKey: .refusalReason)
+        try container.encode(nextAction ?? "", forKey: .nextAction)
+    }
+}
+
+public struct CoachLLMContext: Codable, Sendable {
+    public let userToneHints: String
+    public let topSignal: String
+    public let topMomentId: String?
+    public let rationale: String
+    public let zScoreSummary: String
+
+    public init(userToneHints: String,
+                topSignal: String,
+                topMomentId: String?,
+                rationale: String,
+                zScoreSummary: String) {
+        self.userToneHints = userToneHints
+        self.topSignal = topSignal
+        self.topMomentId = topMomentId
+        self.rationale = rationale
+        self.zScoreSummary = zScoreSummary
+    }
+}
+
+public protocol CloudLLMClient {
+    func generateResponse(context: CoachLLMContext,
+                          intentTopic: String?,
+                          candidateMoments: [CandidateMoment],
+                          apiKey: String,
+                          keySource: String) async throws -> CoachPhrasing
+}
+
+public protocol OnDeviceCoachGenerator {
+    func generate(context: CoachLLMContext) async -> CoachReplyPayload
+}
+
+public enum LLMGatewayError: LocalizedError {
+    case apiKeyMissing
+    case cloudGenerationFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .apiKeyMissing:
+            return "LLM API key is missing."
+        case .cloudGenerationFailed(let detail):
+            return "Cloud phrasing failed: \(detail)"
+        }
+    }
+}
+
+/// Manages consent-aware phrasing requests.
+private let validationLogger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.Validation")
+
+public final class LLMGateway {
+    private static let apiKeyIdentifier = "openai.api.key"
+
+#if DEBUG
+    public static let debugInjectedAPIKey: String? = {
+        if let k = Bundle.main.object(forInfoDictionaryKey: "OPENAI_TEST_KEY") as? String,
+           !k.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return k.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let e = ProcessInfo.processInfo.environment["OPENAI_API_KEY"],
+           !e.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return e.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
+    }()
+#endif
+
+    private let keychain: KeychainService
+    private let cloudClient: CloudLLMClient
+    private let localGenerator: OnDeviceCoachGenerator
+    private let session: URLSession
+
+    private var inMemoryAPIKey: String?
+
+    private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
+
+    public init(keychain: KeychainService = KeychainService(),
+                cloudClient: CloudLLMClient? = nil,
+                localGenerator: OnDeviceCoachGenerator? = nil,
+                session: URLSession = .shared) {
+        self.keychain = keychain
+        self.cloudClient = cloudClient ?? GPT5Client(session: session)
+        self.localGenerator = localGenerator ?? createDefaultLocalGenerator()
+        self.session = session
+    }
+
+    public func setAPIKey(_ key: String) throws {
+        guard let trimmed = key.trimmedNonEmpty,
+              let data = trimmed.data(using: .utf8) else {
+            throw LLMGatewayError.apiKeyMissing
+        }
+        try keychain.setSecret(data, for: Self.apiKeyIdentifier)
+        inMemoryAPIKey = trimmed
+        logger.debug("LLM API key saved to keychain (length=\(trimmed.count, privacy: .private)).")
+    }
+
+    public func testAPIConnection() async throws -> Bool {
+        let body = Self.makePingRequestBody()
+        if let text = body["text"] as? [String: Any],
+           let format = text["format"] as? [String: Any] {
+            let hasName = (format["name"] as? String) == "CoachPhrasing"
+            let hasSchema = format["schema"] as? [String: Any] != nil
+            let tokenLogValue = body["max_output_tokens"] as? Int ?? -1
+            logger.debug("Responses API: max_output_tokens=\(tokenLogValue, privacy: .public) schemaNamePresent=\(hasName) schemaPresent=\(hasSchema)")
+        }
+
+        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let apiKey = try resolveAPIKey()
+        let keySource: String = (inMemoryAPIKey != nil) ? "memory"
+            : ((try? keychain.secret(for: Self.apiKeyIdentifier)) != nil ? "keychain"
+               : { () -> String in
+#if DEBUG
+                    return (Self.debugInjectedAPIKey != nil ? "debug" : "unknown")
+#else
+                    return "unknown"
+#endif
+                }())
+        logger.debug("LLM using API key from \(keySource, privacy: .public).")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.error("Ping failed: missing HTTP response")
+            return false
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let code = httpResponse.statusCode
+            let errorText = String(data: data, encoding: .utf8) ?? "HTTP \(code)"
+            logger.error("Ping failed: status=\(code) body=\(errorText.prefix(200), privacy: .public)")
+            return false
+        }
+
+        return true
+    }
+
+    public func generateCoachResponse(context: CoachLLMContext,
+                                      intentTopic: String?,
+                                      candidateMoments: [CandidateMoment],
+                                      consentGranted: Bool,
+                                      groundingFloor: Double = 0.50) async -> CoachReplyPayload {
+        let sanitizedContext = CoachLLMContext(userToneHints: PIIRedactor.redact(context.userToneHints),
+                                               topSignal: context.topSignal,
+                                               topMomentId: context.topMomentId,
+                                               rationale: PIIRedactor.redact(context.rationale),
+                                               zScoreSummary: context.zScoreSummary)
+        logger.debug("Generating coach response. Consent: \(consentGranted, privacy: .public), input: \(String(sanitizedContext.userToneHints.prefix(80)), privacy: .public), topSignal: \(sanitizedContext.topSignal, privacy: .public)")
+        logger.debug("Context rationale: \(String(sanitizedContext.rationale.prefix(200)), privacy: .public), scores: \(String(sanitizedContext.zScoreSummary.prefix(200)), privacy: .public)")
+        if consentGranted {
+            do {
+                let apiKey = try resolveAPIKey()
+                let keySource: String = (inMemoryAPIKey != nil) ? "memory"
+                    : ((try? keychain.secret(for: Self.apiKeyIdentifier)) != nil ? "keychain"
+                       : { () -> String in
+#if DEBUG
+                            return (Self.debugInjectedAPIKey != nil ? "debug" : "unknown")
+#else
+                            return "unknown"
+#endif
+                        }())
+                logger.info("Attempting cloud phrasing via GPT client.")
+                let phrasing = try await cloudClient.generateResponse(context: sanitizedContext,
+                                                                      intentTopic: intentTopic,
+                                                                      candidateMoments: candidateMoments,
+                                                                      apiKey: apiKey,
+                                                                      keySource: keySource)
+                if phrasing.isOnTopic, phrasing.groundingScore >= groundingFloor {
+                    let cleaned = CoachReplyPayload(
+                        coachReply: sanitize(response: phrasing.coachReply),
+                        nextAction: phrasing.nextAction
+                    )
+                    logger.debug("Cloud response received. Grounding: \(String(format: "%.2f", phrasing.groundingScore), privacy: .public), hasNextAction: \(cleaned.nextAction != nil, privacy: .public)")
+                    return cleaned
+                }
+                logger.warning("Wall-2 grounding too low (score=\(String(format: "%.2f", phrasing.groundingScore)) floor=\(String(format: "%.2f", groundingFloor))). Falling back on-device.")
+                notifyCloudError("Grounding score \(String(format: "%.2f", phrasing.groundingScore)) below floor \(String(format: "%.2f", groundingFloor))")
+            } catch {
+                // WALL 2 failure: schema validation failed or grounding too low
+                // Fail-closed: fallback to on-device Foundation Models
+                logger.error("Cloud phrasing failed (schema validation/grounding): \(error.localizedDescription, privacy: .public). Falling back to on-device generator.")
+                notifyCloudError(error.localizedDescription)
+            }
+        }
+        let fallback = await localGenerator.generate(context: sanitizedContext)
+        let cleanedFallback = CoachReplyPayload(
+            coachReply: sanitize(response: fallback.coachReply),
+            nextAction: fallback.nextAction
+        )
+        logger.notice("Using on-device phrasing. Length: \(cleanedFallback.coachReply.count, privacy: .public)")
+        return cleanedFallback
+    }
+
+    private func notifyCloudError(_ message: String) {
+#if DEBUG
+        NotificationCenter.default.post(name: .pulsumChatCloudError,
+                                        object: nil,
+                                        userInfo: ["message": message])
+#endif
+    }
+
+    public func currentAPIKey() -> String? {
+        if let m = inMemoryAPIKey?.trimmedNonEmpty { return m }
+        if let data = try? keychain.secret(for: Self.apiKeyIdentifier),
+           let k = String(data: data, encoding: .utf8)?.trimmedNonEmpty {
+            return k
+        }
+#if DEBUG
+        if let d = Self.debugInjectedAPIKey { return d }
+#endif
+        return nil
+    }
+
+    private func resolveAPIKey() throws -> String {
+        guard let key = currentAPIKey() else {
+            throw LLMGatewayError.apiKeyMissing
+        }
+        return key
+    }
+
+    private func sanitize(response: String) -> String {
+        // Ensure output is ≤2 sentences and neutral tone.
+        let sentences = response.split(whereSeparator: { $0 == "." || $0 == "!" || $0 == "?" })
+        let trimmed = sentences.prefix(2).map { sentence -> String in
+            let cleaned = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.prefix(280).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed.joined(separator: ". ").appending(trimmed.isEmpty ? "" : ".")
+    }
+}
+
+fileprivate func validateChatPayload(body: [String: Any],
+                                     context: CoachLLMContext,
+                                     intentTopic: String?,
+                                     candidateMoments: [CandidateMoment],
+                                     maxTokens: Int) -> Bool {
+    guard
+        let text = body["text"] as? [String: Any],
+        let format = text["format"] as? [String: Any],
+        (format["type"] as? String) == "json_schema"
+    else {
+        return false
+    }
+
+    let schemaNamePresent = (format["name"] as? String) == "CoachPhrasing"
+    guard schemaNamePresent,
+          let schema = format["schema"] as? [String: Any] else {
+        return false
+    }
+
+    validationLogger.debug("validateChatPayload schemaNamePresent=true schemaPresent=true")
+
+    guard schema["type"] as? String == "object",
+          (schema["additionalProperties"] as? Bool) == false,
+          let properties = schema["properties"] as? [String: Any],
+          let required = schema["required"] as? [String] else {
+        return false
+    }
+
+    guard Set(required) == Set(properties.keys) else {
+        return false
+    }
+
+    if !(64...320).contains(maxTokens) { return false }
+
+    guard let input = body["input"] as? [[String: Any]], input.count == 2,
+          (input.first? ["role"] as? String) == "system",
+          (input.last? ["role"] as? String) == "user"
+    else { return false }
+
+    do {
+        let data = try JSONEncoder().encode(context)
+        guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        let allowedKeys: Set<String> = ["userToneHints", "topSignal", "rationale", "zScoreSummary"]
+        if !Set(dict.keys).isSubset(of: allowedKeys) { return false }
+    } catch {
+        return false
+    }
+
+    if let intentTopic, intentTopic.count > 48 { return false }
+    if candidateMoments.count > 2 { return false }
+    let controls = CharacterSet.controlCharacters
+    for moment in candidateMoments {
+        if moment.title.rangeOfCharacter(from: controls) != nil { return false }
+        if moment.oneLiner.rangeOfCharacter(from: controls) != nil { return false }
+    }
+
+    return true
+}
+
+fileprivate func validatePingPayload(_ body: [String: Any]) -> Bool {
+    guard
+        let text = body["text"] as? [String: Any],
+        let format = text["format"] as? [String: Any],
+        (format["type"] as? String) == "json_schema"
+    else {
+        return false
+    }
+
+    let schemaNamePresent = (format["name"] as? String) == "CoachPhrasing"
+    guard schemaNamePresent,
+          let schema = format["schema"] as? [String: Any] else {
+        return false
+    }
+
+    validationLogger.debug("validatePingPayload schemaNamePresent=true schemaPresent=true")
+
+    guard schema["type"] as? String == "object",
+          (schema["additionalProperties"] as? Bool) == false,
+          let properties = schema["properties"] as? [String: Any],
+          let required = schema["required"] as? [String] else {
+        return false
+    }
+
+    guard Set(required) == Set(properties.keys) else {
+        return false
+    }
+
+    guard body["max_output_tokens"] as? Int == 16 else { return false }
+
+    guard let input = body["input"] as? [[String: Any]],
+          input.count == 1,
+          (input.first? ["role"] as? String) == "user",
+          (input.first? ["content"] as? String) == "ping" else {
+        return false
+    }
+
+    return true
+}
+
+// MARK: - Cloud Client
+
+public final class GPT5Client: CloudLLMClient {
+    private let endpoint = URL(string: "https://api.openai.com/v1/responses")!
+    private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.Cloud")
+    private let session: URLSession
+
+    public init(session: URLSession = .shared) {
+        self.session = session
+    }
+
+    public func generateResponse(context: CoachLLMContext,
+                                 intentTopic: String?,
+                                 candidateMoments: [CandidateMoment],
+                                 apiKey: String,
+                                 keySource: String) async throws -> CoachPhrasing {
+        logger.debug("Sending cloud chat request with JSON schema. Top signal: \(context.topSignal, privacy: .public)")
+
+        var requestedTokens: Int? = nil
+        var attempt = 0
+        let limitedMoments = Array(candidateMoments.prefix(2))
+
+        while attempt < 2 {
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+
+            let body = LLMGateway.makeChatRequestBody(context: context,
+                                                     maxOutputTokens: requestedTokens ?? 256)
+
+            if let text = body["text"] as? [String: Any],
+               let format = text["format"] as? [String: Any] {
+                let hasName = (format["name"] as? String) == "CoachPhrasing"
+                let hasSchema = format["schema"] as? [String: Any] != nil
+                let tokenLogValue = body["max_output_tokens"] as? Int ?? -1
+                logger.debug("Responses API: max_output_tokens=\(tokenLogValue, privacy: .public) schemaNamePresent=\(hasName) schemaPresent=\(hasSchema)")
+            }
+
+            let maxTokens = body["max_output_tokens"] as? Int ?? LLMGateway.clampTokens(256)
+            guard validateChatPayload(body: body,
+                                      context: context,
+                                      intentTopic: intentTopic,
+                                      candidateMoments: limitedMoments,
+                                      maxTokens: maxTokens) else {
+                throw LLMGatewayError.cloudGenerationFailed("Invalid payload structure")
+            }
+
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            logger.debug("LLM using API key from \(keySource, privacy: .public).")
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw LLMGatewayError.cloudGenerationFailed("Invalid HTTP response")
+            }
+
+            if (200...299).contains(httpResponse.statusCode) {
+                do {
+                    let phrasing = try parseAndValidateStructuredResponse(data: data)
+                    logger.debug("Cloud chat succeeded. Grounding: \(String(format: "%.2f", phrasing.groundingScore), privacy: .public), isOnTopic: \(phrasing.isOnTopic, privacy: .public), hasNextAction: \(phrasing.nextAction != nil, privacy: .public)")
+                    return phrasing
+                } catch {
+                    // If parsing fails due to incomplete response, retry with more tokens
+                    let errorMsg = error.localizedDescription
+                    if attempt == 0, errorMsg.contains("incomplete") {
+                        requestedTokens = 320
+                        attempt += 1
+                        logger.info("Retrying with max tokens due to incomplete response")
+                        continue
+                    }
+                    throw error
+                }
+            }
+
+            let statusCode = httpResponse.statusCode
+            let errorMsg = String(data: data, encoding: .utf8) ?? "HTTP \(statusCode)"
+
+            if attempt == 0, statusCode == 400, errorMsg.contains("max_output_tokens") {
+                requestedTokens = 64
+                attempt += 1
+                continue
+            }
+
+            logger.error("Cloud chat failed. status=\(statusCode), message=\(errorMsg.prefix(256), privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed(errorMsg)
+        }
+
+        throw LLMGatewayError.cloudGenerationFailed("Exceeded retry attempts")
+    }
+
+    private func parseAndValidateStructuredResponse(data: Data) throws -> CoachPhrasing {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            logger.error("Failed to parse GPT response: \(errorMsg.prefix(280), privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed("Invalid JSON structure")
+        }
+
+        // Check for incomplete response (token limit exceeded)
+        if let status = root["status"] as? String, status == "incomplete",
+           let details = root["incomplete_details"] as? [String: Any],
+           let reason = details["reason"] as? String {
+            logger.warning("GPT response incomplete: \(reason, privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed("Response incomplete: \(reason)")
+        }
+
+        func extractText(from node: Any) -> String? {
+            guard let object = node as? [String: Any] else { return nil }
+            if let content = object["content"] as? [[String: Any]] {
+                for part in content {
+                    if let text = part["text"] as? String { return text }
+                }
+            }
+            return nil
+        }
+
+        var textPayload: String?
+
+        if let outputArray = root["output"] as? [[String: Any]] {
+            for item in outputArray {
+                if let text = extractText(from: item) {
+                    textPayload = text
+                    break
+                }
+            }
+        } else if let outputObject = root["output"] as? [String: Any] {
+            textPayload = extractText(from: outputObject)
+        }
+
+        if textPayload == nil,
+           let choices = root["choices"] as? [[String: Any]],
+           let message = choices.first? ["message"] as? [String: Any],
+           let text = message["content"] as? String {
+            textPayload = text
+        }
+
+        // Optional legacy parsed fallback (for older responses/tests)
+        if textPayload == nil {
+            if let parsed = (root["output"] as? [String: Any])?["parsed"] ?? (root["output"] as? [[String: Any]])?.first? ["parsed"] {
+                if let parsedData = try? JSONSerialization.data(withJSONObject: parsed),
+                   let parsedString = String(data: parsedData, encoding: .utf8) {
+                    textPayload = parsedString
+                }
+            }
+        }
+
+        guard let jsonString = textPayload,
+              let jsonData = jsonString.data(using: .utf8) else {
+            let snippet = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            logger.error("Failed to locate structured content in GPT response (snippet: \(snippet.prefix(280)), privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed("Missing structured output")
+        }
+
+        let phrasing: CoachPhrasing
+        do {
+            phrasing = try JSONDecoder().decode(CoachPhrasing.self, from: jsonData)
+        } catch {
+            logger.error("Failed to decode CoachPhrasing schema: \(error.localizedDescription, privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed("Schema validation failed: \(error.localizedDescription)")
+        }
+
+        guard phrasing.isOnTopic else {
+            let refusal = phrasing.refusalReason ?? "none"
+            logger.notice("GPT marked response as off-topic. Refusal: \(refusal, privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed("Response marked as off-topic by model")
+        }
+
+        return phrasing
+    }
+}
+
+// MARK: - Generator Factory
+
+private func createDefaultLocalGenerator() -> OnDeviceCoachGenerator {
+    if #available(iOS 26.0, *) {
+        return FoundationModelsCoachGenerator()
+    } else {
+        return LegacyCoachGenerator()
+    }
+}
+
+// MARK: - Legacy fallback generator (pre-iOS 26 only)
+
+public final class LegacyCoachGenerator: OnDeviceCoachGenerator {
+    private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.Legacy")
+
+    public init() {}
+
+    public func generate(context: CoachLLMContext) async -> CoachReplyPayload {
+        logger.warning("Legacy generator called on pre-iOS 26 device. Foundation Models unavailable.")
+        // Honest failure - no rule-based coaching
+        return CoachReplyPayload(
+            coachReply: "Personalized coaching requires iOS 26 or cloud connection. Please update your device or check your internet connection.",
+            nextAction: nil
+        )
+    }
+}
+
+extension LLMGateway {
+    static func coachFormat() -> [String: Any] {
+        CoachPhrasingSchema.responsesFormat()
+    }
+
+    fileprivate static func makeChatRequestBody(context: CoachLLMContext,
+                                                maxOutputTokens: Int) -> [String: Any] {
+        let tone = String(context.userToneHints.prefix(180))
+        let signal = String(context.topSignal.prefix(120))
+        let scores = String(context.zScoreSummary.prefix(180))
+        let rationale = String(context.rationale.prefix(180))
+        let momentId = String((context.topMomentId ?? "none").prefix(60))
+        let userContent = "User tone: \(tone). Top signal: \(signal). Z-scores: \(scores). Rationale: \(rationale). If any, micro-moment id: \(momentId)."
+        let clipped = String(userContent.prefix(512))
+
+        return [
+            "model": "gpt-5",
+            "input": [
+                ["role": "system",
+                 "content": "You are a supportive wellness coach. Reply in <=2 sentences. Output MUST match the CoachPhrasing schema."],
+                ["role": "user",
+                 "content": clipped]
+            ],
+            "max_output_tokens": clampTokens(maxOutputTokens),
+            "text": [
+                "verbosity": "low",
+                "format": coachFormat()
+            ]
+        ]
+    }
+
+    private static func makePingRequestBody() -> [String: Any] {
+        return [
+            "model": "gpt-5",
+            "input": [
+                ["role": "user", "content": "ping"]
+            ],
+            "max_output_tokens": 16,
+            "text": [
+                "verbosity": "low",
+                "format": coachFormat()
+            ]
+        ]
+    }
+
+    fileprivate static func clampTokens(_ requested: Int) -> Int {
+        return max(64, min(320, requested))
+    }
+}
+
+extension LLMGateway: @unchecked Sendable {}
+
+// Small helper
+private extension String {
+    var trimmedNonEmpty: String? {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : t
+    }
+}

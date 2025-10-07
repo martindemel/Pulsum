@@ -1,0 +1,118 @@
+# Pulsum Production Build - TODO
+
+## Milestone 0 - Repository Audit (Complete)
+- [x] Reviewed all existing source files (`PulsumApp.swift`, `ContentView.swift`, `Persistence.swift`, Core Data model, assets)
+- [x] Inspected Xcode project settings (`Pulsum.xcodeproj`, workspace state, schemes)
+- [x] Cataloged support materials (`ios support documents`, `ios support files/glow.swift`, `json database/podcastrecommendations (38).json`, media assets)
+- Notes: Project currently reflects default SwiftUI + Core Data template; no production features implemented yet.
+
+## Milestone 1 - Architecture & Scaffolding (Complete)
+- [x] Document target modules (`PulsumUI`, `PulsumAgents`, `PulsumData`, `PulsumServices`, `PulsumML`) with clear responsibilities, public interfaces, and dependency directions (`Docs/architecture_and_scaffolding.md`)
+- [x] Specify desired Xcode target + Swift Package structure (shared code, app target wiring, testing targets) and scaffold local packages under `Packages/`
+- [x] Enumerate all third-party Swift Packages (SplineRuntime, potential AFM wrappers, Core ML models) and integration strategy
+- [x] Define required capabilities/entitlements (HealthKit read, Speech Recognition, Microphone, Keychain Sharing, Background Modes) and project configuration updates (bundle ID variations, provisioning impacts)
+- [x] Plan persistence foundations: Core Data model evolution, NSPersistentContainer configuration (Application Support path, `NSFileProtectionComplete`, migration policy), vector index directory layout (`Application Support/VectorIndex/`)
+- [x] Outline consent/secrets configuration: on-device flags, injected API key handling (Keychain), feature gating for cloud processing, Privacy Manifest requirements
+- Notes: Swift package scaffolding includes placeholder types/tests to keep build graph intact pending implementation.
+
+## Milestone 2 - Data & Services Foundations (Complete)
+- [x] Implement Core Data schema covering all specified entities with migration-ready model versioning (`Pulsum.xcdatamodeld` updated)
+- [x] Build persistence layer (PersistentContainer wrapper with file protection, background contexts, batching utilities) (`Packages/PulsumData/Sources/PulsumData/DataStack.swift`)
+- [x] Create HealthKit service scaffolding (authorization flow, HKAnchoredObjectQuery/HKObserverQuery management, anchor persistence) (`Packages/PulsumServices/Sources/PulsumServices/HealthKitService.swift` + `HealthKitAnchorStore.swift`)
+- [x] Establish JSON/asset ingestion pipeline (LibraryImporter, EvidenceScorer wiring, local file protection)
+- [x] Upgrade vector index storage to true memory-mapped shard files with efficient L2 search (replace current serialized dictionary approach) (`Packages/PulsumData/Sources/PulsumData/VectorIndex*.swift`)
+- [x] Replace deterministic hash fallback with bundled AFM/Core ML sentence embedding fallback (384-dimension) (`Packages/PulsumML/Sources/PulsumML/Embedding/*`)
+- [x] Validate secure storage practices (Keychain usage for secrets, exclusion of PHI from iCloud backups)
+
+## Milestone 3 - Foundation Models Agent System Implementation (✅ VERIFIED COMPLETE + SWIFT 6 HARDENED)
+- [x] Delete existing agent package and rebuild Foundation Models-first architecture
+- [x] Update all package platforms to iOS 26+ for Foundation Models support (`Package.swift` files across all packages)
+- [x] Add FoundationModels framework dependencies to PulsumML and PulsumServices packages
+- [x] Convert SentimentProviding protocol to async interface for Foundation Models integration
+- [x] Implement FoundationModelsSentimentProvider with guided generation using @Generable structs (`Packages/PulsumML/Sources/PulsumML/Sentiment/FoundationModelsSentimentProvider.swift`)
+- [x] Create FoundationModelsCoachGenerator using LanguageModelSession for text generation (`Packages/PulsumServices/Sources/PulsumServices/FoundationModelsCoachGenerator.swift`)
+- [x] Add FoundationModelsSafetyProvider with structured safety classification (`Packages/PulsumML/Sources/PulsumML/Safety/FoundationModelsSafetyProvider.swift`)
+- [x] Rebuild AgentOrchestrator with Foundation Models coordination and availability checking (`Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift`)
+- [x] Rebuild DataAgent with improved async Core Data operations preserving sophisticated HealthKit processing (`Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift`)
+- [x] Rebuild SentimentAgent with async Foundation Models sentiment analysis (`Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift`)
+- [x] Rebuild CoachAgent with Foundation Models intelligent caution assessment (`Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent.swift`)
+- [x] Rebuild SafetyAgent with Foundation Models primary and fallback to existing classifier (`Packages/PulsumAgents/Sources/PulsumAgents/SafetyAgent.swift`)
+- [x] Implement CheerAgent with async interface (`Packages/PulsumAgents/Sources/PulsumAgents/CheerAgent.swift`)
+- [x] Add Foundation Models availability utilities (`Packages/PulsumML/Sources/PulsumML/AFM/FoundationModelsAvailability.swift`)
+- [x] Update contextual embeddings provider to use NLContextualEmbedding instead of legacy word embeddings
+- [x] Create comprehensive Foundation Models test infrastructure with async test methods
+- [x] Ensure graceful fallbacks when Foundation Models unavailable on older devices or when Apple Intelligence disabled
+- [x] **Swift 6 Concurrency Hardening**: Apply @Sendable conformances, actor-safe patterns, eliminate all concurrency warnings (10 files, +67/-30 lines)
+- [x] **Testing Verification**: All test suites pass with zero Swift 6 concurrency warnings across PulsumML, PulsumServices, and PulsumAgents packages
+- Notes: Milestone 3 is production-hardened with Swift 6 compliance. Ready for Milestone 4 UI integration.
+
+## Milestone 4 - UI & Experience Build (✅ COMPLETE - September 30, 2025)
+- [x] Create SwiftUI feature surfaces: MainView (SplineRuntime scene + segmented control + header), CoachView (cards + chat), PulseView (slide-to-record + sliders + countdown), SettingsView (consent toggles + Foundation Models status), SafetyCardView, JournalRecorder components (`Packages/PulsumUI`)
+- [x] Remove legacy template `ContentView.swift` / `Persistence.swift` (Item entity) and wire PulsumUI entry point into app target
+- [x] Apply Liquid Glass design language from support docs to chrome, bottom controls, AI button, and sheets
+- [x] Wire voice recording transparency (indicator + countdown) and navigation flows (Pulse button, avatar to settings, AI button focusing chat)
+- [x] Integrate SplineRuntime (cloud URL + local fallback) and handle offline fallback asset
+- [x] **Create @MainActor view models** binding to AgentOrchestrator with async/await patterns for all agent operations
+- [x] Connect UI with AgentOrchestrator (single orchestrator, not individual agents) for recommendations, chat, journaling, consent banner (exact copy), and safety surfacing
+- [x] **Display Foundation Models availability status** in SettingsView with user-friendly messaging (ready/downloading/needs Apple Intelligence)
+- [x] **Implement loading states** for async Foundation Models operations (sentiment analysis, safety classification, coaching generation)
+- [x] **Add fallback messaging** when Foundation Models unavailable (e.g., "Enhanced AI features require Apple Intelligence. Using on-device intelligence.")
+- [x] Address accessibility/localization scaffolding (Dynamic Type, VoiceOver labels, localization-ready strings)
+- [x] **Validate async/await error handling** in UI layer for Foundation Models operations (guardrails, refusals, timeouts)
+- [x] **Migrate to SpeechAnalyzer/SpeechTranscriber APIs** (iOS 26+) with SFSpeechRecognizer fallback for compatibility (2-3 days; official replacement for live STT)
+- Notes: Milestone 4 complete with production-ready UI (10 files, ~1,500 lines). All views implemented with @MainActor view models, Liquid Glass design, Foundation Models integration, SplineRuntime 3D scene, and comprehensive error handling. Ready for Milestone 5 privacy compliance.
+
+### Recent additions
+- [x] Added score breakdown detail screen in Settings with objective vs. subjective contributions, rolling baselines, and imputation notes.
+- [x] Exposed `AgentOrchestrator.scoreBreakdown()` for UI consumption of feature vectors, contributions, and baseline metadata.
+- [x] Updated `LibraryImporter` to fall back to root bundle resources when the "json database" subdirectory is missing (supports relocated `podcastrecommendations.json`).
+
+## Milestone 4.5 - Two-Wall Guardrails & Intent-Aware Chat (✅ COMPLETE - October 3, 2025)
+- [x] **Deterministic Intent Mapping (4-step override pipeline)**: Eliminated "wobble" in topic→topSignal selection
+  - Step 1: Wall-1 topic classification (sleep, stress, energy, hrv, mood, movement, mindfulness, goals, greetings)
+  - Step 2: Phrase override with substring matching (e.g., "rmssd" → hrv, "insomnia" → sleep, "micro" → goals)
+  - Step 3: Candidate moments override using top-2 retrieval with keyword scoring
+  - Step 4: Data-dominant fallback choosing signal with highest |z-score|
+- [x] **Extended TopicGate HRV vocabulary**: Added "rmssd", "vagal tone", "parasympathetic", "recovery" to embedding prototypes
+- [x] **Coverage robustness for sparse indexes**:
+  - Floor 1: Require ≥3 matches (reject if less)
+  - Floor 2: Median similarity ≥0.25 absolute floor
+  - Used 1/(1+d) bounded transformation for robust scoring
+- [x] **Wired nextAction end-to-end**: Created CoachReplyPayload struct, updated all protocols/implementations (CloudLLMClient, OnDeviceCoachGenerator, LLMGateway, CoachAgent, AgentOrchestrator)
+- [x] **Verified Responses API payload correctness**: Confirmed no legacy parameters (no response_format, no modalities), using text.format with json_schema
+- [x] **Fixed test suite compatibility**: Updated MockCloudClient, MockLocalGenerator, and LLMGatewayTests for CoachReplyPayload
+- [x] **Updated documentation**:
+  - instructions.md: Added Two-Wall Guardrails and Deterministic Intent Routing section
+  - architecture.md: Enhanced CoachAgent Chat Pipeline with full 7-step Wall-1/Wall-2 breakdown
+  - todolist.md: Documented Milestone 4.5 completion
+- [x] **Validation**: All package tests pass (PulsumML: 14 tests, PulsumServices: 14 tests, PulsumAgents: 7 tests), app builds successfully
+- Notes: Chat system now produces smart, intent-aware coaching with fail-closed Two-Wall guardrails and ML-only outputs (no rule engines). Ready for Milestone 5 privacy compliance.
+
+## Milestone 5 - Safety, Consent, Privacy Compliance (Planned)
+- [ ] Implement consent UX/state persistence (`UserPrefs`, `ConsentState`) including cloud-processing banner copy, toggle, and revocation flow
+- [ ] Enforce privacy routing: PHI on-device only, minimized cloud payloads, offline fallbacks, and SafetyAgent veto on risky content
+- [ ] Produce Privacy Manifest + Info.plist declarations (Health/Mic/Speech reasons already present), App Privacy nutrition labels, and Background Modes (HealthKit delivery) configuration
+- [ ] Validate data protection end-to-end (NSFileProtectionComplete, background/interrupt behavior, journal retention policies, deletion affordances)
+- [ ] Surface SafetyAgent escalations in UI (CrisisCard with 911 copy) and ensure no risky text reaches GPT-5 or Foundation Models
+- [ ] Security review covering Keychain secrets, health data isolation, background delivery configuration, and Spline asset handling
+- [ ] **Verify Foundation Models privacy compliance**: Confirm no PHI in Foundation Models prompts, minimized context only, proper guardrail handling
+- [ ] **Create Privacy Manifests (PrivacyInfo.xcprivacy)** for main app and all packages (PulsumData, PulsumServices, PulsumML, PulsumAgents) with Required-Reason API declarations (MANDATORY for App Store)
+- [ ] **Aggregate SDK privacy manifests** from third-party dependencies (SplineRuntime, any others)
+- Notes: Milestone 3 already implements privacy architecture (NSFileProtectionComplete, PII redaction, consent routing). Milestone 5 focuses on UI wiring, compliance validation, and Privacy Manifest creation.
+
+## Milestone 6 - QA, Testing, and Release Prep (Planned)
+- [ ] Expand automated tests: unit coverage for agents/services/ML math, UI snapshot tests, end-to-end smoke tests with mocks
+- [ ] **Add Foundation Models-specific tests**: guided generation validation, @Generable struct parsing, temperature behavior, guardrail handling
+- [ ] **Validate Swift 6 concurrency compliance**: Verify zero warnings in all packages, proper @Sendable usage, actor isolation correctness
+- [ ] Execute integration tests for HealthKit ingestion (mocked anchors), Speech STT transcription, and vector index retrieval
+- [ ] **Test Foundation Models availability states**: Apple Intelligence enabled/disabled, model downloading, device not supported, graceful fallbacks
+- [ ] **Test dual-provider fallbacks**: Foundation Models → Legacy cascades for sentiment, safety, coaching when AFM unavailable
+- [ ] Profile performance (startup, memory, energy), fix regressions, and validate on multiple device families
+- [ ] **Profile Foundation Models operations**: Measure latency for sentiment analysis, safety classification, coaching generation vs fallbacks
+- [ ] Produce final assets: Liquid Glass screenshots, App Icon variants, App Store metadata, localized descriptions
+- [ ] Assemble compliance documentation (privacy disclosures, data retention, support contacts) and verify App Privacy answers
+- [ ] **Document Foundation Models features** in App Store metadata: "Powered by Apple Intelligence for intelligent health insights"
+- [ ] Prepare release pipeline: TestFlight build, release notes, reviewer instructions, versioning strategy, and rollout checklist
+- [ ] **Prepare iOS 26 SDK validation**: Test on devices with Apple Intelligence enabled, verify Foundation Models activation
+- [ ] **Profile @MainActor agent operations**: Measure UI responsiveness during Foundation Models operations; if >100ms lag detected, refactor ML ranking/embeddings to background actors (conditional optimization)
+- [ ] **Evaluate BGTaskScheduler integration**: Monitor HealthKit background processing reliability in production; implement BGProcessingTask if observer callbacks show timeouts or battery impact (conditional enhancement)
