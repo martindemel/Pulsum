@@ -1,0 +1,91 @@
+# CodeRabbit Configuration for Pulsum
+# https://docs.coderabbit.ai/guides/review-instructions/
+
+# Language and Frameworks
+language: en-US
+early_access: true
+reviews:
+  # Review settings
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  
+  # Auto-review PRs
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  
+  # Path-specific instructions
+  path_instructions:
+    - path: "Packages/PulsumAgents/**/*.swift"
+      instructions: |
+        Focus on agent coordination, state management, and memory handling.
+        Check for proper error handling and async/await patterns.
+    
+    - path: "Packages/PulsumML/**/*.swift"
+      instructions: |
+        Review ML model integration, safety guardrails, and performance.
+        Ensure proper handling of Foundation Models API.
+    
+    - path: "Packages/PulsumServices/**/*.swift"
+      instructions: |
+        Check service layer patterns, API contracts, and error handling.
+        Verify proper dependency injection and testing.
+    
+    - path: "Packages/PulsumUI/**/*.swift"
+      instructions: |
+        Review SwiftUI best practices, state management, and accessibility.
+        Check for performance issues and proper view composition.
+    
+    - path: "Packages/PulsumData/**/*.swift"
+      instructions: |
+        Focus on Core Data models, migrations, and data integrity.
+        Review persistence layer and memory management.
+
+# Chat settings
+chat:
+  auto_reply: true
+
+# Knowledge base
+knowledge_base:
+  opt_out: false
+  
+  # Project-specific context
+  learnings:
+    scope: auto
+
+# Tools configuration
+tools:
+  # AST-based analysis
+  ast:
+    enabled: true
+  
+  # Static analysis
+  static_analysis:
+    enabled: true
+  
+  # GitHub Actions integration
+  github_actions:
+    enabled: true
+
+# Review focus areas for iOS/Swift project
+review_instructions: |
+  This is an iOS app (Pulsum) built with SwiftUI, using modular Swift packages.
+  Key areas to focus on:
+  
+  1. **Swift Best Practices**: Modern Swift patterns, proper use of protocols, generics, and type safety
+  2. **SwiftUI**: Proper state management (@State, @StateObject, @ObservedObject), view composition, performance
+  3. **Concurrency**: Correct usage of async/await, actors, and Swift Concurrency patterns
+  4. **Memory Management**: Proper use of weak/unowned references, avoiding retain cycles
+  5. **Core Data**: Thread safety, proper context usage, and data integrity
+  6. **Foundation Models**: Proper integration with Apple's Foundation Models API and safety guardrails
+  7. **Testing**: Suggest testable patterns and potential edge cases
+  8. **Architecture**: Maintain separation of concerns across packages (Agents, ML, Services, Data, UI)
+  
+  Be constructive and focus on actionable feedback. Prioritize correctness, safety, and maintainability.
+

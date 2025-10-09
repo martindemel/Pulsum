@@ -1,0 +1,104 @@
+name: Auto Merge PR
+
+# OPTIONAL: Automatically merges PRs after CodeRabbit approval
+# This is disabled by default for safety. Enable it by uncommenting the 'on' triggers below.
+
+# Uncomment the lines below to enable auto-merge:
+# on:
+#   pull_request_review:
+#     types: [submitted]
+#   check_suite:
+#     types: [completed]
+
+# Keep this commented out initially - you can enable it later once you're comfortable
+on:
+  workflow_dispatch:  # Manual trigger only for now
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    
+    # Only run on PRs with the auto-created label
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'auto-created') && 
+       github.event.review.state == 'approved')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check PR status
+        id: check-status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual workflow dispatch - skipping"
+            echo "should_merge=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          # Check if all checks passed
+          CHECKS_STATUS=$(gh pr checks "$PR_NUMBER" --json state --jq 'all(.state == "SUCCESS")')
+          echo "checks_passed=$CHECKS_STATUS" >> $GITHUB_OUTPUT
+          
+          # Check if PR is approved
+          APPROVALS=$(gh pr view "$PR_NUMBER" --json reviewDecision --jq .reviewDecision)
+          echo "approval_status=$APPROVALS" >> $GITHUB_OUTPUT
+          
+          if [ "$CHECKS_STATUS" = "true" ] && [ "$APPROVALS" = "APPROVED" ]; then
+            echo "should_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_merge=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Auto merge PR
+        if: steps.check-status.outputs.should_merge == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          echo "✅ All checks passed and PR is approved"
+          echo "🔀 Merging PR #$PR_NUMBER..."
+          
+          gh pr merge "$PR_NUMBER" \
+            --squash \
+            --auto \
+            --delete-branch
+          
+          echo "✅ PR merged and branch deleted successfully!"
+      
+      - name: Skip merge
+        if: steps.check-status.outputs.should_merge != 'true'
+        run: |
+          echo "⏸️ Skipping auto-merge:"
+          echo "   - Checks passed: ${{ steps.check-status.outputs.checks_passed }}"
+          echo "   - Approval status: ${{ steps.check-status.outputs.approval_status }}"
+          echo "   Merge will happen when all conditions are met."
+
+# ============================================================================
+# HOW TO ENABLE AUTO-MERGE:
+# ============================================================================
+# 
+# Once you're comfortable with the workflow:
+# 
+# 1. Uncomment lines 6-10 (the 'on:' triggers)
+# 2. Comment out or remove line 13 (workflow_dispatch)
+# 3. Commit and push this file
+# 4. Future PRs will auto-merge after CodeRabbit approves and checks pass
+# 
+# Note: You can also enable manual merging in GitHub settings:
+# Repository Settings → General → Pull Requests → 
+# ✓ Allow auto-merge
+# 
+# ============================================================================
+
