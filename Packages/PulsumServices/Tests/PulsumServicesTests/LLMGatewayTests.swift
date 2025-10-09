@@ -19,7 +19,7 @@ private func makeChatBody(context: CoachLLMContext,
             ["role": "user",
              "content": clipped]
         ],
-        "max_output_tokens": max(64, min(320, maxOutputTokens)),
+        "max_output_tokens": max(128, min(1024, maxOutputTokens)),
         "text": [
             "verbosity": "low",
             "format": CoachPhrasingSchema.responsesFormat()
@@ -119,8 +119,8 @@ final class LLMGatewayTests: XCTestCase {
 
         XCTAssertEqual(body["model"] as? String, "gpt-5")
         let tokens = body["max_output_tokens"] as? Int
-        XCTAssertEqual(tokens, 320)
-        XCTAssertTrue((tokens ?? 0) >= 64 && (tokens ?? 0) <= 320)
+        XCTAssertEqual(tokens, 512)
+        XCTAssertTrue((tokens ?? 0) >= 128 && (tokens ?? 0) <= 1024)
 
         guard let text = body["text"] as? [String: Any],
               text["verbosity"] as? String == "low",

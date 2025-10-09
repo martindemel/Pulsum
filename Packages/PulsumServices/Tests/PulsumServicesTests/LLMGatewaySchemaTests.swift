@@ -20,7 +20,7 @@ private func makeChatBody(context: CoachLLMContext,
             ["role": "user",
              "content": clipped]
         ],
-        "max_output_tokens": max(64, min(320, maxOutputTokens)),
+        "max_output_tokens": max(128, min(1024, maxOutputTokens)),
         "text": [
             "verbosity": "low",
             "format": CoachPhrasingSchema.responsesFormat()
@@ -151,10 +151,10 @@ struct LLMGatewaySchemaTests {
         let low = makeChatBody(context: context,
                                 maxOutputTokens: 32)
         let high = makeChatBody(context: context,
-                                 maxOutputTokens: 900)
+                                 maxOutputTokens: 2000)
 
-        #expect(low["max_output_tokens"] as? Int == 64)
-        #expect(high["max_output_tokens"] as? Int == 320)
+        #expect(low["max_output_tokens"] as? Int == 128)
+        #expect(high["max_output_tokens"] as? Int == 1024)
     }
 
     @Test("Schema enforces strict mode")

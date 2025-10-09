@@ -18,8 +18,9 @@ final class AppViewModel {
         case failed(String)
     }
 
-    enum Tab: String, CaseIterable, Identifiable {
+    enum Tab: String, CaseIterable, Identifiable, Hashable {
         case main
+        case insights
         case coach
 
         var id: String { rawValue }
@@ -27,6 +28,7 @@ final class AppViewModel {
         var displayName: String {
             switch self {
             case .main: return "Main"
+            case .insights: return "Insights"
             case .coach: return "Coach"
             }
         }
@@ -34,6 +36,7 @@ final class AppViewModel {
         var iconName: String {
             switch self {
             case .main: return "gauge.with.needle"
+            case .insights: return "lightbulb"
             case .coach: return "text.bubble"
             }
         }

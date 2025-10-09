@@ -80,37 +80,42 @@ public struct PulsumRootView: View {
 
 struct MainContainerView: View {
     @Bindable var viewModel: AppViewModel
-    @GestureState private var horizontalDrag: CGFloat = 0
 
     var body: some View {
-        GeometryReader { proxy in
-            let bottomInset = proxy.safeAreaInsets.bottom
+        ZStack {
+            backgroundLayer
 
-            ZStack {
-                backgroundLayer
-                contentLayer
+            TabView(selection: $viewModel.selectedTab) {
+                mainTab
+                    .tag(AppViewModel.Tab.main)
+                insightsTab
+                    .tag(AppViewModel.Tab.insights)
+                coachTab
+                    .tag(AppViewModel.Tab.coach)
             }
-            .animation(.pulsumStandard, value: viewModel.selectedTab)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                topOverlay
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                bottomControls(extraPadding: bottomInset == 0 ? PulsumSpacing.sm : 0)
-            }
-            .sheet(isPresented: $viewModel.isPresentingPulse) {
-                PulseView(viewModel: viewModel.pulseViewModel,
-                          isPresented: $viewModel.isPresentingPulse)
-                    .presentationDetents([.large])
-            }
-            .sheet(isPresented: $viewModel.isPresentingSettings) {
-                SettingsScreen(viewModel: viewModel.settingsViewModel,
-                              wellbeingScore: viewModel.coachViewModel.wellbeingScore)
-            }
-            .overlay {
-                if viewModel.isShowingSafetyCard {
-                    SafetyCardView(message: viewModel.safetyMessage ?? "If in danger, call 911") {
-                        viewModel.dismissSafetyCard()
-                    }
+            .tabViewStyle(.automatic)
+        }
+        .animation(.pulsumStandard, value: viewModel.selectedTab)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            topOverlay
+        }
+        .sheet(isPresented: $viewModel.isPresentingPulse) {
+            PulseView(
+                viewModel: viewModel.pulseViewModel,
+                isPresented: $viewModel.isPresentingPulse
+            )
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $viewModel.isPresentingSettings) {
+            SettingsScreen(
+                viewModel: viewModel.settingsViewModel,
+                wellbeingScore: viewModel.coachViewModel.wellbeingScore
+            )
+        }
+        .overlay {
+            if viewModel.isShowingSafetyCard {
+                SafetyCardView(message: viewModel.safetyMessage ?? "If in danger, call 911") {
+                    viewModel.dismissSafetyCard()
                 }
             }
         }
@@ -133,59 +138,48 @@ struct MainContainerView: View {
     }
 
     @ViewBuilder
-    private var contentLayer: some View {
-        Group {
-            switch viewModel.selectedTab {
-            case .main:
-                VStack {
-                    Spacer()
-                    GlassEffectContainer {
-                        CoachShortcutButton {
-                            viewModel.triggerCoachFocus()
-                        }
-                    }
-                    .padding(.bottom, PulsumSpacing.xl)
+    private var mainTab: some View {
+        VStack {
+            Spacer()
+            GlassEffectContainer {
+                CoachShortcutButton {
+                    viewModel.triggerCoachFocus()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 24)
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.95).combined(with: .opacity),
-                    removal: .scale(scale: 1.05).combined(with: .opacity)
-                ))
-
-            case .coach:
-                CoachScreen(viewModel: viewModel.coachViewModel,
-                            foundationStatus: viewModel.orchestrator?.foundationModelsStatus ?? "",
-                            consentGranted: viewModel.consentGranted,
-                            triggerSettings: { viewModel.isPresentingSettings = true },
-                            showChatInput: false)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.95).combined(with: .opacity),
-                        removal: .scale(scale: 1.05).combined(with: .opacity)
-                    ))
             }
+            .padding(.bottom, PulsumSpacing.xl)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .scaleEffect(1 + min(abs(horizontalDrag) / 800, 0.03))
-        .gesture(
-            DragGesture(minimumDistance: 30)
-                .updating($horizontalDrag) { value, state, _ in
-                    state = value.translation.width
-                }
-                .onEnded { value in
-                    let horizontalSwipe = value.translation.width
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .padding(.trailing, 24)
+        .tabItem {
+            Image(systemName: AppViewModel.Tab.main.iconName)
+            Text(AppViewModel.Tab.main.displayName)
+        }
+    }
 
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        if horizontalSwipe < -50 && viewModel.selectedTab == .main {
-                            // Swipe left: Main → Coach
-                            viewModel.selectedTab = .coach
-                        } else if horizontalSwipe > 50 && viewModel.selectedTab == .coach {
-                            // Swipe right: Coach → Main
-                            viewModel.selectedTab = .main
-                        }
-                    }
-                }
+    @ViewBuilder
+    private var insightsTab: some View {
+        InsightsScreen(
+            viewModel: viewModel.coachViewModel,
+            foundationStatus: viewModel.orchestrator?.foundationModelsStatus ?? "",
+            consentGranted: viewModel.consentGranted,
+            triggerSettings: { viewModel.isPresentingSettings = true }
         )
+        .tabItem {
+            Image(systemName: AppViewModel.Tab.insights.iconName)
+            Text(AppViewModel.Tab.insights.displayName)
+        }
+    }
+
+    @ViewBuilder
+    private var coachTab: some View {
+        CoachScreen(
+            viewModel: viewModel.coachViewModel,
+            showChatInput: true
+        )
+        .tabItem {
+            Image(systemName: AppViewModel.Tab.coach.iconName)
+            Text(AppViewModel.Tab.coach.displayName)
+        }
     }
 
     private var topOverlay: some View {
@@ -193,9 +187,11 @@ struct MainContainerView: View {
             HeaderView(viewModel: viewModel)
 
             if viewModel.showConsentBanner {
-                ConsentBannerView(openSettings: { viewModel.isPresentingSettings = true },
-                                   dismiss: { viewModel.dismissConsentBanner() })
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                ConsentBannerView(
+                    openSettings: { viewModel.isPresentingSettings = true },
+                    dismiss: { viewModel.dismissConsentBanner() }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal, 20)
@@ -211,50 +207,6 @@ struct MainContainerView: View {
                 .padding(.horizontal, 8)
         )
         .padding(.horizontal, 12)
-    }
-
-    private func bottomControls(extraPadding: CGFloat) -> some View {
-        GlassEffectContainer {
-            HStack(alignment: .bottom, spacing: PulsumSpacing.md) {
-                LiquidGlassTabBar(
-                    selectedTab: Binding(
-                        get: { viewModel.selectedTab == .main ? 0 : 1 },
-                        set: { viewModel.selectedTab = $0 == 0 ? .main : .coach }
-                    ),
-                    tabs: [
-                        .init(icon: "gauge.with.needle", title: "Main"),
-                        .init(icon: "text.bubble", title: "Coach")
-                    ]
-                )
-                .scaleEffect(glassZoomScale)
-
-                if viewModel.selectedTab == .coach {
-                    Spacer(minLength: PulsumSpacing.md)
-
-                    ChatInputView(viewModel: viewModel.coachViewModel)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                        .background {
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
-                                }
-                                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-                        }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, max(8, extraPadding))
-    }
-}
-
-extension MainContainerView {
-    private var glassZoomScale: CGFloat {
-        let clamped = max(min(horizontalDrag / 160, 1), -1)
-        return 1 + abs(clamped) * 0.06
     }
 }
 

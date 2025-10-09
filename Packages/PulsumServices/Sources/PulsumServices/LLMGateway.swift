@@ -350,7 +350,7 @@ fileprivate func validateChatPayload(body: [String: Any],
         return false
     }
 
-    if !(64...320).contains(maxTokens) { return false }
+    if !(128...1024).contains(maxTokens) { return false }
 
     guard let input = body["input"] as? [[String: Any]], input.count == 2,
           (input.first? ["role"] as? String) == "system",
@@ -405,7 +405,7 @@ fileprivate func validatePingPayload(_ body: [String: Any]) -> Bool {
         return false
     }
 
-    guard body["max_output_tokens"] as? Int == 16 else { return false }
+    guard body["max_output_tokens"] as? Int == 32 else { return false }
 
     guard let input = body["input"] as? [[String: Any]],
           input.count == 1,
@@ -444,7 +444,7 @@ public final class GPT5Client: CloudLLMClient {
             request.httpMethod = "POST"
 
             let body = LLMGateway.makeChatRequestBody(context: context,
-                                                     maxOutputTokens: requestedTokens ?? 256)
+                                                     maxOutputTokens: requestedTokens ?? 512)
 
             if let text = body["text"] as? [String: Any],
                let format = text["format"] as? [String: Any] {
@@ -454,7 +454,7 @@ public final class GPT5Client: CloudLLMClient {
                 logger.debug("Responses API: max_output_tokens=\(tokenLogValue, privacy: .public) schemaNamePresent=\(hasName) schemaPresent=\(hasSchema)")
             }
 
-            let maxTokens = body["max_output_tokens"] as? Int ?? LLMGateway.clampTokens(256)
+            let maxTokens = body["max_output_tokens"] as? Int ?? LLMGateway.clampTokens(512)
             guard validateChatPayload(body: body,
                                       context: context,
                                       intentTopic: intentTopic,
@@ -483,7 +483,7 @@ public final class GPT5Client: CloudLLMClient {
                     // If parsing fails due to incomplete response, retry with more tokens
                     let errorMsg = error.localizedDescription
                     if attempt == 0, errorMsg.contains("incomplete") {
-                        requestedTokens = 320
+                        requestedTokens = 1024
                         attempt += 1
                         logger.info("Retrying with max tokens due to incomplete response")
                         continue
@@ -496,7 +496,7 @@ public final class GPT5Client: CloudLLMClient {
             let errorMsg = String(data: data, encoding: .utf8) ?? "HTTP \(statusCode)"
 
             if attempt == 0, statusCode == 400, errorMsg.contains("max_output_tokens") {
-                requestedTokens = 64
+                requestedTokens = 128
                 attempt += 1
                 continue
             }
@@ -630,11 +630,30 @@ extension LLMGateway {
         let userContent = "User tone: \(tone). Top signal: \(signal). Z-scores: \(scores). Rationale: \(rationale). If any, micro-moment id: \(momentId)."
         let clipped = String(userContent.prefix(512))
 
+        let systemMessage =
+"""
+You are Pulsum, a supportive wellness coach. You MUST return ONLY JSON that matches the CoachPhrasing schema provided via text.format (no prose, no markdown).
+
+Style for coachReply:
+- 1–2 short sentences.
+- Warm, actionable, specific to the user's top signal and context.
+- Avoid disclaimers and generic platitudes.
+
+Field rules:
+- isOnTopic: true if the message touches sleep, stress, energy, mood, movement, or nutrition; false otherwise.
+- refusalReason: "" when isOnTopic is true; otherwise a short code like "off_topic_smalltalk".
+- groundingScore: number 0.0–1.0; estimate confidence from provided z-scores (higher confidence → closer to 1.0). Round to two decimals.
+- intentTopic: one of ["sleep","stress","energy","mood","movement","nutrition","goals"] based on the input.
+- nextAction: one concrete step the user can do in < 8 words, e.g., "Dim lights 30 min before bed".
+
+Keep JSON compact. Do not echo the schema or input.
+"""
+
         return [
             "model": "gpt-5",
             "input": [
                 ["role": "system",
-                 "content": "You are a supportive wellness coach. Reply in <=2 sentences. Output MUST match the CoachPhrasing schema."],
+                 "content": systemMessage],
                 ["role": "user",
                  "content": clipped]
             ],
@@ -650,9 +669,9 @@ extension LLMGateway {
         return [
             "model": "gpt-5",
             "input": [
-                ["role": "user", "content": "ping"]
+                ["role": "user", "content": "PING"]
             ],
-            "max_output_tokens": 16,
+            "max_output_tokens": 32,
             "text": [
                 "verbosity": "low",
                 "format": coachFormat()
@@ -661,7 +680,10 @@ extension LLMGateway {
     }
 
     fileprivate static func clampTokens(_ requested: Int) -> Int {
-        return max(64, min(320, requested))
+        let value = requested
+        let minTokens = 128
+        let maxTokens = 1024
+        return max(minTokens, min(maxTokens, value))
     }
 }
 

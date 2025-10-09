@@ -54,28 +54,12 @@ public struct ChatInputView: View {
 
 struct CoachScreen: View {
     @Bindable var viewModel: CoachViewModel
-    let foundationStatus: String
-    let consentGranted: Bool
-    let triggerSettings: () -> Void
     let showChatInput: Bool
 
     private let chatBottomAnchor = "coach-chat-bottom"
 
     var body: some View {
         VStack(spacing: PulsumSpacing.lg) {
-            // DEBUG: Set a symbolic breakpoint on UIViewAlertForUnsatisfiableConstraints to inspect keyboard layout warnings.
-            ScrollView {
-                VStack(spacing: PulsumSpacing.lg) {
-                    recommendationsSection
-                    Divider()
-                        .opacity(0)
-                        .frame(height: PulsumSpacing.sm)
-                }
-                .frame(maxWidth: 520, alignment: .center)
-                .padding(.horizontal, PulsumSpacing.sm)
-            }
-            .scrollDismissesKeyboard(.interactively)
-
             chatMessagesOnly
         }
         .padding(.horizontal, PulsumSpacing.xl)
@@ -92,63 +76,12 @@ struct CoachScreen: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        .task { await viewModel.refreshRecommendations() }
         .onAppear {
 #if canImport(UIKit)
             UIView.setAnimationsEnabled(true)
 #endif
         }
         ._debugKeyboardLayoutFix()
-    }
-
-    private var recommendationsSection: some View {
-        VStack(alignment: .leading, spacing: PulsumSpacing.lg) {
-            HStack(alignment: .center) {
-                Text("Today's picks")
-                    .font(.pulsumTitle2)
-                    .foregroundStyle(Color.pulsumTextPrimary)
-                Spacer()
-                if viewModel.isLoadingCards {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(Color.pulsumGreenSoft)
-                }
-            }
-            .padding(.top, PulsumSpacing.sm)
-
-            if let message = viewModel.cardErrorMessage {
-                MessageBubble(icon: "exclamationmark.triangle", text: message, tint: Color.pulsumWarning)
-            }
-
-            if !consentGranted {
-                ConsentPrompt(triggerSettings: triggerSettings)
-            }
-
-            if foundationStatus != "Apple Intelligence is ready." {
-                MessageBubble(
-                    icon: "sparkles.slash",
-                    text: "Enhanced AI features require Apple Intelligence. Using on-device intelligence until it's ready.",
-                    tint: Color.pulsumBlueSoft
-                )
-            }
-
-            if viewModel.recommendations.isEmpty && !viewModel.isLoadingCards {
-                MessageBubble(icon: "clock.arrow.circlepath", text: "We're gathering more context. Check back soon for fresh recommendations.", tint: Color.pulsumTextSecondary)
-            } else {
-                VStack(spacing: PulsumSpacing.md) {
-                    ForEach(viewModel.recommendations, id: \.id) { card in
-                        RecommendationCardView(card: card) {
-                            Task { await viewModel.markCardComplete(card) }
-                        }
-                    }
-                }
-            }
-
-            if let cheerMessage = viewModel.cheerEventMessage {
-                MessageBubble(icon: "heart.fill", text: cheerMessage, tint: Color.pulsumPinkSoft)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
     }
 
     private var chatMessagesOnly: some View {
@@ -215,6 +148,88 @@ struct CoachScreen: View {
                     .opacity(0.5),
                 alignment: .top
             )
+    }
+}
+
+struct InsightsScreen: View {
+    @Bindable var viewModel: CoachViewModel
+    let foundationStatus: String
+    let consentGranted: Bool
+    let triggerSettings: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: PulsumSpacing.lg) {
+                todayPicksSection
+                Divider()
+                    .opacity(0)
+                    .frame(height: PulsumSpacing.sm)
+            }
+            .frame(maxWidth: 520, alignment: .center)
+            .padding(.horizontal, PulsumSpacing.sm)
+        }
+        .padding(.horizontal, PulsumSpacing.xl)
+        .padding(.vertical, PulsumSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(
+            Color.pulsumBackgroundBeige
+                .ignoresSafeArea()
+        )
+        .task { await viewModel.refreshRecommendations() }
+    }
+
+    private var todayPicksSection: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.lg) {
+            HStack(alignment: .center) {
+                Text("Today's picks")
+                    .font(.pulsumTitle2)
+                    .foregroundStyle(Color.pulsumTextPrimary)
+                Spacer()
+                if viewModel.isLoadingCards {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(Color.pulsumGreenSoft)
+                }
+            }
+            .padding(.top, PulsumSpacing.sm)
+
+            if let message = viewModel.cardErrorMessage {
+                MessageBubble(icon: "exclamationmark.triangle", text: message, tint: Color.pulsumWarning)
+            }
+
+            if !consentGranted {
+                ConsentPrompt(triggerSettings: triggerSettings)
+            }
+
+            if foundationStatus != "Apple Intelligence is ready." {
+                MessageBubble(
+                    icon: "sparkles.slash",
+                    text: "Enhanced AI features require Apple Intelligence. Using on-device intelligence until it's ready.",
+                    tint: Color.pulsumBlueSoft
+                )
+            }
+
+            if viewModel.recommendations.isEmpty && !viewModel.isLoadingCards {
+                MessageBubble(
+                    icon: "clock.arrow.circlepath",
+                    text: "We're gathering more context. Check back soon for fresh recommendations.",
+                    tint: Color.pulsumTextSecondary
+                )
+            } else {
+                VStack(spacing: PulsumSpacing.md) {
+                    ForEach(viewModel.recommendations, id: \.id) { card in
+                        RecommendationCardView(card: card) {
+                            Task { await viewModel.markCardComplete(card) }
+                        }
+                    }
+                }
+            }
+
+            if let cheerMessage = viewModel.cheerEventMessage {
+                MessageBubble(icon: "heart.fill", text: cheerMessage, tint: Color.pulsumPinkSoft)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
     }
 }
 
