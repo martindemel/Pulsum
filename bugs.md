@@ -37,6 +37,17 @@
 - BUG-20251026-0030 — Design system hardcodes point-size fonts; Dynamic Type and accessibility text scaling break. (S1 UI)
 - BUG-20251026-0031 — User-facing copy is hardcoded; no Localizable.strings so the app cannot localize. (S1 UI)
 - BUG-20251026-0032 — Waveform renderer reallocates full audio buffer each frame, causing avoidable main-thread churn. (S2 Performance)
+- BUG-20251026-0033 — SpeechService logs live transcripts verbatim, leaking PHI into release logs. (S1 Privacy/Security)
+- BUG-20251026-0034 — Legacy recordVoiceJournal path never tears down sessions on errors, leaving the mic hot and skipping safety review. (S1 Wiring)
+- BUG-20251026-0035 — PulseView references UIKit haptics without importing UIKit, so the app fails to compile. (S1 UI)
+- BUG-20251026-0036 — Checked-in Pulsum.xcodeproj.backup still wires SplineRuntime and old build scripts, inviting regressions. (S3 Build)
+- BUG-20251026-0037 — Wellbeing card never refreshes after HealthKit sync; score stays stale until user revisits Insights. (S1 UI)
+- BUG-20251026-0038 — StateEstimator weights are never persisted, so wellbeing personalization resets every launch. (S1 ML)
+- BUG-20251026-0039 — Journal sentiment feature is absent from the wellbeing target, leaving that metric permanently zero. (S1 ML)
+- BUG-20251026-0040 — HealthKit request buttons never restart DataAgent, so new permissions do nothing until relaunch. (S1 Wiring)
+- BUG-20251026-0041 — ChatGPT-5 API settings show only a status light; there’s no input or save action so users can’t supply their own key. (S1 UI)
+- BUG-20251026-0042 — Chat keyboard stays visible on other tabs; focus never resigns when leaving the Coach screen. (S2 UI)
+- BUG-20251026-0043 — HealthKit status indicator looks only at HRV authorization, so it reports “Authorized” even when other required types are denied. (S2 UI)
 
 ## How to Use This Document
 Packs group related findings so you can triage by domain. Open the referenced card IDs to review evidence with sig8 hashes, then plan fixes downstream. No fixes are proposed here—each card stops at evidence, impact, and suggested diagnostics.
@@ -44,18 +55,18 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 ## Topline Triage
 | Area | Gap | Bug |
 | --- | --- | --- |
-| Wiring | 0 | 6 |
+| Wiring | 0 | 8 |
 | Config | 0 | 2 |
 | Dependency | 0 | 3 |
 | Data | 0 | 5 |
 | Concurrency | 0 | 1 |
-| UI | 0 | 3 |
-| Privacy/Security | 0 | 3 |
+| UI | 0 | 8 |
+| Privacy/Security | 0 | 4 |
 | Test | 0 | 2 |
-| ML | 0 | 1 |
-| Build | 0 | 0 |
+| ML | 0 | 3 |
+| Build | 0 | 1 |
 
-**Critical Blockers:** BUG-20251026-0001, BUG-20251026-0002, BUG-20251026-0003, BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0006, BUG-20251026-0008, BUG-20251026-0012, BUG-20251026-0014, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0017, BUG-20251026-0018, BUG-20251026-0019, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031
+**Critical Blockers:** BUG-20251026-0001, BUG-20251026-0002, BUG-20251026-0003, BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0006, BUG-20251026-0008, BUG-20251026-0012, BUG-20251026-0014, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0017, BUG-20251026-0018, BUG-20251026-0019, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031, BUG-20251026-0033, BUG-20251026-0034, BUG-20251026-0037, BUG-20251026-0038, BUG-20251026-0039, BUG-20251026-0040, BUG-20251026-0041
 
 ## Pack Privacy & Compliance
 
@@ -141,6 +152,22 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** iOS requires explicit permission request before microphone access; missing call breaks voice journaling flow.
 - **Suggested Diagnostics (no code):** Add `await AVAudioSession.sharedInstance().requestRecordPermission()` call; test on clean iOS install; verify permission dialog appears.
 - **Related Contract (from architecture.md):** Voice journaling pipeline section 8 assumes smooth permission acquisition; permission strings exist but wiring is incomplete.
+
+### BUG: Speech transcripts logged to device console leak PHI
+- **ID:** BUG-20251026-0033
+- **Severity:** S1
+- **Area:** Privacy/Security
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Every interim and final transcription is printed via `print` even in release builds, so sensitive journal text lands in device logs, diagnostics uploads, and crash reports.
+- **Where/Scope:** SpeechService recognition callback.
+- **Evidence:**
+  - Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift:194-205 — Recognition handler prints `"[SpeechService] 🎤 Transcript update..."` plus the transcript and confidence before yielding to the stream.
+  - Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift:202-205 — Completion handler prints `"Recognition completed with final transcript"` without any `#if DEBUG` guard.
+- **Upstream/Downstream:** Logs are accessible via Console, sysdiagnose, and crash logs, exporting PHI beyond the secure on-device store and violating the privacy contract outlined in the architecture.
+- **Why This Is a Problem:** Voice journals are treated as PHI—logging them contradicts instructions.md (privacy constraint #1) and risks HIPAA/GDPR exposure whenever logs are shared for support.
+- **Suggested Diagnostics (no code):** Build an Ad Hoc or Release configuration, record a journal, and inspect device Console; transcripts appear verbatim. Remove the logs or wrap them in `#if DEBUG`.
+- **Related Contract (from architecture.md):** Privacy & Safety section mandates that journal text never leaves protected storage; CLAUDE.md reiterates “PII redaction and no PHI in logs.”
 
 ## Pack Voice Journaling & Speech
 
@@ -240,6 +267,22 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Resource leak vulnerability; audio system can become unstable with multiple active sessions; user confusion from overlapping recordings.
 - **Suggested Diagnostics (no code):** Instrument `activeSession` lifecycle; test concurrent `beginVoiceJournal` calls; check iOS audio session state; monitor file descriptor count during repeated starts.
 - **Related Contract (from architecture.md):** SentimentAgent (section 7) should manage recording lifecycle properly; agent pattern assumes single active operation per instance.
+
+### BUG: Legacy recordVoiceJournal path never tears down sessions on errors
+- **ID:** BUG-20251026-0034
+- **Severity:** S1
+- **Area:** Wiring
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** If speech streaming throws (network drop, revoked permission), `AgentOrchestrator.recordVoiceJournal` exits before calling `finishVoiceJournalRecording`, leaving SpeechService running, mic indicator lit, and safety evaluation skipped.
+- **Where/Scope:** AgentOrchestrator legacy API.
+- **Evidence:**
+  - Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:172-185 — Stream consumption loop lacks `do/catch` or `defer`; any thrown error aborts before teardown.
+  - Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift:100-118 — Shows correct pattern (wrap `for try await` in `do/catch`, stop session before rethrow) that the orchestrator fails to mirror.
+- **Upstream/Downstream:** Recording session continues consuming microphone input with no owner; `finishVoiceJournalRecording` never persists the transcript or runs SafetyAgent, violating the two-wall guardrail and confusing users (no result returned, mic stuck).
+- **Why This Is a Problem:** Architecture requires begin→stream→finish flow with guaranteed cleanup; legacy API still used by tests and automation, so the leak hits real users whenever a streaming error occurs.
+- **Suggested Diagnostics (no code):** Simulate `speechStream` error (disable speech in Settings mid-record) while using legacy API; observe via Xcode debugger that `activeSession` remains non-nil and mic indicator stays on.
+- **Related Contract (from architecture.md):** Voice journaling API change (CLAUDE.md) mandates safe streaming consumption; guardrail section states safety run must execute even on errors.
 
 ## Pack Agents & Retrieval
 
@@ -374,6 +417,22 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Suggested Diagnostics (no code):** Stress test with concurrent vector searches under Thread Sanitizer; inspect shard instance counts; simulate race conditions; test on multi-core device under load.
 - **Related Contract (from architecture.md):** Section 13 states vector index is safe under concurrent load; section 7 describes concurrent searches as core feature; current implementation violates thread-safety contract.
 
+### BUG: Stale project.pbxproj backup reintroduces removed dependencies
+- **ID:** BUG-20251026-0036
+- **Severity:** S3
+- **Area:** Build/Project
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** `Pulsum.xcodeproj/project.pbxproj.backup` remains checked in with now-deleted SplineRuntime linkage and a removed dSYM shell script. Opening the backup in Xcode or resolving merge conflicts against it can accidentally re-add the dependency and script that were intentionally removed.
+- **Where/Scope:** `Pulsum.xcodeproj/project.pbxproj.backup`.
+- **Evidence:**
+  - Pulsum.xcodeproj/project.pbxproj.backup:10-52 — Frameworks phase still lists `SplineRuntime` even though the active project removed it.
+  - Pulsum.xcodeproj/project.pbxproj.backup:300-335 — Contains the deleted shell script that regenerates SplineRuntime dSYM files each build.
+- **Upstream/Downstream:** Teammates can open/edit the wrong project file (Xcode prompts to pick one), reintroducing SplineRuntime wiring and scripts that were purposefully deleted, causing inconsistent builds and potential App Store rejections for unused dependencies.
+- **Why This Is a Problem:** Repository hygiene guidelines call for a single source of truth; lingering backups make configuration drift likely and waste reviewer time disentangling duplicate project files.
+- **Suggested Diagnostics (no code):** Remove or move the backup outside the repo; enforce lint (pre-commit) to block `.pbxproj.backup` files; verify Xcode shows only one project file after cleanup.
+- **Related Contract (from architecture.md):** Milestone hygiene tasks (todolist.md) require removing dead scaffolding and duplicate docs; same rationale applies to stray project backups.
+
 ## Pack UI & Experience
 
 ### BUG: Apple Intelligence enablement link uses macOS-only URL scheme
@@ -418,6 +477,108 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Architecture docs and design specs commit to Liquid Glass Spline-powered hero (mentioned in repo map); milestone 4 UI redesign specifically called for this visual.
 - **Suggested Diagnostics (no code):** Verify dependencies for SplineRuntime framework; confirm asset inclusion in built IPA; inspect runtime view hierarchy; check if SplineView component exists in codebase.
 - **Related Contract (from architecture.md):** Section 10 mentions branded UI; repository map lists Spline assets; milestone overview (section 1) calls for premium visual experience.
+
+### BUG: PulseView haptic feedback fails to compile without UIKit import
+- **ID:** BUG-20251026-0035
+- **Severity:** S1
+- **Area:** UI
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** `UIImpactFeedbackGenerator` is referenced for the record/stop buttons, but PulseView never imports UIKit, so every build fails with “Cannot find 'UIImpactFeedbackGenerator' in scope.”
+- **Where/Scope:** PulseView SwiftUI file.
+- **Evidence:**
+  - Packages/PulsumUI/Sources/PulsumUI/PulseView.swift:1-4 — File imports SwiftUI and Observation only.
+  - Packages/PulsumUI/Sources/PulsumUI/PulseView.swift:239-290 — Buttons instantiate `UIImpactFeedbackGenerator(style: .medium/.heavy)` with no conditional `canImport(UIKit)` guard.
+- **Upstream/Downstream:** Entire iOS target fails to compile, blocking CI and local builds; Pulse journaling UI cannot ship until conditional import or compiler directives are added.
+- **Why This Is a Problem:** Instructions call PulseView the primary journaling surface; a missing import prevents even starting the app, undermining the build’s viability.
+- **Suggested Diagnostics (no code):** Run `swift build` or `xcodebuild` to reproduce compiler error; add `#if canImport(UIKit) import UIKit #endif` or wrap haptics in conditional compilation.
+- **Related Contract (from architecture.md):** UI & Navigation section mandates a functioning PulseView; build stability is a prerequisite for deliverables.
+
+### BUG: Wellbeing UI never refreshes after background data updates
+- **ID:** BUG-20251026-0037
+- **Severity:** S1
+- **Area:** UI
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** HealthKit samples and nightly recomputations land in Core Data but the wellbeing card and recommendations stay frozen until the user manually visits Insights or toggles consent, so “Calculated nightly” data never appears in the main tab.
+- **Where/Scope:** AppViewModel startup, CoachViewModel refresh wiring, Insights tab task.
+- **Evidence:**
+  - Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:111-152 — After `orchestrator.start()` completes, the only call to `coachViewModel.refreshRecommendations()` lives inside this launch task (and in `updateConsent`), so no refresh happens when DataAgent later ingests HealthKit samples.
+  - Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift:53-80 — `refreshRecommendations()` is manual; `reloadIfNeeded()` merely wraps it but has zero call sites anywhere else in the repo, so no observer bridges new data to the UI.
+  - Packages/PulsumUI/Sources/PulsumUI/CoachView.swift:168-183 — `.task { await viewModel.refreshRecommendations() }` runs only when the Insights tab is visible; remaining on the main tab never triggers a refresh.
+- **Upstream/Downstream:** Wellbeing score, contributions, and cards go stale after the first app launch, undermining trust in the metrics and breaking the promise of immediate feedback after HealthKit sync or slider submissions.
+- **Why This Is a Problem:** Architecture.md §2 states DataAgent feeds dashboards in near-real time; without UI refresh wiring the entire wellbeing surface violates that contract.
+- **Suggested Diagnostics (no code):** Simulate a new HealthKit sample (or call `DataAgent.reprocessDay`) and capture logs for `CoachViewModel.refreshRecommendations()`; verify it only fires when manually navigating to Insights; add instrumentation around DataAgent callbacks.
+- **Related Contract (from docs):** architecture.md:8-11 (“Health metrics and journals flow through a DataAgent actor … surfaced in UI dashboards”) requires automatic propagation of new snapshots.
+
+### BUG: ChatGPT-5 panel lacks any API key input or save action
+- **ID:** BUG-20251026-0041
+- **Severity:** S1
+- **Area:** UI
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Settings promises “ChatGPT-5 API” status but provides no text field, paste affordance, or button to submit a key. The status light permanently reflects the bundled (and now revoked) key, leaving testers no way to rotate credentials or restore cloud phrasing.
+- **Where/Scope:** SettingsView; SettingsViewModel.
+- **Evidence:**
+  - Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift:150-213 — ChatGPT section renders only a headline, status text, and indicator dot; there is no `TextField`, `SecureField`, or button bound to `viewModel.gptAPIKeyDraft`.
+  - Packages/PulsumUI/Sources/PulsumUI/SettingsViewModel.swift:23-50,133-150 — View model maintains `gptAPIKeyDraft`, `saveAPIKeyAndTest(_:)`, and `checkGPTAPIKey()` but nothing ever updates `gptAPIKeyDraft` from UI, so the only value tested is the baked-in Info.plist key.
+  - architecture.md:85 describes Settings as “tests API keys,” implying user-supplied runtime keys; with no input, this requirement cannot be met.
+- **Upstream/Downstream:** Without an input, developers can’t replace the leaked key (BUG-20251026-0001), QA can’t disable cloud phrasing safely, and the consent banner misleads users into thinking GPT usage is configurable when it isn’t.
+- **Why This Is a Problem:** Runtime key rotation is a documented requirement (architecture.md §4); App Store review will expect user-facing secrets not to be hardcoded. Lack of UI blocks remediation of the critical credential leak.
+- **Suggested Diagnostics (no code):** Try to paste an API key anywhere in Settings—there is no focusable field. Inspect SwiftUI view hierarchy via View Debugger to confirm the absence of input controls.
+- **Related Contract (from docs):** architecture.md:40 & 85 — GPT-5 access “requires a key supplied at runtime” and Settings “tests API keys.”
+
+### BUG: Chat keyboard remains on-screen when switching tabs
+- **ID:** BUG-20251026-0042
+- **Severity:** S2
+- **Area:** UI
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Focusing the Coach chat input and then tapping Main or Insights leaves the software keyboard floating over the new tab, obscuring content even though there’s no text field to edit. Users must swipe the keyboard down manually each time.
+- **Where/Scope:** ChatInputView; Tab navigation.
+- **Evidence:**
+  - Packages/PulsumUI/Sources/PulsumUI/CoachView.swift:5-70 — `ChatInputView` tracks focus with `@FocusState private var chatFieldInFocus` and only sets it to `true` when `viewModel.chatFocusToken` changes; there is no `onDisappear`, `onChange` of tab selection, or other path that clears focus when the view is off-screen.
+  - Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift:132-247 — `TabView` switches between Main/Insights/Coach but never tells the chat view to resign first responder or blur the text field, so the system keyboard stays active after changing tabs.
+- **Upstream/Downstream:** Keyboard covers the wellbeing card and insights lists whenever users leave the Coach tab mid-composition; accessibility and UX suffer because the UI appears broken until the keyboard is manually dismissed.
+- **Why This Is a Problem:** instructions.md (“UI & Navigation (fixed)”) require smooth navigation between tabs; leaving the keyboard open violates basic iOS tab UX conventions and can obscure safety banners/scorecards.
+- **Suggested Diagnostics (no code):** In the simulator or device, focus the chat field, then tap the Main tab; observe the keyboard remains over the main screen. Set breakpoints in `ChatInputView` to confirm no focus reset occurs on disappearance.
+- **Related Contract (from docs):** instructions.md §UI & Navigation mandates polished tab transitions without lingering overlays.
+
+### BUG: HealthKit status indicator ignores five of six required permissions
+- **ID:** BUG-20251026-0043
+- **Severity:** S2
+- **Area:** UI
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Settings shows “Health Data Access – Authorized” as soon as HRV is granted, even if sleep, respiratory rate, resting heart rate, heart rate, or steps are still denied. Users think Pulsum is ingesting their data, but DataAgent never receives those metrics, so wellbeing math silently runs on partial inputs.
+- **Where/Scope:** SettingsViewModel.refreshHealthKitStatus; HealthKit requirements per docs.
+- **Evidence:**
+  - Packages/PulsumUI/Sources/PulsumUI/SettingsViewModel.swift:61-80 — `refreshHealthKitStatus()` checks only `HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)` and sets the status string based solely on HRV authorization.
+  - instructions.md:11-15 — Lists six mandatory HealthKit data types (HRV, heart rate, resting HR, respiratory rate, steps, sleep) for calculations and personalization.
+- **Upstream/Downstream:** Users can deny sleep or respiratory rate, see “Authorized,” and never realize that wellbeing score and sleep debt calculations are operating on imputed data. This undermines trust and complicates debugging because UI and backend disagree on access.
+- **Why This Is a Problem:** Architecture assumes all required metrics are collected; misleading status prevents users from fixing missing permissions and leaves calculations misaligned with expected HealthKit inputs.
+- **Suggested Diagnostics (no code):** Deny sleep in Health app but leave HRV enabled; open Pulsum Settings to confirm it still shows “Authorized.” Log which identifiers `HKHealthStore.authorizationStatus` returns for each required sample type.
+- **Related Contract (from docs):** instructions.md “HealthKit Integration” requires Pulsum to request and surface status for all listed data types, not just HRV.
+
+## Pack Health & Permissions
+
+### BUG: HealthKit request buttons never restart ingestion pipeline
+- **ID:** BUG-20251026-0040
+- **Severity:** S1
+- **Area:** Wiring
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Tapping “Request Health Data Access” (in Settings or onboarding) reopens the iOS permission sheet but never restarts `DataAgent`/`HealthKitService`. Newly granted permissions therefore do nothing until the user force-quits or hits Retry on the startup overlay, so wellbeing metrics stay empty despite a successful prompt.
+- **Where/Scope:** SettingsViewModel; OnboardingView; App bootstrap.
+- **Evidence:**
+  - Packages/PulsumUI/Sources/PulsumUI/SettingsViewModel.swift:55-120 — Button handler instantiates a fresh `HKHealthStore`, requests authorization, and only updates local status strings; it never calls back into `AgentOrchestrator` or `HealthKitService`.
+  - Packages/PulsumUI/Sources/PulsumUI/OnboardingView.swift:220-280 — Onboarding flow repeats the same pattern with another standalone `HKHealthStore`, again omitting any restart of observers.
+  - Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:89-144 — `orchestrator.start()` (which invokes `DataAgent.start()` to register observers/background delivery) runs exactly once at launch or when `retryStartup()` fires; the Settings button never re-invokes it.
+  - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:68-86 — HealthKit observers/background delivery are only configured inside `DataAgent.start()`, so without re-running it after consent, no samples arrive.
+- **Upstream/Downstream:** Users who initially deny HealthKit can’t recover inside the app—after granting via the button, no data flows until they restart. ScoreBreakdown, wellbeing score, and recommendations remain blank, violating the “Request Health Data Access” promise.
+- **Why This Is a Problem:** instructions.md:24-33 and 141-148 mandate reliable HealthKit ingestion with HKObserver/HKAnchored queries; UI affordances must actually wire to the ingestion pipeline.
+- **Suggested Diagnostics (no code):** Deny HealthKit on first launch, then grant via Settings ▸ Request Health Data Access; observe that `DataAgent.start()`/`HealthKitService.enableBackgroundDelivery()` logs do not reappear and no samples arrive until the app is relaunched or `retryStartup()` is triggered.
+- **Related Contract (from docs):** instructions.md (“HealthKit Integration”) requires the app to request authorization and keep ingestion wired; current implementation breaks that contract.
 
 ## Pack Tests & Tooling
 
@@ -607,6 +768,40 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Suggested Diagnostics (no code):** Plot score contributions after simulated days with high HRV vs. low HRV; add unit tests asserting coefficient signs; review gradient targets before deploying.
 - **Related Contract:** Phase 03 short report — Model Training & Optimization and Model Refinement sections require sensible seed weights and interpretable contributions.
 
+### BUG: StateEstimator weights reset every launch, erasing personalization
+- **ID:** BUG-20251026-0038
+- **Severity:** S1
+- **Area:** ML
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** The wellbeing model relearns from scratch each run because weights/contributions exist only in memory; a cold app start or crash reverts to seed coefficients, so long-term personalization never accumulates.
+- **Where/Scope:** DataAgent state management.
+- **Evidence:**
+  - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:46-64 — `private var stateEstimator = StateEstimator()` lives only in the actor; there is no load from disk or dependency injection of prior weights.
+  - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:93-114 — `latestFeatureVector()` recomputes wellbeing via `stateEstimator.currentSnapshot` instead of reading the persisted `imputedFlags` payload; after relaunch the estimator has never seen historical updates.
+  - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:627-658 — Contributions and wellbeing are encoded into Core Data, but `materializeFeatures` only decodes the `imputed` map; the stored `contributions`/`wellbeing` fields are never read anywhere in the repo.
+- **Upstream/Downstream:** Users see their score revert to seed weights every time they reopen the app; recommendations and ScoreBreakdown shifts contradict prior sessions, defeating “learning” claims.
+- **Why This Is a Problem:** instructions.md §“Tech Stack” calls out StateEstimator as an online ridge model for personalization; without persistence it can never behave as specified.
+- **Suggested Diagnostics (no code):** Capture `stateEstimator.weights` before quitting, relaunch, and log the weights again; compare ScoreBreakdown before/after a relaunch without new data.
+- **Related Contract (from docs):** instructions.md:156 (“StateEstimator (online ridge regression) ... drives wellbeing score”) assumes weights survive beyond one actor lifetime.
+
+### BUG: Journal sentiment is excluded from the wellbeing target
+- **ID:** BUG-20251026-0039
+- **Severity:** S1
+- **Area:** ML
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Even if journaling triggers reprocessing, the estimator never receives a label signal for sentiment, respiratory rate, or nocturnal HR, so the “Journal Sentiment” metric in ScoreBreakdown will always read as a zero contribution.
+- **Where/Scope:** DataAgent computeTarget, StateEstimator seed weights, ScoreBreakdown descriptors.
+- **Evidence:**
+  - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:557-564 — `computeTarget` multiplies only stress, energy, sleep quality, HRV, steps, and sleep debt; sentiment and other objective metrics never appear in the label.
+  - Packages/PulsumML/Sources/PulsumML/StateEstimator.swift:29-38 — Initial weights omit the `"sentiment"` feature entirely, so even the starting contribution is 0.
+  - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:915-925 — ScoreBreakdown defines a “Journal Sentiment” card, implying UI expectations the current math can never fulfill.
+- **Upstream/Downstream:** Journaling cannot affect wellbeing or recommendations; users see “Journal Sentiment” stuck at 0 despite varied entries, undermining trust in the feature.
+- **Why This Is a Problem:** architecture.md:8 explicitly states “Health metrics and journals flow through DataAgent … to drive a wellbeing score”; excluding sentiment contradicts that contract.
+- **Suggested Diagnostics (no code):** Record journals with opposite sentiment scores, call `scoreBreakdown()`, and confirm the `sentiment` contribution remains 0; add unit tests asserting non-zero contributions when sentiment is injected.
+- **Related Contract (from docs):** architecture.md:8-11 (“Health metrics and journals flow through a DataAgent actor … surfaced in UI dashboards”) plus instructions.md voice-journal requirements demand sentiment-informed wellbeing.
+
 ### BUG: Startup bootstrap uses orphaned Tasks and double-runs orchestrator
 - **ID:** BUG-20251026-0029
 - **Severity:** S1
@@ -673,7 +868,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 
 ## Contract Checklist — Results
 - **MISSING** — GPT requests must carry retrieval context (BUG-20251026-0004)
-- **MISSING** — Voice journaling should recompute wellbeing and refresh UI (BUG-20251026-0005, BUG-20251026-0015)
+- **MISSING** — Voice journaling should recompute wellbeing and refresh UI (BUG-20251026-0005, BUG-20251026-0015, BUG-20251026-0037)
 - **MISSING** — Speech capture requires entitlement + microphone permission wiring (BUG-20251026-0003, BUG-20251026-0006, BUG-20251026-0026)
 - **MISSING** — Privacy manifests for protected APIs (BUG-20251026-0002)
 - **MISSING** — Liquid Glass hero delivered via Spline (BUG-20251026-0011)
@@ -682,6 +877,12 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **MISSING** — Foundation Models stub must match real API types (BUG-20251026-0019)
 - **MISSING** — Modern speech backend for iOS 26 (BUG-20251026-0007)
 - **MISSING** — Session lifecycle management prevents duplicate starts (BUG-20251026-0016)
+- **MISSING** — StateEstimator personalization must persist across sessions (BUG-20251026-0038)
+- **MISSING** — Journal sentiment must influence wellbeing contributions (BUG-20251026-0039)
+- **MISSING** — HealthKit reauthorization must actually rewire ingestion (BUG-20251026-0040)
+- **MISSING** — Settings must allow runtime GPT-5 API key configuration/testing (BUG-20251026-0041)
+- **MISSING** — Tab navigation should dismiss keyboards/overlays when contexts change (BUG-20251026-0042)
+- **MISSING** — HealthKit status UI must reflect all required permissions (BUG-20251026-0043)
 - **PARTIAL** — Test coverage for core flows (BUG-20251026-0014, BUG-20251026-0025)
 
 ## Test Audit
@@ -704,3 +905,17 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Spline Integration:** Is SplineRuntime framework included? Why isn't hero view implemented? (BUG-20251026-0011)
 - **iOS Settings Deep Link:** What is the correct iOS 26 URL scheme for Apple Intelligence settings? (BUG-20251026-0010)
 - **Production Deployment:** Has the exposed API key been used in any public builds or TestFlight distributions? (BUG-20251026-0001)
+
+**Update Summary** — Added: 6 | Updated: 10 | Obsolete: 0 | Duplicates: 0  
+**Coverage Summary** — PulsumUI{files_read:6,lines:1220} PulsumAgents{files_read:2,lines:760} PulsumML{files_read:1,lines:120} Docs{files_read:1}  
+**Evidence Index**
+- Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift — Startup and consent flows issue the only wellbeing refresh calls.
+- Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift — Refresh logic is manual; `reloadIfNeeded()` is unused.
+- Packages/PulsumUI/Sources/PulsumUI/CoachView.swift — Insights tab `.task` is the sole auto-refresh trigger.
+- Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift — StateEstimator lifecycle, metadata encoding, target math, and single-run HealthKit observer registration.
+- Packages/PulsumML/Sources/PulsumML/StateEstimator.swift — Initial weights omit the sentiment feature entirely.
+- Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift — ChatGPT panel lacks inputs, and HealthKit UI buttons are display-only.
+- Packages/PulsumUI/Sources/PulsumUI/SettingsViewModel.swift — GPT key draft/storage logic is unused by the view; HealthKit request button never touches the orchestrator or service layer.
+- Packages/PulsumUI/Sources/PulsumUI/OnboardingView.swift — Onboarding HealthKit prompt mirrors the same no-op behavior.
+- Packages/PulsumUI/Sources/PulsumUI/CoachView.swift & PulsumRootView.swift — Chat input focus never resigns when switching tabs, leaving the keyboard visible on other screens.
+- architecture.md — Contract stating HealthKit and journals feed DataAgent outputs to UI dashboards.
