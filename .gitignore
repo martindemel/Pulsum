@@ -30,3 +30,6 @@ Pods/
 
 # VSCode
 .vscode/
+
+# Configuration files with secrets
+Config.xcconfig

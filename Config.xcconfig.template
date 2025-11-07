@@ -1,0 +1,15 @@
+// Pulsum Build Configuration Template
+// Copy this file to Config.xcconfig and replace YOUR_OPENAI_API_KEY_HERE with your actual API key
+// The Config.xcconfig file is gitignored to keep your credentials secure
+
+OPENAI_API_KEY = YOUR_OPENAI_API_KEY_HERE
+
+
+
+
+
+
+
+
+
+

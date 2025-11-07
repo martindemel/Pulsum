@@ -136,19 +136,20 @@ private let validationLogger = Logger(subsystem: "ai.pulsum", category: "LLMGate
 public final class LLMGateway {
     private static let apiKeyIdentifier = "openai.api.key"
 
-#if DEBUG
-    public static let debugInjectedAPIKey: String? = {
-        if let k = Bundle.main.object(forInfoDictionaryKey: "OPENAI_TEST_KEY") as? String,
+    /// Bundled API key from Info.plist or environment (for all builds)
+    public static let bundledAPIKey: String? = {
+        // First try Info.plist (set via xcconfig in production builds)
+        if let k = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String,
            !k.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return k.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        // Fallback to environment variable (for local development/testing)
         if let e = ProcessInfo.processInfo.environment["OPENAI_API_KEY"],
            !e.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return e.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return nil
     }()
-#endif
 
     private let keychain: KeychainService
     private let cloudClient: CloudLLMClient
@@ -196,13 +197,7 @@ public final class LLMGateway {
         let apiKey = try resolveAPIKey()
         let keySource: String = (inMemoryAPIKey != nil) ? "memory"
             : ((try? keychain.secret(for: Self.apiKeyIdentifier)) != nil ? "keychain"
-               : { () -> String in
-#if DEBUG
-                    return (Self.debugInjectedAPIKey != nil ? "debug" : "unknown")
-#else
-                    return "unknown"
-#endif
-                }())
+               : (Self.bundledAPIKey != nil ? "bundled" : "unknown"))
         logger.debug("LLM using API key from \(keySource, privacy: .public).")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -241,13 +236,7 @@ public final class LLMGateway {
                 let apiKey = try resolveAPIKey()
                 let keySource: String = (inMemoryAPIKey != nil) ? "memory"
                     : ((try? keychain.secret(for: Self.apiKeyIdentifier)) != nil ? "keychain"
-                       : { () -> String in
-#if DEBUG
-                            return (Self.debugInjectedAPIKey != nil ? "debug" : "unknown")
-#else
-                            return "unknown"
-#endif
-                        }())
+                       : (Self.bundledAPIKey != nil ? "bundled" : "unknown"))
                 logger.info("Attempting cloud phrasing via GPT client.")
                 let phrasing = try await cloudClient.generateResponse(context: sanitizedContext,
                                                                       intentTopic: intentTopic,
@@ -294,9 +283,7 @@ public final class LLMGateway {
            let k = String(data: data, encoding: .utf8)?.trimmedNonEmpty {
             return k
         }
-#if DEBUG
-        if let d = Self.debugInjectedAPIKey { return d }
-#endif
+        if let d = Self.bundledAPIKey { return d }
         return nil
     }
 

@@ -1,0 +1,1207 @@
+{
+  "root": "/Users/martin.demel/Desktop/PULSUM/Pulsum",
+  "generated_at": "2025-10-26T01:02:02.195681Z",
+  "total_files": 150,
+  "entries": [
+    {
+      "path": "podcastrecommendations 2.json",
+      "size": 52726,
+      "mtime": 1759809611.3401027,
+      "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "Config.xcconfig.template",
+      "size": 265,
+      "mtime": 1760906075.0978625,
+      "sha256": "d75959e8c7c3d7dfda38118bb7367b04df93c6560e3134007f65f1aa862a213f",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": ".DS_Store",
+      "size": 18436,
+      "mtime": 1761438723.2901042,
+      "sha256": "1a398ceb449cc415441ddd5593683a4cd7e6675c2b3f7ff639fa1991a46a2d15",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "ios app mockup.png",
+      "size": 2821699,
+      "mtime": 1759809611.2747805,
+      "sha256": "a0d118c867dba9ef8f52097419c608d7912946fcd85e7584df81b189a38094ff",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "podcastrecommendations.json",
+      "size": 52726,
+      "mtime": 1759809611.3402984,
+      "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "a-practical-guide-to-building-agents.pdf",
+      "size": 7335065,
+      "mtime": 1759809611.2647758,
+      "sha256": "1903c2b1837b206d1951d8a3d1124515aee1bebebd8f2448c630c75a6b0aad86",
+      "read_intent": "summarize_only",
+      "reason": "PDF asset"
+    },
+    {
+      "path": "infinity_blubs_copy.splineswift",
+      "size": 272828,
+      "mtime": 1759809611.267177,
+      "sha256": "fe4f7c35996a6a20cf60816d913b93aa18ca959e8b8ef3bb5acfa04dd704c461",
+      "read_intent": "summarize_only",
+      "reason": "Spline design asset"
+    },
+    {
+      "path": "Config.xcconfig",
+      "size": 394,
+      "mtime": 1760906075.089506,
+      "sha256": "e2c5860800919e53b398da5079492b06908df4b74ac1a34728bc6af5d037e33a",
+      "read_intent": "read",
+      "reason": "Build configuration"
+    },
+    {
+      "path": ".gitignore",
+      "size": 396,
+      "mtime": 1760906075.1065257,
+      "sha256": "d3c46a4b76a774dda3ff448241318cf82c4e3e8a3e9b680c4573880e1e96355e",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "logo.jpg",
+      "size": 152344,
+      "mtime": 1759809611.3379455,
+      "sha256": "49ecea236ea825afed3f4dbe6f374299cbbb87aadbaaf5ce029c8c7c1ca34de2",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "logo2.png",
+      "size": 585439,
+      "mtime": 1759809611.3391683,
+      "sha256": "0cb9ec37668a50f75151942e2d993608f7a9507c805fabac700cae47805bfe46",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "mainanimation.usdz",
+      "size": 47388,
+      "mtime": 1759809611.3398817,
+      "sha256": "9dd79ebe7c92c39a772b39316f8dbf3c4c459721363aaee27215453374e9a0e3",
+      "read_intent": "summarize_only",
+      "reason": "3D asset"
+    },
+    {
+      "path": "streak_low_poly_copy.splineswift",
+      "size": 49425,
+      "mtime": 1759809611.340577,
+      "sha256": "60b540c0a7857b24f6406627dd3f64b7760d08037d4384aaaf4e99b66a7fd9b9",
+      "read_intent": "summarize_only",
+      "reason": "Spline design asset"
+    },
+    {
+      "path": "inventory.json",
+      "size": 43726,
+      "mtime": 1761440471.798771,
+      "sha256": "65710ef7d90de6b9b747288abc0ae48759761b690c9a2909a85ecc64fd98ee12",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "MAINDESIGN.png",
+      "size": 3873254,
+      "mtime": 1759809611.1664338,
+      "sha256": "2b9e9954ae9bc6745f489cb2b13ca1107537986573244cfe11118addd2cd6975",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "json database/podcastrecommendations.json",
+      "size": 52726,
+      "mtime": 1759809611.3374264,
+      "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "ios support files/glow.swift",
+      "size": 4626,
+      "mtime": 1759809611.3371205,
+      "sha256": "59923efcc4ec5f2dabbd2dfd67bb10d0e73247d0334975d171ffa84fb5bd1535",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": ".claude/settings.local.json",
+      "size": 481,
+      "mtime": 1761279124.8097503,
+      "sha256": "bf958c047a166e897967eb1ea15f63756cec69a4721964dbc685c16d0ac90ce4",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "Docs/FIX_SPLINE_CRASH_PROMPT.txt",
+      "size": 2256,
+      "mtime": 1759809611.1592872,
+      "sha256": "830c45a76c6a7109f038d5f4b20c12e8de841df58fa29d5710cafa11e46008d3",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Docs/SPLINE_CLOUD_ONLY_PROMPT.txt",
+      "size": 2599,
+      "mtime": 1759809611.1620507,
+      "sha256": "fe4d1c4b9260fa05f4d20e904f9b0fc373b74008236ef8aecedcd7ca9b29e117",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Docs/MILESTONE_4_UI_REDESIGN_PROMPT.txt",
+      "size": 16927,
+      "mtime": 1759809611.1607606,
+      "sha256": "1894a5d99cc06be2d3b3bd42d7af88083e3ded0edb11763af831a21a2c2a5ae7",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Docs/COPY_PASTE_PROMPT_M4.txt",
+      "size": 7909,
+      "mtime": 1759809611.1587849,
+      "sha256": "3bb28db4a085ece3d40d6c532327a802ceb07c6a2bc25a5aa28e3f28c8e655ba",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/.DS_Store",
+      "size": 8196,
+      "mtime": 1759691780.1655834,
+      "sha256": "dbb72c8c84423ef5f3fcf5649bf1afa0622c8f0022a364b17068b78a870643f4",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumUI/.DS_Store",
+      "size": 6148,
+      "mtime": 1759598593.6671662,
+      "sha256": "2cca71698fd0412f840443324b67c3416c8eae89ad4699212b0b25792ca96d10",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumUI/Package.swift",
+      "size": 814,
+      "mtime": 1760031437.9958286,
+      "sha256": "585083d098b01385e87f8a24fca024ee9d8127e7f37a05d62a440dd92a3036b2",
+      "read_intent": "read",
+      "reason": "Swift package manifest"
+    },
+    {
+      "path": "Packages/PulsumUI/Tests/PulsumUITests/PulsumRootViewTests.swift",
+      "size": 191,
+      "mtime": 1759809611.1877763,
+      "sha256": "b1108a5b5668d328870a81bf9095e4bff0d37c1a5521d0e048c8f4134ab54ec7",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/.DS_Store",
+      "size": 6148,
+      "mtime": 1759968726.0998168,
+      "sha256": "53dab547b811d30d39c101d21efb48a102eb84666359dfc67a9ecf79fcbeb7a4",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/GlassEffect.swift",
+      "size": 4944,
+      "mtime": 1759809611.1850753,
+      "sha256": "c2ae598acc53f0de0730b7ece4407590bd105593018c4b76e001069fac6294b5",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulseViewModel.swift",
+      "size": 7353,
+      "mtime": 1761437479.758582,
+      "sha256": "e2ca1f57c41841d146e44ad69a78b9584bc9f090229e9b3c047fb96d5212b17e",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift",
+      "size": 25058,
+      "mtime": 1760906074.9474463,
+      "sha256": "1948212450f9ed8622c26b71cae9a9a8e6d63bf94162cf21f529c9f7d4d84bd8",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/LiquidGlassComponents.swift",
+      "size": 7132,
+      "mtime": 1759809611.1852696,
+      "sha256": "dc0d1fc7d14677e5d0339a08bd00c7c5c8dc64e22cdfee7fcc6f8c47dffbeeb8",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownView.swift",
+      "size": 19034,
+      "mtime": 1760906075.0460708,
+      "sha256": "655d627ead4a94c2885f50628faa9e7e52dc5ead3acb2a6472b4a538693b64a7",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/SettingsViewModel.swift",
+      "size": 7386,
+      "mtime": 1760906075.183319,
+      "sha256": "f278dd05deb7b183d07aea7d43a39ec12c317d5cb41105b95f68e1b0a9e6a0c0",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulsumDesignSystem.swift",
+      "size": 7850,
+      "mtime": 1760906074.8885448,
+      "sha256": "1161eba2b1c5fd1e7416822f23f46e26b55657d2ee00af5d9f06b5bd32edd348",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift",
+      "size": 9953,
+      "mtime": 1760906075.064296,
+      "sha256": "f088db87fa978494a888d5baefc94e2c041305490a95678cffb6ed8ba76002aa",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/ConsentBannerView.swift",
+      "size": 2389,
+      "mtime": 1760906074.906182,
+      "sha256": "2c838b1b47dd2b59468c519b73a204014f0ba9e643851cd620935adf321d0a34",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulseView.swift",
+      "size": 14986,
+      "mtime": 1761437479.8886716,
+      "sha256": "001dd9b7bf32930814fb1e41576e0976e1ca01204d64b125942d470ac3682cf5",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift",
+      "size": 4976,
+      "mtime": 1759809611.1845472,
+      "sha256": "4522419d0d3a7289a2365060e779fecf5ec66ed93581253177c0bc8c587e5246",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift",
+      "size": 7277,
+      "mtime": 1759973877.4582686,
+      "sha256": "ee5895c8a22b9d4c8addf394019a063336f39f9c18d104412e44e6b957df533b",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/SafetyCardView.swift",
+      "size": 3064,
+      "mtime": 1760906074.9177492,
+      "sha256": "08166a48a28937cd545fa2faf66369993fc90823495946969ee0a881b9a43342",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownViewModel.swift",
+      "size": 2037,
+      "mtime": 1759809611.187047,
+      "sha256": "7371c226b1fdaf6935cdd7f6ac13be49f9cb3ac6c9ef942f21b2e560b9396710",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/CoachView.swift",
+      "size": 15398,
+      "mtime": 1760906075.2534003,
+      "sha256": "ce85b5da30533ea7544a1460d71c7f2ffa41560d8e207e1f86bc825d5ab15c6b",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/OnboardingView.swift",
+      "size": 11264,
+      "mtime": 1759809611.185495,
+      "sha256": "c5ea4d6beaa429640fdb06047222ba369284dc6f96e6c022ec6b30105e664e11",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumUI/.swiftpm/xcode/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 343,
+      "mtime": 1760934638.615441,
+      "sha256": "df00e59ce927f2bb8b331d47d40ee8e66198c9db2fe494118149474107581220",
+      "read_intent": "read",
+      "reason": "Property list"
+    },
+    {
+      "path": "Packages/PulsumServices/.DS_Store",
+      "size": 6148,
+      "mtime": 1759464495.0936685,
+      "sha256": "53b3bdf7a013918978f47a4459093e709b65514eae8ddc02d35fb4d8184aefc1",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumServices/Package.swift",
+      "size": 861,
+      "mtime": 1760031437.89869,
+      "sha256": "f002caff905dda0342f328427a2325f8e05e78d886038c597c1dba39fb9549c2",
+      "read_intent": "read",
+      "reason": "Swift package manifest"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/LLMGatewayTests.swift",
+      "size": 9964,
+      "mtime": 1759810004.4467058,
+      "sha256": "d8142f57e793ac4a4f8c92bfdc99a7639a924fb5ea372d4ba874905c47dd6bad",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/HealthKitAnchorStoreTests.swift",
+      "size": 1910,
+      "mtime": 1759809611.1824086,
+      "sha256": "cf5714930608e9fd3231b12e646de79837ecba7543a3760c295275c747ab5ed6",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/PulsumServicesDependencyTests.swift",
+      "size": 506,
+      "mtime": 1759809611.1831684,
+      "sha256": "1df9d256c36836d2610cfc95c7ccddc27ed8cc5b3e85eae388bac384acb7f6f2",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/LLMGatewaySchemaTests.swift",
+      "size": 7375,
+      "mtime": 1759810004.467437,
+      "sha256": "d5ea067803f60f483191e366aba5355edc66be5f5a21e2994ce7cdf467c5b320",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/KeychainServiceTests.swift",
+      "size": 490,
+      "mtime": 1759809611.1825852,
+      "sha256": "385fa2e3d8666fd9112ecddfccfd9c595c156d217d6e290872561811f28eb69c",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/Support/LLMURLProtocolStub.swift",
+      "size": 3583,
+      "mtime": 1759809611.1834023,
+      "sha256": "23c942a7972247f22a1af5a7f4778248af3cd4d6b783451f31c52d529b68d9a8",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/.DS_Store",
+      "size": 8196,
+      "mtime": 1759628506.1195416,
+      "sha256": "28bce63dc53e9887cf1e94ce4b263003f26138aa28231cccf590b29d6be1fbc3",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/KeychainService.swift",
+      "size": 2857,
+      "mtime": 1759809611.1811645,
+      "sha256": "24778f8f97364a805d7dcb126be6a95f4f5c4cc55ded669e402a51f3fded6d3e",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/CoachPhrasingSchema.swift",
+      "size": 2365,
+      "mtime": 1759809611.180072,
+      "sha256": "fb03e55fe72a1eabe811058bd87d6d58077a777e9794804f0394273f18c3d20b",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/HealthKitAnchorStore.swift",
+      "size": 2676,
+      "mtime": 1759809611.180765,
+      "sha256": "764cde0834fb841207106f72ae68238256ecf73b622255fc2e770baf9ac62d68",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/FoundationModelsCoachGenerator.swift",
+      "size": 4895,
+      "mtime": 1760031438.3731122,
+      "sha256": "60971352cdf6f3bac4be66adb8872ed0332fe5959aca07cbd457169ac38d0d73",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/HealthKitService.swift",
+      "size": 9599,
+      "mtime": 1759809611.1809936,
+      "sha256": "e25ed111dad8e224268424a1e0b5bdb303cf410529a21a4a7916c398b4f5e1f8",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift",
+      "size": 29309,
+      "mtime": 1760906075.1573079,
+      "sha256": "b9ea933fbb566b2e2868844047c47ec5808345b9366c9f7af25991bff9efe545",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift",
+      "size": 11776,
+      "mtime": 1761437478.892006,
+      "sha256": "4af43e63fbfda5af618598ad40a340cb89d9266b4f39c84eee83f0db12bffd3a",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/Placeholder.swift",
+      "size": 543,
+      "mtime": 1759809611.1815963,
+      "sha256": "8939f52054e950b10a8b8936c3b7bd00d9da5254bea740a1aa0a04e347ea10b8",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/DiagnosticsNotifications.swift",
+      "size": 240,
+      "mtime": 1759809611.180338,
+      "sha256": "a8b83a1cdd7a2d53e06bd975c3e58b499cd5199dc7b0a07f4f130f94780759d9",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumServices/.swiftpm/xcode/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 349,
+      "mtime": 1760925299.4380672,
+      "sha256": "49854046ee2c2c607d2863a43e51a124accd4f1c0544012a819ac21c7d33dc0f",
+      "read_intent": "read",
+      "reason": "Property list"
+    },
+    {
+      "path": "Packages/PulsumData/.DS_Store",
+      "size": 6148,
+      "mtime": 1759464495.0911777,
+      "sha256": "e823f0b81869cdc6b92af386bc3e933167a8d3610dfbabdfc2a5a7f64e3f9d1e",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumData/Package.swift",
+      "size": 759,
+      "mtime": 1760031437.864304,
+      "sha256": "2125b2e2a0a810e14680f77eead1c5de50526b1e0f25bcc6e4360559f89a242b",
+      "read_intent": "read",
+      "reason": "Swift package manifest"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/PulsumDataBootstrapTests.swift",
+      "size": 1166,
+      "mtime": 1759809611.172149,
+      "sha256": "bed04ed0334fbac69018d6d040c366cf9a8ff4b49f88e00c6dac60adbc4a1b20",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/LibraryImporterTests.swift",
+      "size": 1292,
+      "mtime": 1759809611.172009,
+      "sha256": "2652eb06da2449680dbe99b8349ea024deaa750cb03c7be0e84486eed60d4a30",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/VectorIndexTests.swift",
+      "size": 588,
+      "mtime": 1759809611.1724966,
+      "sha256": "67512dad12b68e710c97d3c155fc1cfb54b654745b165455d804bd67cf306473",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Resources/podcasts_sample.json",
+      "size": 785,
+      "mtime": 1759809611.1723433,
+      "sha256": "6a63e871a113e1294d5958150892d674f9098a7bade4bd18931c7a8ec02f96da",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/VectorIndexManager.swift",
+      "size": 1464,
+      "mtime": 1759809611.1717665,
+      "sha256": "4eeef318abf1f10edfa518682be2b01b0a5a5aca891b982c37963ddd9888d8f4",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/DataStack.swift",
+      "size": 5966,
+      "mtime": 1759809611.170639,
+      "sha256": "3779d5b57efc30687ac98caa21901e86d4ef1bdfcb5d392a0ee5b678612553b4",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/VectorIndex.swift",
+      "size": 14583,
+      "mtime": 1759809611.1716244,
+      "sha256": "a214853eb53e05c1aae13fd1c48d90d513b493f749ac3855d5363b1d7a315515",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/EvidenceScorer.swift",
+      "size": 957,
+      "mtime": 1759809611.1707828,
+      "sha256": "0553ee1210ce86cfaaa494177ce1f3f4fc940f30fe660d9efcf787433f9673f0",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift",
+      "size": 7726,
+      "mtime": 1759809611.1710567,
+      "sha256": "5b50d64185b3fc4ae2f79f3df7bd610a0338bd902255ccb977011b1dd9055311",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/PulsumData.swift",
+      "size": 1790,
+      "mtime": 1759809611.171445,
+      "sha256": "15f617eb5ef2f161fbc8701c04e16b966a4476b7acc18ccbee685d6d7544937a",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Model/ManagedObjects.swift",
+      "size": 5027,
+      "mtime": 1759809611.1712978,
+      "sha256": "c668eb983b01fca16b00fe51ab395c8234b820a8f91e04099cab7a03b87f10da",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumData/.swiftpm/xcode/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 345,
+      "mtime": 1760934638.7244642,
+      "sha256": "966c52025741d1effce18ea3d7942ee138292c52f543d1a7ed02127ff3b3cf1a",
+      "read_intent": "read",
+      "reason": "Property list"
+    },
+    {
+      "path": "Packages/PulsumAgents/.DS_Store",
+      "size": 6148,
+      "mtime": 1759461503.5619063,
+      "sha256": "676c2a3d14fa299d3c059cfd9ea4deb91ce66c9611273da6ca7c589d9a3a277e",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumAgents/Package.swift",
+      "size": 992,
+      "mtime": 1760031438.3220563,
+      "sha256": "f5489da0c2eba694906e2ae6af83ec91ab9383aa2a52b7cfe35237d7d4cfb9a3",
+      "read_intent": "read",
+      "reason": "Swift package manifest"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/AgentSystemTests.swift",
+      "size": 2612,
+      "mtime": 1760031438.1647696,
+      "sha256": "3e08b6dd780f678d0b7b71c66476e0c252bcdb63b7cd49fcba00cf3468137d92",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailAcceptanceTests.swift",
+      "size": 8096,
+      "mtime": 1759809611.169627,
+      "sha256": "bf4b57c3a92039e245ecf2ea879555cfad525e7b56d0a342d570f2279726976c",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailTests.swift",
+      "size": 8510,
+      "mtime": 1759809611.169873,
+      "sha256": "fdc8da64eceb4587767c9bba72a4273a82327415bc801e0629d19c6a3cc703ee",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/TestCoreDataStack.swift",
+      "size": 8593,
+      "mtime": 1760031438.1956344,
+      "sha256": "325440f475ab5088304f4c558927608cc57367cf67237ee5fa089c64c88e1a72",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift",
+      "size": 7247,
+      "mtime": 1761437478.9139874,
+      "sha256": "4e07a7be23464f1678b23d34d6cb04be2190e6a1767ca32829788b10a811150e",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent+Coverage.swift",
+      "size": 3748,
+      "mtime": 1759809611.1677215,
+      "sha256": "e9c2e3796178d2f4022127ec33bcfbcbbad09cc841f3fad8f39dc31c8afb583e",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift",
+      "size": 55914,
+      "mtime": 1760031438.2595024,
+      "sha256": "47389217ae9390a8a2d9712444e5425f6f7d81ae3bcad22674e084e1f6e407b8",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift",
+      "size": 23527,
+      "mtime": 1761437479.9425135,
+      "sha256": "145611068796e6bdcb5879c650a0a440817221ff485c18283e622bdbef2df387",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/PulsumAgents.swift",
+      "size": 855,
+      "mtime": 1760031438.0808668,
+      "sha256": "919b178b1f5e8efd91958bce82d3fd0b7cbf9e36a67258fca205719d9ebf58ca",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/SafetyAgent.swift",
+      "size": 2675,
+      "mtime": 1760031438.3462822,
+      "sha256": "df5e3e88e486b0941a77de7c3b23e5d4e922232e5370bf16db61035d6dbf6b48",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/CheerAgent.swift",
+      "size": 1255,
+      "mtime": 1760031438.0679965,
+      "sha256": "a238c8f93627b3160af6095a401c582965aa587fd6acd03351cd186fdb1f899c",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent.swift",
+      "size": 18482,
+      "mtime": 1759809611.1679688,
+      "sha256": "4e69ebd17afacd4dc4319a98c7f37cebfe2e6eeb1d46afe9d4bd2445b5ee42fb",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumAgents/.swiftpm/xcode/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 347,
+      "mtime": 1760934638.5099962,
+      "sha256": "400e7261567b2c66f00df6a6ef9609710b287dfed49a015de8f131a579611fd5",
+      "read_intent": "read",
+      "reason": "Property list"
+    },
+    {
+      "path": "Packages/PulsumML/.DS_Store",
+      "size": 6148,
+      "mtime": 1759461498.211872,
+      "sha256": "edeccffeff3abc3898b11156c1bcc993332bd88f98f99ce293d5dd524cb64b99",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumML/Package.swift",
+      "size": 1042,
+      "mtime": 1760031438.2341661,
+      "sha256": "da715c8ccb68f3619abce7ccbb84a4bf0c96f1ec1ca792bf025da022dc93dd65",
+      "read_intent": "read",
+      "reason": "Swift package manifest"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/PackageEmbedTests.swift",
+      "size": 2721,
+      "mtime": 1759809611.1789534,
+      "sha256": "df3ee129e8246b5a238156fb58a901df2c3c2963d023e84a821ade5e5a5f713f",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/TopicGateTests.swift",
+      "size": 4455,
+      "mtime": 1759809611.1795964,
+      "sha256": "c332987b6df833cb7d190652c66379b6b475f4fb98f806ca26c9398497b8dbec",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/TopicGateMarginTests.swift",
+      "size": 1292,
+      "mtime": 1759809611.1793098,
+      "sha256": "64a0fe5a5e3d765371fd2810a01d8b21bee3d1ce638d2b05cfbfebb70914c8e6",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/SafetyLocalTests.swift",
+      "size": 1062,
+      "mtime": 1759809611.179115,
+      "sha256": "76fb751d8be17af00f3cf442d6dd5102020c259ab4d64d2dc3a3a0e894f13dd2",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/SafetyLocal.swift",
+      "size": 6575,
+      "mtime": 1759809611.176261,
+      "sha256": "67b83d95d8fb6d274aa53f4467ac452435f3f148d9aed1edd980cd6515a9b065",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/StateEstimator.swift",
+      "size": 3023,
+      "mtime": 1759809611.177993,
+      "sha256": "e07d876a3fea3dbbd331bd9402465e4eb71e0473eacf92f296c3f450ad528827",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/BaselineMath.swift",
+      "size": 1478,
+      "mtime": 1759809611.1736517,
+      "sha256": "04a2a2371ae369542d5d792b812c753ff4bb560702dae336aef8ab1fd749bbf9",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Placeholder.swift",
+      "size": 358,
+      "mtime": 1759809611.1746778,
+      "sha256": "9138cf8e32703915f9bfe588f627821a8dcd280ef0d3c7977b5c504ab5a50ffa",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/RecRanker.swift",
+      "size": 5000,
+      "mtime": 1759809611.174842,
+      "sha256": "40752818d31aa5cc517e3bb0c99924d8ca134b8951316b8c5e05e0fa6e2bb1bc",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/TopicGate/TopicGateProviding.swift",
+      "size": 1017,
+      "mtime": 1759809611.1786346,
+      "sha256": "a0f5256a0f83aa741bb31cd1b76c9e12f52ff21261997cc19a92a9b2dc7b8575",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/TopicGate/FoundationModelsTopicGateProvider.swift",
+      "size": 2335,
+      "mtime": 1759809611.178477,
+      "sha256": "b239b2a812fd623b13c54196694ea2a84014808aa6b087d8084c9d7c866f89d5",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/TopicGate/EmbeddingTopicGateProvider.swift",
+      "size": 6635,
+      "mtime": 1759809611.1782913,
+      "sha256": "5b234bb0e6fd3c013e1ce0f96b70d4ce9c320b0ae396703b6dab4ec1c9489130",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Resources/PulsumFallbackEmbedding.mlmodel",
+      "size": 410814,
+      "mtime": 1759809611.175312,
+      "sha256": "45cdcd3973bf5235162dd8038467d9d8d6e535712d422a068eaa298b26ba3115",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Resources/PulsumSentimentCoreML.mlmodel",
+      "size": 5491,
+      "mtime": 1759809611.175671,
+      "sha256": "e3a2ba1a2ae59335543216765bcedded2bec92170b40bdbb59c505d88da52934",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingService.swift",
+      "size": 2704,
+      "mtime": 1759809611.174404,
+      "sha256": "645d8e1cd38ef97d05cb808252b69b534eb0589585fa6f06cd0be47f0ba6ad1f",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingError.swift",
+      "size": 401,
+      "mtime": 1759809611.1742468,
+      "sha256": "5844e56cc3a6982e0cb9c7dfe5a1cb52305e37bf06e60e79eda952a9e065d023",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/TextEmbeddingProviding.swift",
+      "size": 184,
+      "mtime": 1759809611.174535,
+      "sha256": "ed1277432b9d06cb1cb1824bacbeec59d895ce780c8280140695afe796246ab5",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/AFMTextEmbeddingProvider.swift",
+      "size": 4397,
+      "mtime": 1759809611.1738994,
+      "sha256": "bfcffa0d81f216bce0aec01317ba82d05ef967e92e4491f7e935d39ac072172d",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/CoreMLEmbeddingFallbackProvider.swift",
+      "size": 2427,
+      "mtime": 1759809611.1740618,
+      "sha256": "85bab243e12828f570fec20a772061d7011e5487dcebf7b0d3cd9fae929538d3",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/AFM/FoundationModelsStub.swift",
+      "size": 1994,
+      "mtime": 1760031438.2063935,
+      "sha256": "346e380690aa3d6807236cbe178685fe9d6659efe7de4fe67537e2f891e8dab1",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/AFM/FoundationModelsAvailability.swift",
+      "size": 1504,
+      "mtime": 1760031437.9394808,
+      "sha256": "62494100fc9ae10975f9d5d33774f16b711d0d9d9a33469742124e94b0f585f7",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Safety/FoundationModelsSafetyProvider.swift",
+      "size": 3459,
+      "mtime": 1759809611.17611,
+      "sha256": "f02b563b8d2f63c4b38063ee2176a0244ecfd9056cbf6a1f69ea3edd5462fc0f",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/SentimentService.swift",
+      "size": 1298,
+      "mtime": 1760031437.9747934,
+      "sha256": "d6e476e54a4d7c8942ac814aa91c3e9b14f225d17117eabf421622a255dac823",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/AFMSentimentProvider.swift",
+      "size": 2537,
+      "mtime": 1760031437.807008,
+      "sha256": "1e4b896c7847b53e11df343154013050989eabeac000bbec124b11df54c80e54",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/NaturalLanguageSentimentProvider.swift",
+      "size": 721,
+      "mtime": 1760031437.8533084,
+      "sha256": "f1a4ccb297bcad228df67c8699ff45c5c3812a658202b047e057e5ade0b6794c",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/CoreMLSentimentProvider.swift",
+      "size": 1400,
+      "mtime": 1760031437.8317504,
+      "sha256": "01beab66dc851392e9b8e21d79ed3ee86c8afbf458961faaa0c0229967ef7cc9",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/PIIRedactor.swift",
+      "size": 1502,
+      "mtime": 1759809611.1772969,
+      "sha256": "e569fbeec0e7b15b77f98229582ce36cc636849abdf5dcef62aff81b65499847",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/SentimentProviding.swift",
+      "size": 556,
+      "mtime": 1760031437.7410467,
+      "sha256": "cc7c462a2415e54cf5b0829d47d2911ea81e83065183347f1419fe883bace095",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/FoundationModelsSentimentProvider.swift",
+      "size": 2218,
+      "mtime": 1760031437.9186475,
+      "sha256": "a262ac59a45b252ccc29ddb5719df73f16272820470f803dcbefe501f2b9c0e0",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Packages/PulsumML/.swiftpm/xcode/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 343,
+      "mtime": 1760934637.8920803,
+      "sha256": "fdf3b5cb79da3fae44c56f2e5589a956889a3c0275d54846a2a3cc3f5b0f0359",
+      "read_intent": "read",
+      "reason": "Property list"
+    },
+    {
+      "path": ".github/coderabbit.yaml",
+      "size": 2912,
+      "mtime": 1759975832.4481301,
+      "sha256": "f03696726f48b362128f629b36624fd88aebce0a0fe328262535340984e2fbda",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": ".github/workflows/auto-merge.yml",
+      "size": 3598,
+      "mtime": 1759975868.1466372,
+      "sha256": "0512dcbd61988c4f4229dfa033be784b9be92295e1ce6c65d8f2a4f5fe219ab9",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": ".github/workflows/auto-pr.yml",
+      "size": 2608,
+      "mtime": 1759975848.0929596,
+      "sha256": "3065d4e0b62f2faf6cef076c3e9b55e42546f861e8bb8ba4532d10124ae331d3",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "PulsumUITests/PulsumUITestsLaunchTests.swift",
+      "size": 814,
+      "mtime": 1759103615.9342058,
+      "sha256": "e9eb2ddd05dd7f31d5d230bbd7157e486733be81e019e0a55c047e4d54022e2e",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "PulsumUITests/PulsumUITests.swift",
+      "size": 1301,
+      "mtime": 1759103615.9331603,
+      "sha256": "ec2c04a16c2160a40da089eedb1555b9b7f8c9b8c4b30650d6ccc76b08d2fb66",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.pbxproj",
+      "size": 29950,
+      "mtime": 1760925511.0619545,
+      "sha256": "49a79a523b33556eeb35d8a88ca5e6498127037a945e7079611a489fd042134d",
+      "read_intent": "read",
+      "reason": "Xcode project definition"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.pbxproj.backup",
+      "size": 31641,
+      "mtime": 1760030905.0679762,
+      "sha256": "2c14bd6ff4178f37c6bfb66b7122145a61418ca184b5bd4e09b1db8ede720cff",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Pulsum.xcodeproj/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 670,
+      "mtime": 1759809611.2425253,
+      "sha256": "6b03dc5f6c660fb87121f97633bfaa32468de8d7655b640dd5282e3e13659d4f",
+      "read_intent": "read",
+      "reason": "Property list"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+      "size": 135,
+      "mtime": 1759103616.0,
+      "sha256": "7f3b00b5c3fdb45242d7b87e1e5c4e25d1fa8129a16c94295ecc4e8ea2235c5f",
+      "read_intent": "read",
+      "reason": "Workspace data"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.xcworkspace/xcuserdata/martin.demel.xcuserdatad/UserInterfaceState.xcuserstate",
+      "size": 97634,
+      "mtime": 1761437050.827781,
+      "sha256": "f019e5f2686baf5537031d99cefb2926bb3f8d370ac44519ab11fcc95831d2b5",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "size": 133,
+      "mtime": 1760906075.23189,
+      "sha256": "8bf18dd4796cc007db891a77adc93ed0093046e45a2653a15a47e180a5079cc5",
+      "read_intent": "read",
+      "reason": "Swift package resolved versions"
+    },
+    {
+      "path": "Pulsum.xcodeproj/xcshareddata/xcschemes/Pulsum.xcscheme",
+      "size": 3837,
+      "mtime": 1760934637.5847504,
+      "sha256": "d0de317cfda800a7a4556bd2b20d1ac75f0cec0f91a3d7ca87414fdcfa5ac04e",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": ".vscode/settings.json",
+      "size": 37,
+      "mtime": 1759323072.0707552,
+      "sha256": "6d24b0d571970e6716a61cc325add89c7003acf07228128ab62a725eead357a9",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "PulsumTests/PulsumTests.swift",
+      "size": 294,
+      "mtime": 1759103615.9088154,
+      "sha256": "ff425d00e00d0177eb9adf347bb47c5f3e51fea00ab0c81e6b824b98d4c18ec9",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Pulsum/.DS_Store",
+      "size": 6148,
+      "mtime": 1759461498.2144403,
+      "sha256": "4b25171370bb11d979f74be9d4d1005d89ea5ffce3cca81f2ccfa5077d9db0d8",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Pulsum/PulsumApp.swift",
+      "size": 239,
+      "mtime": 1759809611.2474809,
+      "sha256": "029c3b42c425daa6b1a71b38cc55b64ff7b85ac93c97b64c89118d3cafcf29e4",
+      "read_intent": "read",
+      "reason": "Swift source"
+    },
+    {
+      "path": "Pulsum/Pulsum.entitlements",
+      "size": 310,
+      "mtime": 1759809611.2470665,
+      "sha256": "3a0fe663304785c4f157a6a2dd599ff9c1abbd87138e73bb313b5141f3e27618",
+      "read_intent": "read",
+      "reason": "Entitlements"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/.DS_Store",
+      "size": 6148,
+      "mtime": 1759461493.0197654,
+      "sha256": "cfd2ec1b89903f336dc718c9af7805867036ca31095162558123d780fbc2ecf4",
+      "read_intent": "summarize_only",
+      "reason": "Not required for detailed read"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/Contents.json",
+      "size": 63,
+      "mtime": 1759287725.268601,
+      "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/logo2_with_white_bg 1.png",
+      "size": 471368,
+      "mtime": 1759809611.2440794,
+      "sha256": "1324789f541cec13a666285b3b48dfc9eabe94c04aaeb4c0c01b8ff642616356",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/logo2_with_white_bg 2.png",
+      "size": 471368,
+      "mtime": 1759809611.2452815,
+      "sha256": "1324789f541cec13a666285b3b48dfc9eabe94c04aaeb4c0c01b8ff642616356",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/logo2_with_white_bg.png",
+      "size": 471368,
+      "mtime": 1759809611.2468565,
+      "sha256": "1324789f541cec13a666285b3b48dfc9eabe94c04aaeb4c0c01b8ff642616356",
+      "read_intent": "summarize_only",
+      "reason": "Image asset"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "size": 749,
+      "mtime": 1759809611.2427783,
+      "sha256": "0670fbf42754fed308e115f94562c52060c3ff7977adf215915b7814338bea3f",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "size": 123,
+      "mtime": 1759103615.1138337,
+      "sha256": "9af65086fa30b49252fae1a1225731691de794f7775af74d71befeb507d12b7c",
+      "read_intent": "read",
+      "reason": "JSON resource"
+    },
+    {
+      "path": "Pulsum/Pulsum.xcdatamodeld/.xccurrentversion",
+      "size": 259,
+      "mtime": 1759103615.7772732,
+      "sha256": "1139771d43c6b86db70dc760278d2b75b4e9593fdbce6deb0375024356b68f9d",
+      "read_intent": "read",
+      "reason": "Core Data current version marker"
+    },
+    {
+      "path": "Pulsum/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents",
+      "size": 7741,
+      "mtime": 1759809611.2473207,
+      "sha256": "170131f2cff09976cc8d085ecb8da51f9e8484805fefa0c615b4460e55bbbe15",
+      "read_intent": "read",
+      "reason": "Core Data model contents"
+    }
+  ]
+}

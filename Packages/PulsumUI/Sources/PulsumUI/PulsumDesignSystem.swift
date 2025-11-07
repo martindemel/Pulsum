@@ -122,4 +122,51 @@ extension View {
                     .stroke(Color.white.opacity(0.2), lineWidth: 1)
             )
     }
+    
+    /// iOS 26 Liquid Glass floating card style
+    func pulsumFloatingCard(padding: CGFloat = 20, cornerRadius: CGFloat = PulsumRadius.xl, useGlass: Bool = false) -> some View {
+        self
+            .padding(padding)
+            .background {
+                if useGlass {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        }
+                } else {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color.pulsumCardWhite)
+                }
+            }
+            .shadow(
+                color: Color.black.opacity(0.06),
+                radius: 12,
+                x: 0,
+                y: 4
+            )
+    }
+    
+    /// iOS 26 toolbar button styling
+    func pulsumToolbarButton() -> some View {
+        self
+            .symbolRenderingMode(.monochrome)
+            .foregroundStyle(Color.pulsumTextPrimary)
+    }
+    
+    /// iOS 26 interactive scale effect
+    func pulsumInteractive() -> some View {
+        self
+            .buttonStyle(PulsumInteractiveButtonStyle())
+    }
+}
+
+// MARK: - iOS 26 Interactive Button Style
+struct PulsumInteractiveButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+    }
 }

@@ -1,0 +1,751 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		94293E602E8CD700003E5840 /* streak_low_poly_copy.splineswift in Resources */ = {isa = PBXBuildFile; fileRef = 94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */; };
+		9429413D2E8E32C7003E5840 /* podcastrecommendations 2.json in Resources */ = {isa = PBXBuildFile; fileRef = 9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */; };
+		945EC8922E8AD321001CCF2E /* PulsumUI in Frameworks */ = {isa = PBXBuildFile; productRef = C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */; };
+		945EC8932E8AD321001CCF2E /* PulsumAgents in Frameworks */ = {isa = PBXBuildFile; productRef = A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */; };
+		945EC8942E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
+		945EC8952E8AD321001CCF2E /* PulsumServices in Frameworks */ = {isa = PBXBuildFile; productRef = 789E650BC257425BBE5CEDCB /* PulsumServices */; };
+		945EC8962E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
+		945EC8972E8AD321001CCF2E /* SplineRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = SPLINEABCDEF1234567890AB /* SplineRuntime */; };
+		945EC8982E8AD321001CCF2E /* PulsumUI in Frameworks */ = {isa = PBXBuildFile; productRef = C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */; };
+		945EC8992E8AD321001CCF2E /* PulsumAgents in Frameworks */ = {isa = PBXBuildFile; productRef = A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */; };
+		945EC89A2E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
+		945EC89B2E8AD321001CCF2E /* PulsumServices in Frameworks */ = {isa = PBXBuildFile; productRef = 789E650BC257425BBE5CEDCB /* PulsumServices */; };
+		945EC89C2E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
+		945EC89D2E8AD321001CCF2E /* PulsumUI in Frameworks */ = {isa = PBXBuildFile; productRef = C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */; };
+		945EC89E2E8AD321001CCF2E /* PulsumAgents in Frameworks */ = {isa = PBXBuildFile; productRef = A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */; };
+		945EC89F2E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
+		945EC8A02E8AD321001CCF2E /* PulsumServices in Frameworks */ = {isa = PBXBuildFile; productRef = 789E650BC257425BBE5CEDCB /* PulsumServices */; };
+		945EC8A12E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		941192932E8A01FF0078B278 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 941192782E8A01FF0078B278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9411927F2E8A01FF0078B278;
+			remoteInfo = Pulsum;
+		};
+		9411929D2E8A01FF0078B278 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 941192782E8A01FF0078B278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9411927F2E8A01FF0078B278;
+			remoteInfo = Pulsum;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		941192802E8A01FF0078B278 /* Pulsum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pulsum.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		941192922E8A01FF0078B278 /* PulsumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */ = {isa = PBXFileReference; lastKnownFileType = file; path = streak_low_poly_copy.splineswift; sourceTree = "<group>"; };
+		9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "podcastrecommendations 2.json"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		941192822E8A01FF0078B278 /* Pulsum */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Pulsum;
+			sourceTree = "<group>";
+		};
+		941192952E8A01FF0078B278 /* PulsumTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PulsumTests;
+			sourceTree = "<group>";
+		};
+		9411929F2E8A01FF0078B278 /* PulsumUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PulsumUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9411927D2E8A01FF0078B278 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				945EC8962E8AD321001CCF2E /* PulsumML in Frameworks */,
+				945EC8952E8AD321001CCF2E /* PulsumServices in Frameworks */,
+				945EC8942E8AD321001CCF2E /* PulsumData in Frameworks */,
+				945EC8932E8AD321001CCF2E /* PulsumAgents in Frameworks */,
+				945EC8922E8AD321001CCF2E /* PulsumUI in Frameworks */,
+				945EC8972E8AD321001CCF2E /* SplineRuntime in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9411928F2E8A01FF0078B278 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				945EC89B2E8AD321001CCF2E /* PulsumServices in Frameworks */,
+				945EC8992E8AD321001CCF2E /* PulsumAgents in Frameworks */,
+				945EC8982E8AD321001CCF2E /* PulsumUI in Frameworks */,
+				945EC89C2E8AD321001CCF2E /* PulsumML in Frameworks */,
+				945EC89A2E8AD321001CCF2E /* PulsumData in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		941192992E8A01FF0078B278 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				945EC8A02E8AD321001CCF2E /* PulsumServices in Frameworks */,
+				945EC89E2E8AD321001CCF2E /* PulsumAgents in Frameworks */,
+				945EC89D2E8AD321001CCF2E /* PulsumUI in Frameworks */,
+				945EC8A12E8AD321001CCF2E /* PulsumML in Frameworks */,
+				945EC89F2E8AD321001CCF2E /* PulsumData in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		941192772E8A01FF0078B278 = {
+			isa = PBXGroup;
+			children = (
+				9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */,
+				941192822E8A01FF0078B278 /* Pulsum */,
+				941192952E8A01FF0078B278 /* PulsumTests */,
+				9411929F2E8A01FF0078B278 /* PulsumUITests */,
+				941192812E8A01FF0078B278 /* Products */,
+				94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */,
+			);
+			sourceTree = "<group>";
+		};
+		941192812E8A01FF0078B278 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				941192802E8A01FF0078B278 /* Pulsum.app */,
+				941192922E8A01FF0078B278 /* PulsumTests.xctest */,
+				9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9411927F2E8A01FF0078B278 /* Pulsum */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 941192A62E8A01FF0078B278 /* Build configuration list for PBXNativeTarget "Pulsum" */;
+			buildPhases = (
+				9411927C2E8A01FF0078B278 /* Sources */,
+				9411927D2E8A01FF0078B278 /* Frameworks */,
+				9411927E2E8A01FF0078B278 /* Resources */,
+				94293EF42E8CE8DD003E5840 /* ShellScript */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				941192822E8A01FF0078B278 /* Pulsum */,
+			);
+			name = Pulsum;
+			packageProductDependencies = (
+				C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */,
+				A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */,
+				A53933ECCEA4440495B0FCB3 /* PulsumData */,
+				789E650BC257425BBE5CEDCB /* PulsumServices */,
+				0F767ADA6BE24721A5249B90 /* PulsumML */,
+			);
+			productName = Pulsum;
+			productReference = 941192802E8A01FF0078B278 /* Pulsum.app */;
+			productType = "com.apple.product-type.application";
+		};
+		941192912E8A01FF0078B278 /* PulsumTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 941192A92E8A01FF0078B278 /* Build configuration list for PBXNativeTarget "PulsumTests" */;
+			buildPhases = (
+				9411928E2E8A01FF0078B278 /* Sources */,
+				9411928F2E8A01FF0078B278 /* Frameworks */,
+				941192902E8A01FF0078B278 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				941192942E8A01FF0078B278 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				941192952E8A01FF0078B278 /* PulsumTests */,
+			);
+			name = PulsumTests;
+			packageProductDependencies = (
+				C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */,
+				A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */,
+				A53933ECCEA4440495B0FCB3 /* PulsumData */,
+				789E650BC257425BBE5CEDCB /* PulsumServices */,
+				0F767ADA6BE24721A5249B90 /* PulsumML */,
+			);
+			productName = PulsumTests;
+			productReference = 941192922E8A01FF0078B278 /* PulsumTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9411929B2E8A01FF0078B278 /* PulsumUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 941192AC2E8A01FF0078B278 /* Build configuration list for PBXNativeTarget "PulsumUITests" */;
+			buildPhases = (
+				941192982E8A01FF0078B278 /* Sources */,
+				941192992E8A01FF0078B278 /* Frameworks */,
+				9411929A2E8A01FF0078B278 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9411929E2E8A01FF0078B278 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9411929F2E8A01FF0078B278 /* PulsumUITests */,
+			);
+			name = PulsumUITests;
+			packageProductDependencies = (
+				C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */,
+				A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */,
+				A53933ECCEA4440495B0FCB3 /* PulsumData */,
+				789E650BC257425BBE5CEDCB /* PulsumServices */,
+				0F767ADA6BE24721A5249B90 /* PulsumML */,
+			);
+			productName = PulsumUITests;
+			productReference = 9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		941192782E8A01FF0078B278 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					9411927F2E8A01FF0078B278 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					941192912E8A01FF0078B278 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 9411927F2E8A01FF0078B278;
+					};
+					9411929B2E8A01FF0078B278 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 9411927F2E8A01FF0078B278;
+					};
+				};
+			};
+			buildConfigurationList = 9411927B2E8A01FF0078B278 /* Build configuration list for PBXProject "Pulsum" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 941192772E8A01FF0078B278;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				34D4537F967F427A8CC60E41 /* XCLocalSwiftPackageReference "Packages/PulsumUI" */,
+				A6D66678B3C7485B9B4C18C2 /* XCLocalSwiftPackageReference "Packages/PulsumAgents" */,
+				8B350B6393B14442A408462B /* XCLocalSwiftPackageReference "Packages/PulsumData" */,
+				AC96D4BBAB3448A2A2619700 /* XCLocalSwiftPackageReference "Packages/PulsumServices" */,
+				300FFDA27B1942B2BBA23181 /* XCLocalSwiftPackageReference "Packages/PulsumML" */,
+				SPLINE001234567890ABCDEF /* XCRemoteSwiftPackageReference "spline-ios" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 941192812E8A01FF0078B278 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9411927F2E8A01FF0078B278 /* Pulsum */,
+				941192912E8A01FF0078B278 /* PulsumTests */,
+				9411929B2E8A01FF0078B278 /* PulsumUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9411927E2E8A01FF0078B278 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9429413D2E8E32C7003E5840 /* podcastrecommendations 2.json in Resources */,
+				94293E602E8CD700003E5840 /* streak_low_poly_copy.splineswift in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		941192902E8A01FF0078B278 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9411929A2E8A01FF0078B278 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		94293EF42E8CE8DD003E5840 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Generate dSYM for SplineRuntime XCFramework\nset -e\n\nSPLINE_FRAMEWORK=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/SplineRuntime.framework/SplineRuntime\"\n\nif [[ -f \"${SPLINE_FRAMEWORK}\" ]]; then\n    echo \"Found SplineRuntime at: ${SPLINE_FRAMEWORK}\"\n    \n    # Check if it's already signed (XCFrameworks are pre-signed)\n    if codesign -v \"${SPLINE_FRAMEWORK}\" 2>/dev/null; then\n        echo \"SplineRuntime is signed. Attempting to generate dSYM...\"\n        \n        # Try to generate dSYM with error handling\n        if dsymutil \"${SPLINE_FRAMEWORK}\" -o \"${DWARF_DSYM_FOLDER_PATH}/SplineRuntime.framework.dSYM\" 2>/dev/null; then\n            echo \"✓ dSYM generated successfully\"\n        else\n            echo \"⚠ Could not generate dSYM (this is expected for pre-compiled frameworks)\"\n            echo \"The framework will work without dSYM. Crash reports may not be fully symbolicated.\"\n        fi\n    else\n        echo \"SplineRuntime is not signed yet, skipping dSYM generation\"\n    fi\nelse\n    echo \"SplineRuntime framework not found at expected location, skipping\"\nfi\n\nexit 0\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9411927C2E8A01FF0078B278 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9411928E2E8A01FF0078B278 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		941192982E8A01FF0078B278 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		941192942E8A01FF0078B278 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9411927F2E8A01FF0078B278 /* Pulsum */;
+			targetProxy = 941192932E8A01FF0078B278 /* PBXContainerItemProxy */;
+		};
+		9411929E2E8A01FF0078B278 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9411927F2E8A01FF0078B278 /* Pulsum */;
+			targetProxy = 9411929D2E8A01FF0078B278 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		941192A42E8A01FF0078B278 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		941192A52E8A01FF0078B278 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		941192A72E8A01FF0078B278 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Pulsum/Pulsum.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes recordings locally so you can reflect on your check-ins.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.Pulsum;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		941192A82E8A01FF0078B278 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Pulsum/Pulsum.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				DWARF_DSYM_FILE_SHOULD_ACCOMPANY_PRODUCT = NO;
+				ENABLE_BITCODE = NO;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes recordings locally so you can reflect on your check-ins.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.Pulsum;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		941192AA2E8A01FF0078B278 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pulsum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pulsum";
+			};
+			name = Debug;
+		};
+		941192AB2E8A01FF0078B278 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pulsum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pulsum";
+			};
+			name = Release;
+		};
+		941192AD2E8A01FF0078B278 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Pulsum;
+			};
+			name = Debug;
+		};
+		941192AE2E8A01FF0078B278 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = X6FJFZCXY3;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Pulsum;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9411927B2E8A01FF0078B278 /* Build configuration list for PBXProject "Pulsum" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				941192A42E8A01FF0078B278 /* Debug */,
+				941192A52E8A01FF0078B278 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		941192A62E8A01FF0078B278 /* Build configuration list for PBXNativeTarget "Pulsum" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				941192A72E8A01FF0078B278 /* Debug */,
+				941192A82E8A01FF0078B278 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		941192A92E8A01FF0078B278 /* Build configuration list for PBXNativeTarget "PulsumTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				941192AA2E8A01FF0078B278 /* Debug */,
+				941192AB2E8A01FF0078B278 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		941192AC2E8A01FF0078B278 /* Build configuration list for PBXNativeTarget "PulsumUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				941192AD2E8A01FF0078B278 /* Debug */,
+				941192AE2E8A01FF0078B278 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		300FFDA27B1942B2BBA23181 /* XCLocalSwiftPackageReference "Packages/PulsumML" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PulsumML;
+		};
+		34D4537F967F427A8CC60E41 /* XCLocalSwiftPackageReference "Packages/PulsumUI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PulsumUI;
+		};
+		8B350B6393B14442A408462B /* XCLocalSwiftPackageReference "Packages/PulsumData" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PulsumData;
+		};
+		A6D66678B3C7485B9B4C18C2 /* XCLocalSwiftPackageReference "Packages/PulsumAgents" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PulsumAgents;
+		};
+		AC96D4BBAB3448A2A2619700 /* XCLocalSwiftPackageReference "Packages/PulsumServices" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PulsumServices;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		SPLINE001234567890ABCDEF /* XCRemoteSwiftPackageReference "spline-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/splinetool/spline-ios";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0F767ADA6BE24721A5249B90 /* PulsumML */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 300FFDA27B1942B2BBA23181 /* XCLocalSwiftPackageReference "Packages/PulsumML" */;
+			productName = PulsumML;
+		};
+		789E650BC257425BBE5CEDCB /* PulsumServices */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC96D4BBAB3448A2A2619700 /* XCLocalSwiftPackageReference "Packages/PulsumServices" */;
+			productName = PulsumServices;
+		};
+		A53933ECCEA4440495B0FCB3 /* PulsumData */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B350B6393B14442A408462B /* XCLocalSwiftPackageReference "Packages/PulsumData" */;
+			productName = PulsumData;
+		};
+		A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A6D66678B3C7485B9B4C18C2 /* XCLocalSwiftPackageReference "Packages/PulsumAgents" */;
+			productName = PulsumAgents;
+		};
+		C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 34D4537F967F427A8CC60E41 /* XCLocalSwiftPackageReference "Packages/PulsumUI" */;
+			productName = PulsumUI;
+		};
+		SPLINEABCDEF1234567890AB /* SplineRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = SPLINE001234567890ABCDEF /* XCRemoteSwiftPackageReference "spline-ios" */;
+			productName = SplineRuntime;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 941192782E8A01FF0078B278 /* Project object */;
+}

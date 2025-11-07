@@ -17,14 +17,14 @@ public struct ChatInputView: View {
                 .font(.pulsumBody)
                 .foregroundStyle(Color.pulsumTextPrimary)
                 .padding(PulsumSpacing.md)
-                .background(Color.pulsumCardWhite)
-                .cornerRadius(PulsumRadius.lg)
-                .shadow(
-                    color: PulsumShadow.small.color,
-                    radius: PulsumShadow.small.radius,
-                    x: PulsumShadow.small.x,
-                    y: PulsumShadow.small.y
+                .background(
+                    RoundedRectangle(cornerRadius: PulsumRadius.lg, style: .continuous)
+                        .fill(Color.pulsumCardWhite.opacity(0.9))
                 )
+                .overlay {
+                    RoundedRectangle(cornerRadius: PulsumRadius.lg, style: .continuous)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 0.5)
+                }
                 .focused($chatFieldInFocus)
                 .disabled(viewModel.isSendingChat)
 
@@ -33,7 +33,11 @@ public struct ChatInputView: View {
             } label: {
                 Image(systemName: "paperplane.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.pulsumTextPrimary)
+                    .foregroundStyle(
+                        viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? Color.pulsumTextSecondary
+                            : Color.pulsumTextPrimary
+                    )
                     .frame(width: 44, height: 44)
             }
             .glassEffect(
@@ -44,8 +48,23 @@ public struct ChatInputView: View {
                 ).interactive()
             )
             .disabled(viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSendingChat)
+            
+            // Close keyboard button (iOS 26 style)
+            if chatFieldInFocus {
+                Button {
+                    chatFieldInFocus = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.pulsumTextSecondary)
+                        .frame(width: 44, height: 44)
+                }
+                .glassEffect(.regular.tint(Color.gray.opacity(0.3)).interactive())
+                .transition(.scale.combined(with: .opacity))
+            }
         }
         .frame(maxWidth: .infinity)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: chatFieldInFocus)
         .onChange(of: viewModel.chatFocusToken) { _, _ in
             chatFieldInFocus = true
         }
@@ -59,95 +78,83 @@ struct CoachScreen: View {
     private let chatBottomAnchor = "coach-chat-bottom"
 
     var body: some View {
-        VStack(spacing: PulsumSpacing.lg) {
+        VStack(spacing: 0) {
             chatMessagesOnly
+            
+            if showChatInput {
+                ChatInputView(viewModel: viewModel)
+                    .padding(.horizontal, PulsumSpacing.lg)
+                    .padding(.vertical, PulsumSpacing.md)
+                    .background(Color.pulsumBackgroundBeige.opacity(0.95))
+            }
         }
-        .padding(.horizontal, PulsumSpacing.xl)
-        .padding(.vertical, PulsumSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
             Color.pulsumBackgroundBeige
                 .ignoresSafeArea()
         )
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showChatInput {
-                chatInputInset
-            }
-        }
         .scrollDismissesKeyboard(.interactively)
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .onAppear {
 #if canImport(UIKit)
             UIView.setAnimationsEnabled(true)
 #endif
         }
-        ._debugKeyboardLayoutFix()
     }
 
     private var chatMessagesOnly: some View {
-        VStack(spacing: PulsumSpacing.md) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: PulsumSpacing.sm) {
-                        ForEach(viewModel.messages) { message in
-                            ChatBubble(message: message)
-                                .padding(message.role == .user ? .leading : .trailing, 48)
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                        }
-
-                        if viewModel.isSendingChat {
-                            HStack(spacing: PulsumSpacing.xs) {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .tint(Color.pulsumGreenSoft)
-                                Text("Analyzing...")
-                                    .font(.pulsumCallout)
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, PulsumSpacing.sm)
-                        }
-
-                        Color.clear
-                            .frame(height: 1)
-                            .id(chatBottomAnchor)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                    ForEach(viewModel.messages) { message in
+                        ChatBubble(message: message)
+                            .padding(message.role == .user ? .leading : .trailing, 48)
                     }
-                    .padding(.vertical, PulsumSpacing.md)
+
+                    if viewModel.isSendingChat {
+                        HStack(spacing: PulsumSpacing.xs) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(Color.pulsumGreenSoft)
+                            Text("Analyzing...")
+                                .font(.pulsumCallout)
+                                .foregroundStyle(Color.pulsumTextSecondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, PulsumSpacing.sm)
+                    }
+
+                    if let message = viewModel.chatErrorMessage {
+                        MessageBubble(icon: "exclamationmark.circle", text: message, tint: Color.pulsumWarning)
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(chatBottomAnchor)
                 }
-                .scrollDismissesKeyboard(.interactively)
-                .onAppear {
+                .frame(maxWidth: 520, alignment: .leading)
+                .padding(.horizontal, PulsumSpacing.lg)
+                .padding(.top, PulsumSpacing.md)
+                .padding(.bottom, 100)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                DispatchQueue.main.async {
                     proxy.scrollTo(chatBottomAnchor, anchor: .bottom)
                 }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    withAnimation(.pulsumStandard) {
+            }
+            .onChange(of: viewModel.messages.count) { _, _ in
+                DispatchQueue.main.async {
+                    proxy.scrollTo(chatBottomAnchor, anchor: .bottom)
+                }
+            }
+            .onChange(of: viewModel.isSendingChat) { _, sending in
+                if sending {
+                    DispatchQueue.main.async {
                         proxy.scrollTo(chatBottomAnchor, anchor: .bottom)
                     }
                 }
-                .onChange(of: viewModel.isSendingChat) { _, sending in
-                    if sending {
-                        withAnimation(.pulsumStandard) {
-                            proxy.scrollTo(chatBottomAnchor, anchor: .bottom)
-                        }
-                    }
-                }
-            }
-
-            if let message = viewModel.chatErrorMessage {
-                MessageBubble(icon: "exclamationmark.circle", text: message, tint: Color.pulsumWarning)
             }
         }
-        .frame(maxWidth: 520, alignment: .leading)
-    }
-
-    private var chatInputInset: some View {
-        ChatInputView(viewModel: viewModel)
-            .padding(.horizontal, PulsumSpacing.xl)
-            .background(.ultraThinMaterial)
-            .overlay(
-                Divider()
-                    .opacity(0.5),
-                alignment: .top
-            )
     }
 }
 
@@ -159,18 +166,15 @@ struct InsightsScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: PulsumSpacing.lg) {
+            LazyVStack(spacing: PulsumSpacing.lg) {
                 todayPicksSection
-                Divider()
-                    .opacity(0)
-                    .frame(height: PulsumSpacing.sm)
             }
             .frame(maxWidth: 520, alignment: .center)
-            .padding(.horizontal, PulsumSpacing.sm)
+            .padding(.horizontal, PulsumSpacing.lg)
+            .padding(.top, PulsumSpacing.md)
+            .padding(.bottom, PulsumSpacing.xxxl)
         }
-        .padding(.horizontal, PulsumSpacing.xl)
-        .padding(.vertical, PulsumSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .scrollIndicators(.hidden)
         .background(
             Color.pulsumBackgroundBeige
                 .ignoresSafeArea()
@@ -216,18 +220,15 @@ struct InsightsScreen: View {
                     tint: Color.pulsumTextSecondary
                 )
             } else {
-                VStack(spacing: PulsumSpacing.md) {
-                    ForEach(viewModel.recommendations, id: \.id) { card in
-                        RecommendationCardView(card: card) {
-                            Task { await viewModel.markCardComplete(card) }
-                        }
+                ForEach(viewModel.recommendations, id: \.id) { card in
+                    RecommendationCardView(card: card) {
+                        Task { await viewModel.markCardComplete(card) }
                     }
                 }
             }
 
             if let cheerMessage = viewModel.cheerEventMessage {
                 MessageBubble(icon: "heart.fill", text: cheerMessage, tint: Color.pulsumPinkSoft)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }
@@ -406,15 +407,5 @@ private struct BadgeView: View {
             .padding(.horizontal, PulsumSpacing.xs)
             .background(Color.pulsumBlueSoft.opacity(0.15))
             .cornerRadius(PulsumRadius.xs)
-    }
-}
-
-extension View {
-    @ViewBuilder func _debugKeyboardLayoutFix() -> some View {
-#if DEBUG
-        self.ignoresSafeArea(.keyboard, edges: .bottom)
-#else
-        self
-#endif
     }
 }

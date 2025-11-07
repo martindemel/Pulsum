@@ -7,6 +7,20 @@ import PulsumData
 import PulsumML
 import PulsumServices
 
+public enum SentimentAgentError: LocalizedError {
+    case noActiveRecording
+    case noSpeechDetected
+    
+    public var errorDescription: String? {
+        switch self {
+        case .noActiveRecording:
+            return "No active recording session found."
+        case .noSpeechDetected:
+            return "No speech detected. Please try again and speak clearly."
+        }
+    }
+}
+
 @MainActor
 public final class SentimentAgent {
     private let speechService: SpeechService
@@ -14,7 +28,16 @@ public final class SentimentAgent {
     private let context: NSManagedObjectContext
     private let calendar = Calendar(identifier: .gregorian)
     private let sentimentService: SentimentService
-    private var activeStopHandler: (() -> Void)?
+    private var activeSession: SpeechService.Session?
+    private var latestTranscript: String = ""
+    
+    public var audioLevels: AsyncStream<Float>? {
+        activeSession?.audioLevels
+    }
+    
+    public var speechStream: AsyncThrowingStream<SpeechSegment, Error>? {
+        activeSession?.stream
+    }
 
     public init(speechService: SpeechService = SpeechService(),
                 container: NSPersistentContainer = PulsumData.container,
@@ -30,27 +53,72 @@ public final class SentimentAgent {
         try await speechService.requestAuthorization()
     }
 
-    public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalResult {
+    /// Begins voice journal recording and returns immediately after starting audio capture.
+    /// Audio levels and speech stream become available synchronously via properties.
+    /// The caller should consume the speech stream to get real-time transcription.
+    /// Call `finishVoiceJournal(transcript:)` to complete recording and persist the result.
+    public func beginVoiceJournal(maxDuration: TimeInterval = 30) async throws {
         try await speechService.requestAuthorization()
         let session = try await speechService.startRecording(maxDuration: min(maxDuration, 30))
-        activeStopHandler = session.stop
-        defer { activeStopHandler = nil }
-        var transcript = ""
-        do {
-            for try await segment in session.stream {
-                transcript = segment.transcript
-            }
-        } catch {
-            session.stop()
-            throw error
+        activeSession = session
+        latestTranscript = ""
+    }
+    
+    /// Updates the latest transcript. Called by the UI as it consumes the speech stream.
+    public func updateTranscript(_ transcript: String) {
+        latestTranscript = transcript
+    }
+    
+    /// Completes the voice journal recording that was started with `beginVoiceJournal()`.
+    /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
+    /// Returns the persisted journal result with transcript and sentiment.
+    public func finishVoiceJournal(transcript: String? = nil) async throws -> JournalResult {
+        guard activeSession != nil else {
+            throw SentimentAgentError.noActiveRecording
         }
-        session.stop()
-        return try await persistJournal(transcript: transcript)
+        
+        defer {
+            activeSession = nil
+            latestTranscript = ""
+        }
+        
+        // Stop the recording session
+        activeSession?.stop()
+        
+        // Use provided transcript or fall back to stored transcript
+        let finalTranscript = transcript ?? latestTranscript
+        
+        // Check for empty transcript
+        let trimmed = finalTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw SentimentAgentError.noSpeechDetected
+        }
+        
+        return try await persistJournal(transcript: trimmed)
+    }
+
+    /// Legacy method that combines begin + finish for backward compatibility
+    public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalResult {
+        try await beginVoiceJournal(maxDuration: maxDuration)
+        
+        // Consume the speech stream to get the transcript
+        var transcript = ""
+        if let stream = speechStream {
+            do {
+                for try await segment in stream {
+                    transcript = segment.transcript
+                }
+            } catch {
+                activeSession?.stop()
+                throw error
+            }
+        }
+        
+        return try await finishVoiceJournal(transcript: transcript)
     }
 
     public func stopRecording() {
-        activeStopHandler?()
-        activeStopHandler = nil
+        activeSession?.stop()
     }
 
     public func importTranscript(_ transcript: String) async throws -> JournalResult {

@@ -42,13 +42,19 @@ struct ConsentBannerView: View {
             .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.7)).interactive())
         }
         .padding(PulsumSpacing.lg)
-        .background(Color.pulsumCardWhite)
-        .cornerRadius(PulsumRadius.xl)
+        .background {
+            RoundedRectangle(cornerRadius: PulsumRadius.xl, style: .continuous)
+                .fill(.regularMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: PulsumRadius.xl, style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                }
+        }
         .shadow(
-            color: PulsumShadow.medium.color,
-            radius: PulsumShadow.medium.radius,
-            x: PulsumShadow.medium.x,
-            y: PulsumShadow.medium.y
+            color: Color.black.opacity(0.08),
+            radius: 16,
+            x: 0,
+            y: 8
         )
     }
 }

@@ -59,13 +59,19 @@ struct SafetyCardView: View {
                 }
             }
             .padding(PulsumSpacing.xl)
-            .background(Color.pulsumCardWhite)
-            .cornerRadius(PulsumRadius.xxl)
+            .background {
+                RoundedRectangle(cornerRadius: PulsumRadius.xxl, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: PulsumRadius.xxl, style: .continuous)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    }
+            }
             .shadow(
-                color: PulsumShadow.large.color,
-                radius: PulsumShadow.large.radius,
-                x: PulsumShadow.large.x,
-                y: PulsumShadow.large.y
+                color: Color.black.opacity(0.15),
+                radius: 24,
+                x: 0,
+                y: 12
             )
             .padding(PulsumSpacing.lg)
         }

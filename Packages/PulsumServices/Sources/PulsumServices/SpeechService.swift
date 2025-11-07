@@ -34,6 +34,7 @@ public actor SpeechService {
     public struct Session: Sendable {
         public let stream: AsyncThrowingStream<SpeechSegment, Error>
         public let stop: @Sendable () -> Void
+        public let audioLevels: AsyncStream<Float>?
     }
 
     private enum Backend {
@@ -84,6 +85,8 @@ private final class LegacySpeechBackend {
     private var audioEngine: AVAudioEngine?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
+    private var levelContinuation: AsyncStream<Float>.Continuation?
 
     init(locale: Locale) {
         let recognizer = SFSpeechRecognizer(locale: locale)
@@ -102,19 +105,24 @@ private final class LegacySpeechBackend {
 
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
         guard let recognizer, recognizer.isAvailable else {
+            print("[SpeechService] ❌ Speech recognizer not available")
             throw SpeechServiceError.recognitionUnavailable
         }
+        
+        print("[SpeechService] ✅ Speech recognizer available, on-device: \(recognizer.supportsOnDeviceRecognition)")
 
 #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            print("[SpeechService] ✅ Audio session configured successfully")
         } catch {
             #if targetEnvironment(simulator)
             // In simulator, audio session config may fail but recording still works
-            print("[SpeechService] Audio session config failed in simulator (expected): \(error)")
+            print("[SpeechService] ⚠️ Audio session config failed in simulator (expected): \(error)")
             #else
+            print("[SpeechService] ❌ Audio session configuration failed: \(error)")
             throw SpeechServiceError.audioSessionUnavailable
             #endif
         }
@@ -124,64 +132,138 @@ private final class LegacySpeechBackend {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         request.shouldReportPartialResults = true
+        
+        print("[SpeechService] Starting audio engine...")
 
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
+        print("[SpeechService] Audio format - sample rate: \(format.sampleRate), channels: \(format.channelCount)")
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            request.append(buffer)
+        
+        // Create audio level stream with stored continuation
+        let audioLevelStream = AsyncStream<Float> { continuation in
+            self.levelContinuation = continuation
+            continuation.onTermination = { @Sendable _ in
+                print("[SpeechService] Audio level stream terminated")
+            }
+            
+            // Install tap to capture audio and send to recognition
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+                // Feed buffer to speech recognition
+                request.append(buffer)
+                
+                // Calculate and yield RMS power level for waveform visualization
+                let level = Self.calculateRMSLevel(from: buffer)
+                continuation.yield(level)
+            }
         }
 
         engine.prepare()
         do {
             try engine.start()
+            print("[SpeechService] ✅ Audio engine started successfully")
         } catch {
+            print("[SpeechService] ❌ Failed to start audio engine: \(error)")
             throw SpeechServiceError.engineError(error.localizedDescription)
         }
 
         audioEngine = engine
         recognitionRequest = request
 
+        // Create speech segment stream with stored continuation
         let stream = AsyncThrowingStream<SpeechSegment, Error> { continuation in
-            self.recognitionTask = recognizer.recognitionTask(with: request) { result, error in
-                if let error {
-                    continuation.finish(throwing: error)
-                    return
-                }
-                guard let result else { return }
-                let confidence = result.transcriptions.first?.segments.averageConfidence ?? 0
-                continuation.yield(SpeechSegment(transcript: result.bestTranscription.formattedString,
-                                                  confidence: confidence))
-                if result.isFinal {
-                    continuation.finish()
-                }
+            self.streamContinuation = continuation
+            continuation.onTermination = { @Sendable _ in
+                print("[SpeechService] Speech segment stream terminated")
             }
+        }
+        
+        // Start recognition task IMMEDIATELY (not deferred until stream consumption)
+        print("[SpeechService] Starting recognition task NOW...")
+        self.recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+            
+            if let error {
+                print("[SpeechService] ❌ Recognition error: \(error)")
+                self.streamContinuation?.finish(throwing: error)
+                return
+            }
+            
+            guard let result else { return }
+            
+            let confidence = result.transcriptions.first?.segments.averageConfidence ?? 0
+            let transcript = result.bestTranscription.formattedString
+            
+            if !transcript.isEmpty {
+                print("[SpeechService] 🎤 Transcript update (final: \(result.isFinal)): \"\(transcript.prefix(50))...\" confidence: \(confidence)")
+                self.streamContinuation?.yield(SpeechSegment(transcript: transcript, confidence: confidence))
+            }
+            
+            if result.isFinal {
+                print("[SpeechService] ✅ Recognition completed with final transcript")
+                self.streamContinuation?.finish()
+            }
+        }
+        
+        print("[SpeechService] ✅ Recognition task started and actively listening")
 
-            if maxDuration > 0 {
-                Task {
-                    try? await Task.sleep(nanoseconds: UInt64(maxDuration * 1_000_000_000))
-                    self.stopRecording()
-                    continuation.finish()
-                }
+        // Set up max duration timeout
+        if maxDuration > 0 {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(maxDuration * 1_000_000_000))
+                print("[SpeechService] ⏱️ Max duration reached, stopping recording")
+                self?.stopRecording()
             }
         }
 
-        return SpeechService.Session(stream: stream, stop: { [weak self] in
-            self?.stopRecording()
-        })
+        return SpeechService.Session(
+            stream: stream,
+            stop: { [weak self] in
+                self?.stopRecording()
+            },
+            audioLevels: audioLevelStream
+        )
+    }
+    
+    private static func calculateRMSLevel(from buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return 0 }
+        let channelDataValue = channelData.pointee
+        let channelDataValueArray = stride(from: 0, to: Int(buffer.frameLength), by: buffer.stride)
+            .map { channelDataValue[$0] }
+        
+        let rms = sqrt(channelDataValueArray.map { $0 * $0 }.reduce(0, +) / Float(buffer.frameLength))
+        
+        // Convert to dB and normalize to 0...1 range
+        let decibels = 20 * log10(max(rms, 0.00001))
+        let normalized = max(0, min(1, (decibels + 50) / 50)) // -50dB to 0dB mapped to 0...1
+        
+        return normalized
     }
 
     func stopRecording() {
-        recognitionTask?.cancel()
-        recognitionTask = nil
+        print("[SpeechService] 🛑 Stopping recording...")
+        
+        // Finish streams
+        streamContinuation?.finish()
+        streamContinuation = nil
+        levelContinuation?.finish()
+        levelContinuation = nil
+        
+        // Cancel recognition task (not cancel, just finish cleanly)
         recognitionRequest?.endAudio()
         recognitionRequest = nil
+        recognitionTask?.finish()
+        recognitionTask = nil
+        
+        // Stop audio engine
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine = nil
+        
 #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 #endif
+        print("[SpeechService] ✅ Recording stopped and cleaned up")
     }
 }
 

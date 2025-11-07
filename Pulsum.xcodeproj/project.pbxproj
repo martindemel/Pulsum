@@ -14,7 +14,6 @@
 		945EC8942E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
 		945EC8952E8AD321001CCF2E /* PulsumServices in Frameworks */ = {isa = PBXBuildFile; productRef = 789E650BC257425BBE5CEDCB /* PulsumServices */; };
 		945EC8962E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
-		945EC8972E8AD321001CCF2E /* SplineRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = SPLINEABCDEF1234567890AB /* SplineRuntime */; };
 		945EC8982E8AD321001CCF2E /* PulsumUI in Frameworks */ = {isa = PBXBuildFile; productRef = C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */; };
 		945EC8992E8AD321001CCF2E /* PulsumAgents in Frameworks */ = {isa = PBXBuildFile; productRef = A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */; };
 		945EC89A2E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
@@ -50,6 +49,7 @@
 		9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */ = {isa = PBXFileReference; lastKnownFileType = file; path = streak_low_poly_copy.splineswift; sourceTree = "<group>"; };
 		9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "podcastrecommendations 2.json"; sourceTree = "<group>"; };
+		PULSUM_CONFIG_XCCONFIG /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -80,7 +80,6 @@
 				945EC8942E8AD321001CCF2E /* PulsumData in Frameworks */,
 				945EC8932E8AD321001CCF2E /* PulsumAgents in Frameworks */,
 				945EC8922E8AD321001CCF2E /* PulsumUI in Frameworks */,
-				945EC8972E8AD321001CCF2E /* SplineRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -120,6 +119,7 @@
 				9411929F2E8A01FF0078B278 /* PulsumUITests */,
 				941192812E8A01FF0078B278 /* Products */,
 				94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */,
+				9474366B2EA5CDF00042A3D9 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -133,6 +133,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		9474366B2EA5CDF00042A3D9 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				PULSUM_CONFIG_XCCONFIG /* Config.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -143,7 +151,6 @@
 				9411927C2E8A01FF0078B278 /* Sources */,
 				9411927D2E8A01FF0078B278 /* Frameworks */,
 				9411927E2E8A01FF0078B278 /* Resources */,
-				94293EF42E8CE8DD003E5840 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -258,7 +265,6 @@
 				8B350B6393B14442A408462B /* XCLocalSwiftPackageReference "Packages/PulsumData" */,
 				AC96D4BBAB3448A2A2619700 /* XCLocalSwiftPackageReference "Packages/PulsumServices" */,
 				300FFDA27B1942B2BBA23181 /* XCLocalSwiftPackageReference "Packages/PulsumML" */,
-				SPLINE001234567890ABCDEF /* XCRemoteSwiftPackageReference "spline-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 941192812E8A01FF0078B278 /* Products */;
@@ -297,27 +303,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		94293EF42E8CE8DD003E5840 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Generate dSYM for SplineRuntime XCFramework\nset -e\n\nSPLINE_FRAMEWORK=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/SplineRuntime.framework/SplineRuntime\"\n\nif [[ -f \"${SPLINE_FRAMEWORK}\" ]]; then\n    echo \"Found SplineRuntime at: ${SPLINE_FRAMEWORK}\"\n    \n    # Check if it's already signed (XCFrameworks are pre-signed)\n    if codesign -v \"${SPLINE_FRAMEWORK}\" 2>/dev/null; then\n        echo \"SplineRuntime is signed. Attempting to generate dSYM...\"\n        \n        # Try to generate dSYM with error handling\n        if dsymutil \"${SPLINE_FRAMEWORK}\" -o \"${DWARF_DSYM_FOLDER_PATH}/SplineRuntime.framework.dSYM\" 2>/dev/null; then\n            echo \"✓ dSYM generated successfully\"\n        else\n            echo \"⚠ Could not generate dSYM (this is expected for pre-compiled frameworks)\"\n            echo \"The framework will work without dSYM. Crash reports may not be fully symbolicated.\"\n        fi\n    else\n        echo \"SplineRuntime is not signed yet, skipping dSYM generation\"\n    fi\nelse\n    echo \"SplineRuntime framework not found at expected location, skipping\"\nfi\n\nexit 0\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9411927C2E8A01FF0078B278 /* Sources */ = {
@@ -480,6 +465,7 @@
 		};
 		941192A72E8A01FF0078B278 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = PULSUM_CONFIG_XCCONFIG /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -489,10 +475,12 @@
 				DEVELOPMENT_TEAM = X6FJFZCXY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes recordings locally so you can reflect on your check-ins.";
+				INFOPLIST_KEY_OPENAI_API_KEY = "$(OPENAI_API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -517,6 +505,7 @@
 		};
 		941192A82E8A01FF0078B278 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = PULSUM_CONFIG_XCCONFIG /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -529,10 +518,12 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes recordings locally so you can reflect on your check-ins.";
+				INFOPLIST_KEY_OPENAI_API_KEY = "$(OPENAI_API_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -703,17 +694,6 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		SPLINE001234567890ABCDEF /* XCRemoteSwiftPackageReference "spline-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/splinetool/spline-ios";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		0F767ADA6BE24721A5249B90 /* PulsumML */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -739,11 +719,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 34D4537F967F427A8CC60E41 /* XCLocalSwiftPackageReference "Packages/PulsumUI" */;
 			productName = PulsumUI;
-		};
-		SPLINEABCDEF1234567890AB /* SplineRuntime */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = SPLINE001234567890ABCDEF /* XCRemoteSwiftPackageReference "spline-ios" */;
-			productName = SplineRuntime;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

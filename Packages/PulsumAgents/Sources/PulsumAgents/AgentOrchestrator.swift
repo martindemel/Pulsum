@@ -152,10 +152,36 @@ public final class AgentOrchestrator {
         try await dataAgent.start()
     }
 
-    public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalCaptureResponse {
-        let result = try await sentimentAgent.recordVoiceJournal(maxDuration: maxDuration)
+    /// Begins voice journal recording and returns immediately after starting audio capture.
+    /// Audio levels and speech stream become available synchronously via properties.
+    /// The caller should consume `voiceJournalSpeechStream` for real-time transcription.
+    /// Call `finishVoiceJournalRecording(transcript:)` to complete recording and get the result.
+    public func beginVoiceJournalRecording(maxDuration: TimeInterval = 30) async throws {
+        try await sentimentAgent.beginVoiceJournal(maxDuration: maxDuration)
+    }
+    
+    /// Completes the voice journal recording that was started with `beginVoiceJournalRecording()`.
+    /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
+    /// Returns the journal result with safety evaluation.
+    public func finishVoiceJournalRecording(transcript: String? = nil) async throws -> JournalCaptureResponse {
+        let result = try await sentimentAgent.finishVoiceJournal(transcript: transcript)
         let safety = await safetyAgent.evaluate(text: result.transcript)
         return JournalCaptureResponse(result: result, safety: safety)
+    }
+
+    /// Legacy method that combines begin + finish for backward compatibility
+    public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalCaptureResponse {
+        try await beginVoiceJournalRecording(maxDuration: maxDuration)
+        
+        // Consume the speech stream
+        var transcript = ""
+        if let stream = voiceJournalSpeechStream {
+            for try await segment in stream {
+                transcript = segment.transcript
+            }
+        }
+        
+        return try await finishVoiceJournalRecording(transcript: transcript)
     }
 
     public func submitTranscript(_ text: String) async throws -> JournalCaptureResponse {
@@ -166,6 +192,14 @@ public final class AgentOrchestrator {
 
     public func stopVoiceJournalRecording() {
         sentimentAgent.stopRecording()
+    }
+    
+    public var voiceJournalAudioLevels: AsyncStream<Float>? {
+        sentimentAgent.audioLevels
+    }
+    
+    public var voiceJournalSpeechStream: AsyncThrowingStream<SpeechSegment, Error>? {
+        sentimentAgent.speechStream
     }
 
     public func updateSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {

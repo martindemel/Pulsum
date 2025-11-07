@@ -9,22 +9,29 @@ struct PulseView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: PulsumSpacing.lg) {
-                    journalSection
-                    slidersSection
-                }
-                .padding(.horizontal, PulsumSpacing.lg)
-                .padding(.vertical, PulsumSpacing.lg)
-            }
-            .background(
+            ZStack {
+                // Background gradient
                 LinearGradient(
                     colors: [Color.pulsumBackgroundBeige, Color.pulsumBackgroundCream],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
-            )
+                
+                // Content
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: PulsumSpacing.xl) {
+                        journalSection
+                        slidersSection
+                    }
+                    .padding(.horizontal, PulsumSpacing.lg)
+                    .padding(.top, PulsumSpacing.md)
+                    .padding(.bottom, PulsumSpacing.xxxl)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("Pulse Check-In")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -37,6 +44,7 @@ struct PulseView: View {
                     }
                 }
             }
+            .toolbarBackground(.automatic, for: .navigationBar)
             .onDisappear { autoDismissTask?.cancel() }
             .onChange(of: viewModel.sliderSubmissionMessage) { _, message in
                 guard message != nil else { return }
@@ -53,54 +61,68 @@ struct PulseView: View {
 
     private var journalSection: some View {
         VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-            Text("Pulse journal")
+            Text("Voice journal")
                 .font(.pulsumHeadline)
                 .foregroundStyle(Color.pulsumTextPrimary)
 
-            TapToRecordButton(
+            VoiceJournalButton(
                 isRecording: viewModel.isRecording,
+                isAnalyzing: viewModel.isAnalyzing,
                 remaining: viewModel.recordingSecondsRemaining,
-                isProcessing: viewModel.isAnalyzing,
+                audioLevels: viewModel.audioLevels,
                 startAction: { viewModel.startRecording() },
                 stopAction: { viewModel.stopRecording() }
             )
-            .frame(height: 70)
-            .padding(.vertical, PulsumSpacing.sm)
-
-            if let transcript = viewModel.transcript {
+            
+            // Real-time transcript display
+            if let transcript = viewModel.transcript, !transcript.isEmpty, (viewModel.isRecording || viewModel.isAnalyzing) {
                 VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
-                    Text("Latest transcript")
-                        .font(.pulsumCaption)
-                        .foregroundStyle(Color.pulsumTextSecondary)
+                    HStack {
+                        Text("Transcript")
+                            .font(.pulsumFootnote)
+                            .foregroundStyle(Color.pulsumTextSecondary)
+                        
+                        if viewModel.isRecording {
+                            Text("• LIVE")
+                                .font(.pulsumFootnote)
+                                .foregroundStyle(Color.pulsumError)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
                     Text(transcript)
                         .font(.pulsumBody)
                         .foregroundStyle(Color.pulsumTextPrimary)
-                        .padding(PulsumSpacing.sm)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.pulsumBackgroundCream)
-                        .cornerRadius(PulsumRadius.md)
-                    if let score = viewModel.sentimentScore {
-                        HStack(spacing: PulsumSpacing.xs) {
-                            Image(systemName: score >= 0 ? "face.smiling" : "face.dashed")
-                                .font(.pulsumCaption)
-                            Text("Sentiment: \(score.formatted(.number.precision(.fractionLength(2))))")
-                                .font(.pulsumCaption)
+                        .padding(PulsumSpacing.sm)
+                        .background {
+                            RoundedRectangle(cornerRadius: PulsumRadius.md, style: .continuous)
+                                .fill(Color.pulsumBackgroundBeige.opacity(0.3))
                         }
-                        .foregroundStyle(score >= 0 ? Color.pulsumSuccess : Color.pulsumWarning)
-                    }
                 }
+                .animation(.pulsumStandard, value: transcript)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             if let error = viewModel.analysisError {
                 InfoBubble(icon: "exclamationmark.triangle", text: error, tint: Color.pulsumWarning)
             }
         }
-        .padding(PulsumSpacing.md)
-        .background(
+        .padding(PulsumSpacing.lg)
+        .background {
             RoundedRectangle(cornerRadius: PulsumRadius.xl, style: .continuous)
-                .fill(Color.pulsumCardWhite)
-                .shadow(color: PulsumShadow.small.color, radius: PulsumShadow.small.radius, x: PulsumShadow.small.x, y: PulsumShadow.small.y)
-        )
+                .fill(.regularMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: PulsumRadius.xl, style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                }
+                .shadow(
+                    color: Color.black.opacity(0.08),
+                    radius: 16,
+                    x: 0,
+                    y: 6
+                )
+        }
     }
 
     private var slidersSection: some View {
@@ -109,7 +131,7 @@ struct PulseView: View {
                 .font(.pulsumHeadline)
                 .foregroundStyle(Color.pulsumTextPrimary)
 
-            VStack(spacing: PulsumSpacing.md) {
+            VStack(spacing: PulsumSpacing.sm) {
                 sliderRow(title: "Stress", value: $viewModel.stressLevel, description: "1 = very calm, 7 = overwhelmed")
                 sliderRow(title: "Energy", value: $viewModel.energyLevel, description: "1 = depleted, 7 = fully charged")
                 sliderRow(title: "Sleep quality", value: $viewModel.sleepQualityLevel, description: "1 = poor, 7 = deeply restorative")
@@ -126,21 +148,30 @@ struct PulseView: View {
             Button {
                 viewModel.submitInputs()
             } label: {
-                Text(viewModel.isSubmittingInputs ? "Saving..." : "Save subjective inputs")
-                    .font(.pulsumBody.weight(.semibold))
+                Text(viewModel.isSubmittingInputs ? "Saving..." : "Save inputs")
+                    .font(.pulsumHeadline)
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, PulsumSpacing.sm)
+                    .padding(.vertical, PulsumSpacing.md)
             }
-            .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.7)).interactive())
+            .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.8)).interactive())
             .disabled(viewModel.isSubmittingInputs)
         }
-        .padding(PulsumSpacing.md)
-        .background(
+        .padding(PulsumSpacing.lg)
+        .background {
             RoundedRectangle(cornerRadius: PulsumRadius.xl, style: .continuous)
-                .fill(Color.pulsumCardWhite)
-                .shadow(color: PulsumShadow.small.color, radius: PulsumShadow.small.radius, x: PulsumShadow.small.x, y: PulsumShadow.small.y)
-        )
+                .fill(.regularMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: PulsumRadius.xl, style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                }
+                .shadow(
+                    color: Color.black.opacity(0.08),
+                    radius: 16,
+                    x: 0,
+                    y: 6
+                )
+        }
     }
 
     private func sliderRow(title: String, value: Binding<Double>, description: String) -> some View {
@@ -151,147 +182,159 @@ struct PulseView: View {
                     .foregroundStyle(Color.pulsumTextPrimary)
                 Spacer()
                 Text("\(Int(value.wrappedValue.rounded()))")
-                    .font(.pulsumCaption)
+                    .font(.pulsumTitle3.weight(.bold))
                     .foregroundStyle(Color.pulsumGreenSoft)
+                    .monospacedDigit()
             }
+            
             Slider(value: value, in: 1...7, step: 1)
                 .tint(Color.pulsumGreenSoft)
+            
             Text(description)
                 .font(.pulsumCaption)
                 .foregroundStyle(Color.pulsumTextSecondary)
+                .lineSpacing(2)
+        }
+        .padding(PulsumSpacing.md)
+        .background {
+            RoundedRectangle(cornerRadius: PulsumRadius.md, style: .continuous)
+                .fill(Color.pulsumBackgroundBeige.opacity(0.3))
         }
     }
 }
 
-private struct TapToRecordButton: View {
+// Simple horizontal voice journal button
+private struct VoiceJournalButton: View {
     let isRecording: Bool
+    let isAnalyzing: Bool
     let remaining: Int
-    let isProcessing: Bool
+    let audioLevels: [CGFloat]
     let startAction: () -> Void
     let stopAction: () -> Void
-
-    @State private var isPressed = false
-
-    private let buttonHeight: CGFloat = 70
-
+    
+    private let maxDuration: Double = 30
+    
     var body: some View {
-        Button {
-            // Haptic feedback
-            let impact = UIImpactFeedbackGenerator(style: isRecording ? .medium : .heavy)
-            impact.impactOccurred()
-
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                if isRecording {
-                    stopAction()
-                } else {
-                    startAction()
-                }
-            }
-        } label: {
-            ZStack {
-                // Background with liquid glass effect
-                RoundedRectangle(cornerRadius: buttonHeight / 2, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: buttonHeight / 2, style: .continuous)
-                            .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-                    }
-
-                // Recording progress indicator
-                if isRecording {
-                    GeometryReader { geo in
-                        let progress = CGFloat(30 - remaining) / 30.0
-                        RoundedRectangle(cornerRadius: buttonHeight / 2, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.pulsumGreenSoft.opacity(0.3), Color.pulsumGreenSoft.opacity(0.6)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: geo.size.width * progress)
-                            .animation(.linear(duration: 1), value: remaining)
-                    }
-                }
-
-                // Content
-                HStack(spacing: 12) {
-                    // Microphone/Stop Icon Circle
+        HStack(spacing: PulsumSpacing.md) {
+            if isRecording {
+                // Recording state: waveform + stop button with progress
+                waveformView
+                
+                ZStack {
+                    // Progress ring background
                     Circle()
-                        .fill(.regularMaterial)
-                        .overlay {
-                            Circle()
-                                .strokeBorder(.white.opacity(0.3), lineWidth: 2)
-                        }
-                        .overlay {
-                            if isProcessing {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .tint(.white)
-                            } else {
-                                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
-                                    .font(.system(size: 24, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .symbolEffect(.pulse, isActive: isRecording)
-                            }
-                        }
-                        .frame(width: 54, height: 54)
-                        .shadow(color: (isRecording ? Color.pulsumError : Color.pulsumGreenSoft).opacity(0.4), radius: 12, x: 0, y: 4)
-
-                    // Label
-                    if isProcessing {
-                        HStack(spacing: 8) {
-                            Text("Processing...")
-                                .font(.pulsumBody.weight(.semibold))
-                                .foregroundStyle(Color.pulsumTextSecondary)
-                        }
-                    } else if isRecording {
-                        HStack(spacing: 8) {
-                            Text(formattedTime)
-                                .font(.system(.title3, design: .rounded).weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(Color.pulsumTextPrimary)
-                            Text("• Tap to stop")
-                                .font(.pulsumCallout.weight(.medium))
-                                .foregroundStyle(Color.pulsumError)
-                        }
-                    } else {
-                        Text("Tap to record")
-                            .font(.pulsumBody.weight(.semibold))
-                            .foregroundStyle(Color.pulsumTextPrimary)
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, 8)
-            }
-            .frame(height: buttonHeight)
-            .scaleEffect(isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-        }
-        .buttonStyle(.plain)
-        .disabled(isProcessing)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressed {
-                        isPressed = true
-                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 3)
+                        .frame(width: 56, height: 56)
+                    
+                    // Progress ring foreground
+                    Circle()
+                        .trim(from: 0, to: CGFloat(maxDuration - Double(remaining)) / maxDuration)
+                        .stroke(Color.pulsumGreenSoft, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .frame(width: 56, height: 56)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 1), value: remaining)
+                    
+                    // Stop button
+                    Button {
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
                         impact.impactOccurred()
+                        stopAction()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.pulsumError)
+                                .frame(width: 48, height: 48)
+                            
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .accessibilityLabel("Stop recording")
+                    .accessibilityHint("Double tap to stop recording")
+                }
+            } else if isAnalyzing {
+                // Processing state: spinner + text
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(Color.pulsumGreenSoft)
+                    .scaleEffect(1.2)
+                    .frame(width: 48, height: 48)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Analyzing...")
+                        .font(.pulsumHeadline)
+                        .foregroundStyle(Color.pulsumTextPrimary)
+                    
+                    Text("Processing your journal entry")
+                        .font(.pulsumFootnote)
+                        .foregroundStyle(Color.pulsumTextSecondary)
+                }
+            } else {
+                // Idle state: record button + text
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .heavy)
+                    impact.impactOccurred()
+                    startAction()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.pulsumGreenSoft)
+                            .frame(width: 48, height: 48)
+                        
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white)
                     }
                 }
-                .onEnded { _ in
-                    isPressed = false
+                .accessibilityLabel("Record voice journal")
+                .accessibilityHint("Double tap to start recording")
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tap to record")
+                        .font(.pulsumHeadline)
+                        .foregroundStyle(Color.pulsumTextPrimary)
+                    
+                    Text("Up to 30 seconds")
+                        .font(.pulsumFootnote)
+                        .foregroundStyle(Color.pulsumTextSecondary)
                 }
-        )
-        .accessibilityLabel(isRecording ? "Stop recording" : (isProcessing ? "Processing journal" : "Start voice journal"))
-        .accessibilityHint(isRecording ? "Tap to stop recording" : "Tap to start recording")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.pulsumStandard, value: isRecording)
+        .animation(.pulsumStandard, value: isAnalyzing)
     }
-
-    private var formattedTime: String {
-        let mins = remaining / 60
-        let secs = remaining % 60
-        return String(format: "%d:%02d", mins, secs)
+    
+    private var waveformView: some View {
+        Canvas { context, size in
+            let width = size.width
+            let height = size.height
+            let barWidth: CGFloat = 2.5
+            let barSpacing: CGFloat = 2
+            let barCount = Int(width / (barWidth + barSpacing))
+            
+            let samplesToShow = min(audioLevels.count, barCount)
+            let startIndex = max(0, audioLevels.count - samplesToShow)
+            let samples = Array(audioLevels[startIndex..<audioLevels.count])
+            
+            for (index, level) in samples.enumerated() {
+                let x = CGFloat(index) * (barWidth + barSpacing)
+                let normalizedLevel = max(0.05, min(1.0, level))
+                let barHeight = height * normalizedLevel
+                let y = (height - barHeight) / 2
+                
+                let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
+                let roundedRect = RoundedRectangle(cornerRadius: barWidth / 2)
+                
+                context.fill(
+                    roundedRect.path(in: rect),
+                    with: .color(Color.pulsumGreenSoft.opacity(0.8))
+                )
+            }
+        }
+        .frame(height: 40)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -311,13 +354,19 @@ private struct InfoBubble: View {
         }
         .padding(PulsumSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.pulsumCardWhite)
-        .cornerRadius(PulsumRadius.md)
+        .background {
+            RoundedRectangle(cornerRadius: PulsumRadius.md, style: .continuous)
+                .fill(.thinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: PulsumRadius.md, style: .continuous)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+                }
+        }
         .shadow(
-            color: PulsumShadow.small.color,
-            radius: PulsumShadow.small.radius,
-            x: PulsumShadow.small.x,
-            y: PulsumShadow.small.y
+            color: Color.black.opacity(0.06),
+            radius: 8,
+            x: 0,
+            y: 3
         )
     }
 }

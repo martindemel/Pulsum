@@ -19,7 +19,7 @@ struct ScoreBreakdownScreen: View {
                         .progressViewStyle(.circular)
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: PulsumSpacing.lg) {
+                        LazyVStack(alignment: .leading, spacing: PulsumSpacing.lg) {
                             if let breakdown = viewModel.breakdown {
                                 SummaryCard(breakdown: breakdown)
 
@@ -73,6 +73,7 @@ struct ScoreBreakdownScreen: View {
                     }
                 }
             }
+            .toolbarBackground(.automatic, for: .navigationBar)
             .task {
                 await viewModel.refresh()
             }

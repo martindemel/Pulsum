@@ -9,7 +9,7 @@ struct SettingsScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: PulsumSpacing.lg) {
+                LazyVStack(spacing: PulsumSpacing.lg) {
                     // Wellbeing Score Display (moved from MainView)
                     if let score = wellbeingScore {
                         if let detailViewModel = viewModel.makeScoreBreakdownViewModel() {
@@ -326,6 +326,7 @@ struct SettingsScreen: View {
                     }
                 }
             }
+            .toolbarBackground(.automatic, for: .navigationBar)
 #else
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
@@ -341,6 +342,7 @@ struct SettingsScreen: View {
                     }
                 }
             }
+            .toolbarBackground(.automatic, for: .navigationBar)
 #endif
             .task {
                 viewModel.refreshFoundationStatus()
@@ -421,8 +423,55 @@ private struct DiagnosticsPanel: View {
 }
 #endif
 
+// MARK: - Wellbeing Score Loading Card
+struct WellbeingScoreLoadingCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+            VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                Text("Wellbeing score")
+                    .font(.pulsumHeadline)
+                    .foregroundStyle(Color.pulsumTextPrimary)
+                Text("Calculated nightly from your data")
+                    .font(.pulsumCaption)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+            }
+
+            HStack(alignment: .center, spacing: PulsumSpacing.lg) {
+                VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                    HStack(spacing: PulsumSpacing.sm) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(Color.pulsumGreenSoft)
+                        Text("Calculating...")
+                            .font(.pulsumTitle)
+                            .foregroundStyle(Color.pulsumTextSecondary)
+                    }
+                    Text("Complete your first Pulse check-in")
+                        .font(.pulsumCallout)
+                        .foregroundStyle(Color.pulsumTextSecondary)
+                }
+                Spacer()
+            }
+
+            Text("Your score will appear here after your first nightly sync. Record a Pulse check-in to begin tracking your wellbeing.")
+                .font(.pulsumCaption)
+                .foregroundStyle(Color.pulsumTextSecondary)
+                .lineSpacing(2)
+        }
+        .padding(PulsumSpacing.lg)
+        .background(Color.pulsumCardWhite)
+        .cornerRadius(PulsumRadius.xl)
+        .shadow(
+            color: PulsumShadow.medium.color,
+            radius: PulsumShadow.medium.radius,
+            x: PulsumShadow.medium.x,
+            y: PulsumShadow.medium.y
+        )
+    }
+}
+
 // MARK: - Wellbeing Score Card
-private struct WellbeingScoreCard: View {
+struct WellbeingScoreCard: View {
     let score: Double
 
     var body: some View {

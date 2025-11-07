@@ -40,11 +40,9 @@ final class SettingsViewModel {
         if let stored = llmGateway.currentAPIKey() {
             gptAPIKeyDraft = stored
         }
-#if DEBUG
-        if gptAPIKeyDraft.isEmpty, let dbg = LLMGateway.debugInjectedAPIKey {
-            gptAPIKeyDraft = dbg
+        if gptAPIKeyDraft.isEmpty, let bundled = LLMGateway.bundledAPIKey {
+            gptAPIKeyDraft = bundled
         }
-#endif
         // Auto-test on load if we have any seed
         if !gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Task { await checkGPTAPIKey() }

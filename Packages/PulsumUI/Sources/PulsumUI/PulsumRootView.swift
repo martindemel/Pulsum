@@ -1,9 +1,6 @@
 import SwiftUI
 import Observation
 import Foundation
-#if canImport(SplineRuntime)
-import SplineRuntime
-#endif
 
 public struct PulsumRootView: View {
     @State private var viewModel = AppViewModel()
@@ -80,6 +77,7 @@ public struct PulsumRootView: View {
 
 struct MainContainerView: View {
     @Bindable var viewModel: AppViewModel
+    @Namespace private var transitionNamespace
 
     var body: some View {
         ZStack {
@@ -94,10 +92,6 @@ struct MainContainerView: View {
                     .tag(AppViewModel.Tab.coach)
             }
             .tabViewStyle(.automatic)
-        }
-        .animation(.pulsumStandard, value: viewModel.selectedTab)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            topOverlay
         }
         .sheet(isPresented: $viewModel.isPresentingPulse) {
             PulseView(
@@ -119,163 +113,23 @@ struct MainContainerView: View {
                 }
             }
         }
+        .overlay {
+            if viewModel.showConsentBanner {
+                VStack {
+                    ConsentBannerView(
+                        openSettings: { viewModel.isPresentingSettings = true },
+                        dismiss: { viewModel.dismissConsentBanner() }
+                    )
+                    .padding(.horizontal, PulsumSpacing.lg)
+                    .padding(.top, PulsumSpacing.md)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    Spacer()
+                }
+            }
+        }
     }
 
     private var backgroundLayer: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color.pulsumBackgroundBeige,
-                    Color.pulsumBackgroundCream
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            AnimatedSplineBackgroundView()
-        }
-        .ignoresSafeArea()
-    }
-
-    @ViewBuilder
-    private var mainTab: some View {
-        VStack {
-            Spacer()
-            GlassEffectContainer {
-                CoachShortcutButton {
-                    viewModel.triggerCoachFocus()
-                }
-            }
-            .padding(.bottom, PulsumSpacing.xl)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        .padding(.trailing, 24)
-        .tabItem {
-            Image(systemName: AppViewModel.Tab.main.iconName)
-            Text(AppViewModel.Tab.main.displayName)
-        }
-    }
-
-    @ViewBuilder
-    private var insightsTab: some View {
-        InsightsScreen(
-            viewModel: viewModel.coachViewModel,
-            foundationStatus: viewModel.orchestrator?.foundationModelsStatus ?? "",
-            consentGranted: viewModel.consentGranted,
-            triggerSettings: { viewModel.isPresentingSettings = true }
-        )
-        .tabItem {
-            Image(systemName: AppViewModel.Tab.insights.iconName)
-            Text(AppViewModel.Tab.insights.displayName)
-        }
-    }
-
-    @ViewBuilder
-    private var coachTab: some View {
-        CoachScreen(
-            viewModel: viewModel.coachViewModel,
-            showChatInput: true
-        )
-        .tabItem {
-            Image(systemName: AppViewModel.Tab.coach.iconName)
-            Text(AppViewModel.Tab.coach.displayName)
-        }
-    }
-
-    private var topOverlay: some View {
-        VStack(spacing: PulsumSpacing.md) {
-            HeaderView(viewModel: viewModel)
-
-            if viewModel.showConsentBanner {
-                ConsentBannerView(
-                    openSettings: { viewModel.isPresentingSettings = true },
-                    dismiss: { viewModel.dismissConsentBanner() }
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, PulsumSpacing.sm)
-        .padding(.bottom, PulsumSpacing.md)
-        .background(
-            Color.clear
-                .background(.ultraThinMaterial)
-                .mask(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                )
-                .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 10)
-                .padding(.horizontal, 8)
-        )
-        .padding(.horizontal, 12)
-    }
-}
-
-struct HeaderView: View {
-    @Bindable var viewModel: AppViewModel
-
-    var body: some View {
-        HStack {
-            Button {
-                viewModel.isPresentingPulse = true
-            } label: {
-                Label("Pulse", systemImage: "waveform.path.ecg")
-                    .font(.headline)
-                    .foregroundStyle(Color.pulsumTextPrimary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-            }
-            .glassEffect(.regular.tint(Color.white.opacity(0.3)).interactive())
-
-            Spacer()
-
-            Button {
-                viewModel.isPresentingSettings = true
-            } label: {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(Color.pulsumTextPrimary)
-                    .padding(4)
-            }
-            .glassEffect(.regular.tint(Color.white.opacity(0.3)).interactive())
-            .accessibilityLabel("Open settings")
-        }
-    }
-}
-
-// DashboardView removed - MainView now only shows Spline animation
-// Wellbeing score moved to SettingsView for backend transparency
-
-struct CoachShortcutButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(Color.pulsumTextPrimary)
-                .frame(width: 56, height: 56)
-        }
-        .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.7)).interactive())
-        .shadow(
-            color: Color.pulsumBlueSoft.opacity(0.3),
-            radius: 12,
-            x: 0,
-            y: 6
-        )
-        .accessibilityLabel("Jump to coach chat")
-    }
-}
-
-struct AnimatedSplineBackgroundView: View {
-    private let cloudURL = URL(string: "https://build.spline.design/Wp1o27Ds7nsPAHPrlN6K/scene.splineswift")
-    private let localURL = Bundle.main.url(forResource: "infinity_blubs_copy", withExtension: "splineswift")
-
-    var body: some View {
-        splineScene
-            .ignoresSafeArea()
-    }
-
-    private var fallbackGradient: some View {
         LinearGradient(
             colors: [
                 Color.pulsumBackgroundBeige,
@@ -284,29 +138,140 @@ struct AnimatedSplineBackgroundView: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+        .ignoresSafeArea()
     }
 
     @ViewBuilder
-    private var splineScene: some View {
-        #if canImport(SplineRuntime)
-        if let url = localURL ?? cloudURL { // Try local file first, then cloud
-            ZStack {
-                Color.pulsumBackgroundBeige // Background color while loading
-
-                SplineView(sceneFileURL: url)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .scaleEffect(1.0) // Adjust this to zoom in/out (try 0.5, 0.8, 1.2, etc.)
-                    .offset(x: 0, y: 0) // Adjust position (x: horizontal, y: vertical)
-                    .allowsHitTesting(false) // Prevents interaction with Spline (let UI controls work)
+    private var mainTab: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: PulsumSpacing.xl) {
+                    // Wellbeing Score Card
+                    if let score = viewModel.coachViewModel.wellbeingScore {
+                        if let detailViewModel = viewModel.settingsViewModel.makeScoreBreakdownViewModel() {
+                            NavigationLink {
+                                ScoreBreakdownScreen(viewModel: detailViewModel)
+                            } label: {
+                                WellbeingScoreCard(score: score)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            WellbeingScoreCard(score: score)
+                        }
+                    } else {
+                        WellbeingScoreLoadingCard()
+                    }
+                }
+                .frame(maxWidth: 520)
+                .padding(.horizontal, PulsumSpacing.lg)
+                .padding(.top, PulsumSpacing.lg)
+                .padding(.bottom, PulsumSpacing.xxxl)
             }
-            .ignoresSafeArea()
-        } else {
-            fallbackGradient
+            .scrollIndicators(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        viewModel.isPresentingPulse = true
+                    } label: {
+                        Label("Pulse", systemImage: "waveform.path.ecg")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .pulsumToolbarButton()
+                    .matchedTransitionSource(id: "pulseButton", in: transitionNamespace)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        viewModel.isPresentingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .pulsumToolbarButton()
+                }
+            }
+            .toolbarBackground(.automatic, for: .navigationBar)
         }
-        #else
-        fallbackGradient
-        #endif
+        .tabItem {
+            Image(systemName: AppViewModel.Tab.main.iconName)
+            Text(AppViewModel.Tab.main.displayName)
+        }
     }
+
+    @ViewBuilder
+    private var insightsTab: some View {
+        NavigationStack {
+            InsightsScreen(
+                viewModel: viewModel.coachViewModel,
+                foundationStatus: viewModel.orchestrator?.foundationModelsStatus ?? "",
+                consentGranted: viewModel.consentGranted,
+                triggerSettings: { viewModel.isPresentingSettings = true }
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        viewModel.isPresentingPulse = true
+                    } label: {
+                        Label("Pulse", systemImage: "waveform.path.ecg")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .pulsumToolbarButton()
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        viewModel.isPresentingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .pulsumToolbarButton()
+                }
+            }
+            .toolbarBackground(.automatic, for: .navigationBar)
+        }
+        .tabItem {
+            Image(systemName: AppViewModel.Tab.insights.iconName)
+            Text(AppViewModel.Tab.insights.displayName)
+        }
+    }
+
+    @ViewBuilder
+    private var coachTab: some View {
+        NavigationStack {
+            CoachScreen(
+                viewModel: viewModel.coachViewModel,
+                showChatInput: true
+            )
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        viewModel.isPresentingPulse = true
+                    } label: {
+                        Label("Pulse", systemImage: "waveform.path.ecg")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .pulsumToolbarButton()
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        viewModel.isPresentingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .pulsumToolbarButton()
+                }
+            }
+            .toolbarBackground(.automatic, for: .navigationBar)
+        }
+        .tabItem {
+            Image(systemName: AppViewModel.Tab.coach.iconName)
+            Text(AppViewModel.Tab.coach.displayName)
+        }
+    }
+
 }
 
-// WellbeingScoreView moved to SettingsView only - not displayed on MainView
