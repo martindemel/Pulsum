@@ -1,10 +1,14 @@
 # Pulsum Bug Audit
 
 **Scan Context:** Repo Pulsum @ working tree | UTC 2025-10-26T19:30:00Z
-**Changes in this pass:** Added:11  Updated:15  Obsolete:0  Duplicates:0
+**Changes in this pass:** Added:2  Updated:7  Obsolete:0  Duplicates:0
 **Coverage Summary:** PulsumApp{files_read:5,lines:727} PulsumUI{files_read:16,lines:4847} PulsumAgents{files_read:8,lines:2563} PulsumServices{files_read:9,lines:3142} PulsumData{files_read:7,lines:1841} PulsumML{files_read:12,lines:2094} Config/Assets{files_read:9} Tests{files_read:6,all_empty_stubs}
 
 ## Quick Readout
+- BUG-20251026-0035 — FM guardrail violations come back as SAFE, so crisis prompts still route to cloud. (S0 Privacy/Security)
+- BUG-20251026-0036 — Chat payload validator rejects topMomentId, forcing GPT fallbacks when retrieval IDs are sent. (S1 ML)
+- BUG-20251026-0033 — SafetyAgent downgrades FM crisis calls without keywords, hiding the 911 escalation path. (S0 Privacy/Security)
+- BUG-20251026-0034 — GPT schema bans nutrition/mindfulness topics the prompt demands, so cloud replies fail and fall back. (S1 ML)
 - BUG-20251026-0001 — Live OpenAI key embedded in repo. GPT-5 credential ships with every clone and build, exposing billing to anyone. (S0 Privacy/Security)
 - BUG-20251026-0002 — Privacy manifests missing for all targets. Without them Apple blocks binaries that touch protected APIs. (S1 Privacy/Security)
 - BUG-20251026-0003 — Speech entitlement absent; authorization denied. Hardware devices refuse recognition so journaling can't start. (S1 Config)
@@ -50,12 +54,12 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 | Data | 0 | 5 |
 | Concurrency | 0 | 1 |
 | UI | 0 | 3 |
-| Privacy/Security | 0 | 3 |
+| Privacy/Security | 0 | 5 |
 | Test | 0 | 2 |
-| ML | 0 | 1 |
+| ML | 0 | 3 |
 | Build | 0 | 0 |
 
-**Critical Blockers:** BUG-20251026-0001, BUG-20251026-0002, BUG-20251026-0003, BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0006, BUG-20251026-0008, BUG-20251026-0012, BUG-20251026-0014, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0017, BUG-20251026-0018, BUG-20251026-0019, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031
+**Critical Blockers:** BUG-20251026-0001, BUG-20251026-0002, BUG-20251026-0003, BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0006, BUG-20251026-0008, BUG-20251026-0012, BUG-20251026-0014, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0017, BUG-20251026-0018, BUG-20251026-0019, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031, BUG-20251026-0033, BUG-20251026-0034, BUG-20251026-0035, BUG-20251026-0036
 
 ## Pack Privacy & Compliance
 
@@ -141,6 +145,42 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** iOS requires explicit permission request before microphone access; missing call breaks voice journaling flow.
 - **Suggested Diagnostics (no code):** Add `await AVAudioSession.sharedInstance().requestRecordPermission()` call; test on clean iOS install; verify permission dialog appears.
 - **Related Contract (from architecture.md):** Voice journaling pipeline section 8 assumes smooth permission acquisition; permission strings exist but wiring is incomplete.
+
+### BUG: Foundation Models crisis calls muted by keyword gate
+- **ID:** BUG-20251026-0033
+- **Severity:** S0
+- **Area:** Privacy/Security
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** FM safety classifications marked `.crisis` are downgraded to `.caution` unless user text contains one of five hard-coded phrases, so many suicidal disclosures lose the mandated hotline response.
+- **Where/Scope:** SafetyAgent first-wall guardrail.
+- **Evidence:**
+  - Packages/PulsumAgents/Sources/PulsumAgents/SafetyAgent.swift:33-38 — `.crisis` results are rewritten to `.caution` when no keyword matches:
+    ```swift
+    if case .crisis = result,
+       !crisisKeywords.contains(where: lowered.contains) {
+        adjusted = .caution(reason: "Seeking help (no self-harm language)")
+    }
+    ```
+- **Upstream/Downstream:** Wall-1 stops escalating to the crisis path; `AgentOrchestrator.performChat` emits a mild grounding message instead of the 911 card, leaving users without emergency guidance.
+- **Why This Is a Problem:** Instructions.md (“Safety Decision Handling”) requires crisis detections to block operations and display the crisis copy; suppressing the escalation violates guardrail guarantees and endangers users.
+- **Suggested Diagnostics (no code):** Run SafetyAgent on phrases like “I’m going to jump off a bridge tonight”; log FM classification vs. final decision; add a unit test covering `.crisis` without keyword overlap.
+- **Related Contract (from instructions.md):** Safety Decision Handling mandates the crisis card for `.crisis` outcomes.
+
+### BUG: Guardrail violations downgraded to SAFE
+- **ID:** BUG-20251026-0035
+- **Severity:** S0
+- **Area:** Privacy/Security
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** When the Foundation Models safety session throws `guardrailViolation` or `refusal`, the provider returns `.safe`, so SafetyAgent permits cloud routing and hides the crisis guidance despite the model flagging risky content.
+- **Where/Scope:** FoundationModelsSafetyProvider guardrail handling.
+- **Evidence:**
+  - Packages/PulsumML/Sources/PulsumML/Safety/FoundationModelsSafetyProvider.swift:58-65 — Guardrail violation and refusal catches both `return .safe`, bypassing the fallback classifier.
+- **Upstream/Downstream:** `AgentOrchestrator.performChat` treats the session as SAFE, so crisis prompts bypass Wall-1, allow GPT requests, and never surface the 911 card even though Foundation Models raised a guardrail event.
+- **Why This Is a Problem:** Safety Decision Handling requires crisis/caution outcomes to block or confine flows; downgrading a guardrail-triggered prompt to SAFE violates that contract and exposes users to unmitigated crisis text. 【F:Packages/PulsumML/Sources/PulsumML/Safety/FoundationModelsSafetyProvider.swift†L58-L65】【F:instructions.md†L365-L373】
+- **Suggested Diagnostics (no code):** Simulate a `guardrailViolation` via LanguageModelSession stubs, observe SafetyDecision in AgentOrchestrator logs, and extend unit tests to assert guardrail errors become `.caution` or `.crisis` instead of `.safe`.
+- **Related Contract (from instructions.md):** Safety Decision Handling (instructions.md) mandates blocking operations and showing crisis messaging when the guardrail fires.
 
 ## Pack Voice Journaling & Speech
 
@@ -297,6 +337,38 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Architecture section 7 promises immediate feedback loops; section 10 describes reactive UI updates; without refresh wiring the wellbeing surface violates user expectations.
 - **Suggested Diagnostics (no code):** Log `CoachViewModel.refreshRecommendations()` invocations; compare wellbeing snapshots before/after check-ins; capture UI state timelines; add temporary success callback from PulseViewModel to CoachViewModel.
 - **Related Contract (from architecture.md):** DataAgent and UI descriptions (sections 7, 10) emphasize real-time feedback after subjective inputs; SliderSubmission should trigger full data pipeline refresh.
+
+### BUG: Coach schema rejects topics allowed by prompt instructions
+- **ID:** BUG-20251026-0034
+- **Severity:** S1
+- **Area:** ML
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** Cloud GPT calls crash back to on-device fallback whenever the model emits `intentTopic = "nutrition"` or `"mindfulness"`; the JSON schema forbids those values even though the system prompt demands them, so nutrition/mindfulness chats can never return grounded GPT responses.
+- **Where/Scope:** LLMGateway prompt + schema contract.
+- **Evidence:**
+  - Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:620-634 — System prompt instructs the model to pick `intentTopic` from `["sleep","stress","energy","mood","movement","nutrition","goals"]`.
+  - Packages/PulsumServices/Sources/PulsumServices/CoachPhrasingSchema.swift:26-31 — Schema `enum` only allows `sleep`, `stress`, `energy`, `hrv`, `mood`, `movement`, `mindfulness`, `goals`, `none`; `nutrition` is invalid while `mindfulness` is missing from the prompt list.
+- **Upstream/Downstream:** GPT replies for nutrition or mindfulness either fail schema validation (triggering `LLMGatewayError.cloudGenerationFailed`) or mislabel topics, so Wall-2 always falls back to the thin on-device generator and loses grounding/nextAction features for those users.
+- **Why This Is a Problem:** Todolist Milestone 4.5 specifies deterministic intent routing covering sleep, stress, energy, HRV, mood, movement, mindfulness, and goals; the mismatch breaks that contract and undermines guardrail parity across topics.
+- **Suggested Diagnostics (no code):** Call `LLMGateway.generateCoachResponse` with consent granted and a nutrition prompt; capture debug logs to confirm schema failure; add unit asserting schema accepts every canonical topic used by orchestrator and prompt.
+- **Related Contract (from todolist.md):** Milestone 4.5 “Deterministic Intent Mapping” lists the canonical topics (`sleep`, `stress`, `energy`, `hrv`, `mood`, `movement`, `mindfulness`, `goals`, greetings) that the guardrail stack must support.
+
+### BUG: Chat validator strips topMomentId from GPT payloads
+- **ID:** BUG-20251026-0036
+- **Severity:** S1
+- **Area:** ML
+- **Confidence:** High
+- **Status:** Open
+- **Symptom/Impact:** As soon as `CoachLLMContext.topMomentId` is non-nil, `validateChatPayload` rejects the payload because the allowed key list omits `topMomentId`, so GPT requests fall back to on-device phrasing and lose retrieval IDs.
+- **Where/Scope:** LLMGateway chat payload validation.
+- **Evidence:**
+  - Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:87-104 — Cloud context includes an optional `topMomentId` field for retrieval grounding.
+  - Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:347-351 — Validator only permits `{userToneHints, topSignal, rationale, zScoreSummary}` and rejects any other key, so providing `topMomentId` fails validation.
+- **Upstream/Downstream:** When retrieval IDs are threaded through (per architecture spec), Wall-2 never reaches GPT because validation throws, forcing the orchestrator to use the thin on-device generator without evidence-backed prompts.
+- **Why This Is a Problem:** The cloud payload contract requires sending `topMomentId` to ground GPT responses in specific micro-moments; stripping it breaks retrieval grounding and violates the minimized-context spec. 【F:Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift†L87-L105】【F:Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift†L347-L351】【F:Docs/architecture copy.md†L1593-L1604】
+- **Suggested Diagnostics (no code):** Add a unit test that encodes a context with `topMomentId` and asserts validation succeeds; run `LLMGateway.generateCoachResponse` with a stub candidate moment to observe fallback vs. cloud routing.
+- **Related Contract (from architecture copy):** “Minimized Context (Cloud Payloads)” requires `CoachLLMContext` to include `topMomentId` when available so GPT can ground responses in the chosen micro-moment.
 
 ## Pack Data & Indexing
 
@@ -682,6 +754,10 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **MISSING** — Foundation Models stub must match real API types (BUG-20251026-0019)
 - **MISSING** — Modern speech backend for iOS 26 (BUG-20251026-0007)
 - **MISSING** — Session lifecycle management prevents duplicate starts (BUG-20251026-0016)
+- **MISSING** — Crisis detections must surface the mandated 911 escalation (BUG-20251026-0033)
+- **MISSING** — Coach prompt/schema must align on canonical intent topics (BUG-20251026-0034)
+- **MISSING** — Guardrail violations must not downgrade to SAFE (BUG-20251026-0035)
+- **MISSING** — Cloud payload must carry topMomentId for retrieval grounding (BUG-20251026-0036)
 - **PARTIAL** — Test coverage for core flows (BUG-20251026-0014, BUG-20251026-0025)
 
 ## Test Audit
@@ -697,6 +773,8 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - Backup exclusion failures (BUG-20251026-0018) create HIPAA/GDPR violation risk with PHI data
 - File descriptor leaks (BUG-20251026-0017) and concurrency issues (BUG-20251026-0012, BUG-20251026-0016) pose stability risks
 - Core Data model has no attribute-level validation, relying on caller validation
+- Crisis downgrade bug (BUG-20251026-0033) hides emergency guidance despite FM escalation, creating duty-of-care exposure
+- Guardrail downgrades on `guardrailViolation` (BUG-20251026-0035) allow flagged content to reach GPT without crisis messaging
 
 ## Open Questions
 - **Foundation Models APIs:** Are SpeechAnalyzer/SpeechTranscriber publicly available in iOS 26 SDK? (BUG-20251026-0007)
@@ -704,3 +782,20 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Spline Integration:** Is SplineRuntime framework included? Why isn't hero view implemented? (BUG-20251026-0011)
 - **iOS Settings Deep Link:** What is the correct iOS 26 URL scheme for Apple Intelligence settings? (BUG-20251026-0010)
 - **Production Deployment:** Has the exposed API key been used in any public builds or TestFlight distributions? (BUG-20251026-0001)
+
+## Update Summary
+- Added: 2 | Updated: 9 | Obsolete: 0 | Duplicates: 0
+
+## Coverage Summary
+- PulsumAgents {files_read:3, lines≈900}
+- PulsumServices {files_read:4, lines≈1400}
+- PulsumML {files_read:1, lines≈120}
+- Docs {files_read:2, sections reviewed: instructions.md Safety Decision Handling; Docs/architecture copy.md Minimized Context}
+
+## Evidence Index
+- Packages/PulsumAgents/Sources/PulsumAgents/SafetyAgent.swift → FM crisis downgrade logic
+- Packages/PulsumML/Sources/PulsumML/Safety/FoundationModelsSafetyProvider.swift → GuardrailViolation/refusal returning SAFE
+- Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift → Prompt/schema mismatch and payload validator excluding topMomentId
+- Packages/PulsumServices/Sources/PulsumServices/CoachPhrasingSchema.swift → Intent topic enum missing nutrition alignment
+- Docs/architecture copy.md → Cloud payload contract (CoachLLMContext requires topMomentId)
+- todolist.md → Canonical topic list for deterministic intent mapping
