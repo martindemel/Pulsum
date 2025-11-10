@@ -1,4 +1,9 @@
 import XCTest
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 @testable import PulsumServices
 
 private func makeChatBody(context: CoachLLMContext,
@@ -213,4 +218,61 @@ final class LLMGatewayTests: XCTestCase {
 
         LLMURLProtocolStub.handler = nil
     }
+
+    func testKeyResolutionFailsWhenSourcesMissing() throws {
+        unsetenv("PULSUM_COACH_API_KEY")
+        let gateway = LLMGateway(keychain: InMemoryKeychain(),
+                                 cloudClient: MockCloudClient(),
+                                 localGenerator: MockLocalGenerator())
+        XCTAssertNil(gateway.currentAPIKey())
+        XCTAssertThrowsError(try gateway.debugResolveAPIKey()) { error in
+            guard case LLMGatewayError.apiKeyMissing = error else {
+                return XCTFail("Expected apiKeyMissing, got \(error)")
+            }
+        }
+    }
+
+    func testKeyResolutionPrefersInMemoryThenKeychainThenEnv() throws {
+        let keychain = InMemoryKeychain()
+        let gateway = LLMGateway(keychain: keychain,
+                                 cloudClient: MockCloudClient(),
+                                 localGenerator: MockLocalGenerator())
+
+        let previousEnv = getenv("PULSUM_COACH_API_KEY").flatMap { String(cString: $0) }
+        setenv("PULSUM_COACH_API_KEY", "env-key", 1)
+        defer {
+            if let previousEnv {
+                setenv("PULSUM_COACH_API_KEY", previousEnv, 1)
+            } else {
+                unsetenv("PULSUM_COACH_API_KEY")
+            }
+        }
+
+        XCTAssertEqual(try gateway.debugResolveAPIKey(), "env-key")
+
+        try keychain.setSecret(Data("kc-key".utf8), for: "openai.api.key")
+        gateway.debugOverrideInMemoryKey(nil)
+        XCTAssertEqual(try gateway.debugResolveAPIKey(), "kc-key")
+
+        gateway.debugOverrideInMemoryKey("memory-key")
+        XCTAssertEqual(try gateway.debugResolveAPIKey(), "memory-key")
+    }
 }
+
+private final class InMemoryKeychain: KeychainStoring {
+    private var values: [String: Data] = [:]
+
+    func setSecret(_ value: Data, for key: String) throws {
+        values[key] = value
+    }
+
+    func secret(for key: String) throws -> Data? {
+        values[key]
+    }
+
+    func removeSecret(for key: String) throws {
+        values.removeValue(forKey: key)
+    }
+}
+
+extension InMemoryKeychain: @unchecked Sendable {}

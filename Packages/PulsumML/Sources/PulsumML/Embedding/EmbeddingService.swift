@@ -6,10 +6,12 @@ public final class EmbeddingService {
 
     private let primaryProvider: TextEmbeddingProviding?
     private let fallbackProvider: TextEmbeddingProviding?
-    private let dimension = 384
+    private let dimension: Int
 
     private init(primary: TextEmbeddingProviding? = nil,
-                 fallback: TextEmbeddingProviding? = nil) {
+                 fallback: TextEmbeddingProviding? = nil,
+                 dimension: Int = 384) {
+        self.dimension = dimension
         if let primary {
             self.primaryProvider = primary
         } else if #available(iOS 17.0, macOS 13.0, *) {
@@ -72,5 +74,15 @@ public final class EmbeddingService {
         return padded
     }
 }
+
+#if DEBUG
+extension EmbeddingService {
+    static func debugInstance(primary: TextEmbeddingProviding? = nil,
+                              fallback: TextEmbeddingProviding? = nil,
+                              dimension: Int = 384) -> EmbeddingService {
+        EmbeddingService(primary: primary, fallback: fallback, dimension: dimension)
+    }
+}
+#endif
 
 extension EmbeddingService: @unchecked Sendable {}

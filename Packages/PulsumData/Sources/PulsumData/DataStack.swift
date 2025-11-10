@@ -1,5 +1,6 @@
 import Foundation
 import CoreData
+import os.log
 
 public enum PulsumDataError: LocalizedError {
     case storeInitializationFailed(underlying: Error)
@@ -13,6 +14,11 @@ public enum PulsumDataError: LocalizedError {
             return "Unable to create directory at \(url.path): \(underlying.localizedDescription)"
         }
     }
+}
+
+public struct BackupSecurityIssue: Equatable, Sendable {
+    public let url: URL
+    public let reason: String
 }
 
 public struct StoragePaths {
@@ -51,8 +57,10 @@ public final class DataStack {
 
     public let container: NSPersistentContainer
     public let storagePaths: StoragePaths
+    public private(set) var backupSecurityIssue: BackupSecurityIssue?
 
     private let fileManager: FileManager
+    private static let logger = Logger(subsystem: "ai.pulsum", category: "DataStack")
 
     public init(fileManager: FileManager = .default, appGroupIdentifier: String? = nil) {
         self.fileManager = fileManager
@@ -79,14 +87,11 @@ public final class DataStack {
         description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
 
         // Exclude PHI from iCloud backups
-        var resourceValues = URLResourceValues()
-        resourceValues.isExcludedFromBackup = true
-        var supportURL = storagePaths.applicationSupport
-        try? supportURL.setResourceValues(resourceValues)
-        var vectorURL = storagePaths.vectorIndexDirectory
-        try? vectorURL.setResourceValues(resourceValues)
-        var anchorURL = storagePaths.healthAnchorsDirectory
-        try? anchorURL.setResourceValues(resourceValues)
+        backupSecurityIssue = DataStack.applyBackupExclusion(to: [
+            storagePaths.applicationSupport,
+            storagePaths.vectorIndexDirectory,
+            storagePaths.healthAnchorsDirectory
+        ])
 
         container.persistentStoreDescriptions = [description]
 
@@ -135,6 +140,29 @@ public final class DataStack {
             }
         }
     }
+
+    private static func applyBackupExclusion(to urls: [URL]) -> BackupSecurityIssue? {
+        var issue: BackupSecurityIssue?
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        for var url in urls {
+            do {
+                try url.setResourceValues(resourceValues)
+            } catch {
+                logger.error("Failed to exclude \(url.path, privacy: .public) from backup: \(error.localizedDescription, privacy: .public)")
+                if issue == nil {
+                    issue = BackupSecurityIssue(url: url, reason: error.localizedDescription)
+                }
+            }
+        }
+        return issue
+    }
+
+#if DEBUG
+    static func debugApplyBackupExclusion(to urls: [URL]) -> BackupSecurityIssue? {
+        applyBackupExclusion(to: urls)
+    }
+#endif
 }
 
 extension DataStack: @unchecked Sendable {}

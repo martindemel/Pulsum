@@ -75,7 +75,7 @@
 
 ## 9. Networking
 - All external networking is funneled through `LLMGateway`, which posts JSON-schema-bound requests to `https://api.openai.com/v1/responses` with strict max token clamping and error handling. (Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:184-304; Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:606-675)
-- API keys are resolved from in-memory cache, Keychain, bundled plist, or environment variables with fallbacks and validation. (Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:136-210)
+- API keys are resolved from in-memory cache, Keychain, or the explicit `PULSUM_COACH_API_KEY` environment variable with validation—Info.plist is no longer consulted so secrets never ship inside the app bundle. `Gate0_LLMGatewayTests` guard the missing-key and precedence flows, and CI runs `scripts/ci/scan-secrets.sh` (repo + binary) after every build. (Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:136-210; scripts/ci/scan-secrets.sh; Packages/PulsumServices/Tests/PulsumServicesTests/Gate0_LLMGatewayTests.swift)
 
 ## 10. UI Composition & Navigation
 - `PulsumRootView` renders a tab view with main dashboard, insights, and coach tabs, presenting pulse and settings sheets plus safety overlays. (Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift:5-274)
@@ -93,8 +93,11 @@
 ## 12. Security & Privacy
 - App entitlements declare HealthKit and background delivery, aligning with service usage. (Pulsum/Pulsum.entitlements:5-8)
 - Data directories and vector embeddings are created with `.complete` file protection and excluded from iCloud backups. (Packages/PulsumData/Sources/PulsumData/DataStack.swift:71-135; Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift:164-178)
+- Backup exclusion failures now surface as `BackupSecurityIssue`, block the UI at startup, and are covered by automated xattr tests (`Gate0_DataStackSecurityTests`), ensuring PHI never leaves the device. (Packages/PulsumData/Sources/PulsumData/DataStack.swift:18-137; Packages/PulsumData/Tests/PulsumDataTests/Gate0_DataStackSecurityTests.swift)
+- SpeechService logging avoids PHI entirely in Release builds via `SpeechLoggingPolicy`; `Gate0_SpeechServiceLoggingTests` (built with the `RELEASE_LOG_AUDIT` flag) scan the compiled binary for the transcript marker to guarantee nothing leaks. (Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift; Packages/PulsumServices/Tests/PulsumServicesTests/Gate0_SpeechServiceLoggingTests.swift)
+- Each target and Swift package ships a `PrivacyInfo.xcprivacy` manifest and CI enforces coverage via `scripts/ci/check-privacy-manifests.sh`; setting `RUN_PRIVACY_REPORT=1` runs `xcrun privacyreport` when the Xcode 16+ CLI tools are installed. The script now fails if the app target tries to copy more than one manifest, preventing duplicate-build warnings.
 - PII is redacted from transcripts before sentiment scoring, and chat inputs are sanitized prior to routing. (Packages/PulsumML/Sources/PulsumML/Sentiment/PIIRedactor.swift:4-35; Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:221-234)
-- GPT-5 API keys are stored securely via Keychain but a plaintext project key is currently embedded in `Config.xcconfig`, posing a leakage risk. (Packages/PulsumServices/Sources/PulsumServices/KeychainService.swift:19-78; Config.xcconfig:1-5)
+- GPT-5 API keys are injected at runtime via Keychain or the `PULSUM_COACH_API_KEY` environment variable—`Config.xcconfig.template` intentionally ships without secrets, and the Gate‑0 key-resolution tests prevent Info.plist regressions. (Packages/PulsumServices/Sources/PulsumServices/KeychainService.swift:19-78; Config.xcconfig.template)
 
 ## 13. Concurrency & Performance
 - Critical components are Swift actors (`DataAgent`, `SpeechService`, `StubDataAgent` in tests) or use background Core Data contexts to avoid main-thread blocking. (Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:46-280; Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift:33-307; Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailAcceptanceTests.swift:126-144)
@@ -118,7 +121,7 @@
 - Configuration uses per-developer `.xcconfig` files, but the checked-in template currently exposes a real API key, warranting rotation before release. (Config.xcconfig:1-5)
 
 ## 17. Risks, Gaps, and TODOs
-1. **API key exposure** – `Config.xcconfig` contains a live OpenAI key; rotate credentials and remove from source control. (Config.xcconfig:1-5)
+1. **API key exposure** – Keep `Config.xcconfig.template` free of secrets and rely on Keychain/env injection plus the Gate‑0 secret scanner to prevent regressions. (Config.xcconfig.template; scripts/ci/scan-secrets.sh)
 2. **Simulator limitations** – HealthKit background delivery requires entitlements; simulator starts log recoverable failures that should surface to the user for clarity. (Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:119-133)
 3. **UI tests incomplete** – UITest targets are placeholders; expand coverage for voice journal, chat, and settings flows. (PulsumUITests/PulsumUITests.swift:12-39)
 4. **Large bundled dataset** – The full recommendation corpus (>50 KB) is duplicated at the repo root; dedupe to single canonical source to avoid drift. (json database/podcastrecommendations.json:1-20; podcastrecommendations.json:1-20)

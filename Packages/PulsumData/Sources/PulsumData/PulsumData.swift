@@ -34,4 +34,7 @@ public enum PulsumData {
 
     /// Directory storing persisted HealthKit query anchors.
     public static var healthAnchorsDirectory: URL { dataStack.storagePaths.healthAnchorsDirectory }
+
+    /// Security issue raised when PHI directories cannot be excluded from backups.
+    public static var backupSecurityIssue: BackupSecurityIssue? { dataStack.backupSecurityIssue }
 }

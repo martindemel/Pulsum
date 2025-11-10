@@ -16,10 +16,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - New features have ZERO test coverage
    - See bugs.md for complete analysis
 
-2. **Privacy Manifests Missing** (App Store will reject)
-   - All 5 PrivacyInfo.xcprivacy files missing
-   - Marked "MANDATORY" in instructions.md
-   - Must create before submission
+2. **Privacy Manifests Verified** (keep privacyreport gate green)
+   - App target + all 5 packages now ship `PrivacyInfo.xcprivacy`
+   - Run `scripts/ci/check-privacy-manifests.sh` (optionally `RUN_PRIVACY_REPORT=1`) before every push
+   - Files must remain in XML/Property List format; `xcrun privacyreport` requires Xcode 16+ CLI tools
 
 3. **Voice Journal API Changed** (Oct 23, 2025 - TODAY)
    - Old: `recordVoiceJournal()` single call
@@ -314,6 +314,7 @@ All ML providers should follow the multi-tier fallback pattern. Check existing i
 - `PulsumML/Sources/PulsumML/Sentiment/`
 - `PulsumML/Sources/PulsumML/Safety/`
 - `PulsumML/Sources/PulsumML/Embeddings/`
+- The Foundation Models stub now mirrors the real `LanguageModelSession` generic API; when AFM is unavailable the stub throws so providers must catch and fall back (see `EmbeddingServiceFallbackTests` for guardrails).
 
 ### When Adding Core Data Entities
 
@@ -347,16 +348,11 @@ If tests pass but code seems broken:
 - See bugs.md for which tests to trust
 - Don't rely on tests as proof of correctness
 
-### Privacy Manifests Missing (CRITICAL - App Store Rejection)
+### Privacy Manifests (MANDATORY - Keep them in sync)
 
-All 5 PrivacyInfo.xcprivacy files missing:
-- Main app: `Pulsum/PrivacyInfo.xcprivacy`
-- PulsumData: `Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy`
-- PulsumServices: `Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy`
-- PulsumML: `Packages/PulsumML/Sources/PulsumML/PrivacyInfo.xcprivacy`
-- PulsumAgents: `Packages/PulsumAgents/Sources/PulsumAgents/PrivacyInfo.xcprivacy`
-
-See bugs.md section "Missing PrivacyInfo.xcprivacy Files" for XML template.
+- App + all five Swift packages now ship `PrivacyInfo.xcprivacy` declarations (Gate 0 fix for BUG-20251026-0002).
+- Run `scripts/ci/check-privacy-manifests.sh` to ensure they remain present; set `RUN_PRIVACY_REPORT=1` to invoke `xcrun privacyreport` when the Xcode 16+ CLI tools are installed.
+- Manifests must stay in property-list (XML) format so Apple’s tooling can parse them; do not revert to JSON.
 
 ### Voice Journal API Changed (Oct 23, 2025)
 

@@ -29,12 +29,15 @@ public struct SystemLanguageModel {
 
 public struct LanguageModelSession {
     public init(instructions: Instructions? = nil) {}
-    
-    public func respond(to prompt: Prompt, generating type: Any.Type, options: GenerationOptions) async throws -> Any {
+
+    public func respond<T: Decodable>(to prompt: Prompt,
+                                      generating type: T.Type,
+                                      options: GenerationOptions) async throws -> LanguageModelResult<T> {
         throw FoundationModelsStubError.unavailable
     }
-    
-    public func respond(to prompt: Prompt, options: GenerationOptions) async throws -> ResponseStub {
+
+    public func respond(to prompt: Prompt,
+                        options: GenerationOptions) async throws -> LanguageModelResult<String> {
         throw FoundationModelsStubError.unavailable
     }
     
@@ -56,8 +59,12 @@ public struct GenerationOptions {
     public init(temperature: Double) {}
 }
 
-public struct ResponseStub {
-    public let content: String = ""
+public struct LanguageModelResult<Content>: Sendable {
+    public let content: Content
+
+    public init(content: Content) {
+        self.content = content
+    }
 }
 
 @propertyWrapper
@@ -81,7 +88,6 @@ enum FoundationModelsStubError: Error {
 }
 
 #endif
-
 
 
 

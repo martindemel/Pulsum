@@ -88,19 +88,29 @@
 - [x] **Validation**: All package tests pass (PulsumML: 14 tests, PulsumServices: 14 tests, PulsumAgents: 7 tests), app builds successfully
 - Notes: Chat system now produces smart, intent-aware coaching with fail-closed Two-Wall guardrails and ML-only outputs (no rule engines). Ready for Milestone 5 privacy compliance.
 
+## Gate 0 - Security & Build Blockers (✅ COMPLETE - November 9, 2025)
+- [x] Remove Info.plist/OpenAI key paths, harden `LLMGateway` to Keychain/environment only, and add repo/binary secret scans (`scripts/ci/scan-secrets.sh`, LLMGateway precedence tests) — fixes BUG-20251026-0001.
+- [x] Add PrivacyInfo manifests for app + all packages (XML plist format) and enforce them via `scripts/ci/check-privacy-manifests.sh` with optional `RUN_PRIVACY_REPORT=1` — fixes BUG-20251026-0002.
+- [x] Wire `com.apple.developer.speech` entitlement, preflight microphone permission in `SpeechService`, and guard PHI logging with DEBUG-only markers/tests — fixes BUG-20251026-0003/0006/0033.
+- [x] Enforce backup exclusion + typed AFM stubs + PulseView UIKit guard, then verify Release builds via `scripts/ci/build-release.sh` (signing disabled for CI) and `xcodebuild -scheme Pulsum -sdk iphonesimulator -configuration Release build` — fixes BUG-20251026-0018/0019/0035.
+
+Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding package test bundles to the shared scheme and authoring real UITests.
+
 ## Milestone 5 - Safety, Consent, Privacy Compliance (Planned)
 - [ ] Implement consent UX/state persistence (`UserPrefs`, `ConsentState`) including cloud-processing banner copy, toggle, and revocation flow
 - [ ] Enforce privacy routing: PHI on-device only, minimized cloud payloads, offline fallbacks, and SafetyAgent veto on risky content
 - [ ] Produce Privacy Manifest + Info.plist declarations (Health/Mic/Speech reasons already present), App Privacy nutrition labels, and Background Modes (HealthKit delivery) configuration
-- [ ] Validate data protection end-to-end (NSFileProtectionComplete, background/interrupt behavior, journal retention policies, deletion affordances)
+- [x] Validate data protection end-to-end (NSFileProtectionComplete, background/interrupt behavior, journal retention policies, deletion affordances) — `DataStack` now surfaces backup failures and the app blocks sensitive flows until storage is secured.
 - [ ] Surface SafetyAgent escalations in UI (CrisisCard with 911 copy) and ensure no risky text reaches GPT-5 or Foundation Models
 - [ ] Security review covering Keychain secrets, health data isolation, background delivery configuration, and Spline asset handling
 - [ ] **Verify Foundation Models privacy compliance**: Confirm no PHI in Foundation Models prompts, minimized context only, proper guardrail handling
-- [ ] **Create Privacy Manifests (PrivacyInfo.xcprivacy)** for main app and all packages (PulsumData, PulsumServices, PulsumML, PulsumAgents) with Required-Reason API declarations (MANDATORY for App Store)
+- [x] **Create Privacy Manifests (PrivacyInfo.xcprivacy)** for main app and all packages (PulsumData, PulsumServices, PulsumML, PulsumAgents) with Required-Reason API declarations (MANDATORY for App Store) — verified via `scripts/ci/check-privacy-manifests.sh`.
 - [ ] **Aggregate SDK privacy manifests** from third-party dependencies (SplineRuntime, any others)
 - Notes: Milestone 3 already implements privacy architecture (NSFileProtectionComplete, PII redaction, consent routing). Milestone 5 focuses on UI wiring, compliance validation, and Privacy Manifest creation.
 
 ## Milestone 6 - QA, Testing, and Release Prep (Planned)
+- [ ] Ensure PulsumAgents/PulsumServices/PulsumData/PulsumML test bundles are added to the shared Xcode scheme so Product ▸ Test + CI exercise package suites.
+- [ ] Replace placeholder UITests with real end-to-end coverage (onboarding permissions, journaling begin/stream/finish, consent toggles, coach chat, score refresh).
 - [ ] Expand automated tests: unit coverage for agents/services/ML math, UI snapshot tests, end-to-end smoke tests with mocks
 - [ ] **Add Foundation Models-specific tests**: guided generation validation, @Generable struct parsing, temperature behavior, guardrail handling
 - [ ] **Validate Swift 6 concurrency compliance**: Verify zero warnings in all packages, proper @Sendable usage, actor isolation correctness
