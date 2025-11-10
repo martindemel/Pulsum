@@ -116,9 +116,20 @@ public protocol OnDeviceCoachGenerator {
     func generate(context: CoachLLMContext) async -> CoachReplyPayload
 }
 
-public enum LLMGatewayError: LocalizedError {
+public enum LLMGatewayError: LocalizedError, Equatable {
     case apiKeyMissing
     case cloudGenerationFailed(String)
+
+    public static func == (lhs: LLMGatewayError, rhs: LLMGatewayError) -> Bool {
+        switch (lhs, rhs) {
+        case (.apiKeyMissing, .apiKeyMissing):
+            return true
+        case let (.cloudGenerationFailed(l), .cloudGenerationFailed(r)):
+            return l == r
+        default:
+            return false
+        }
+    }
 
     public var errorDescription: String? {
         switch self {
@@ -135,23 +146,16 @@ private let validationLogger = Logger(subsystem: "ai.pulsum", category: "LLMGate
 
 public final class LLMGateway {
     private static let apiKeyIdentifier = "openai.api.key"
+    private static let environmentVariableName = "PULSUM_COACH_API_KEY"
 
-    /// Bundled API key from Info.plist or environment (for all builds)
-    public static let bundledAPIKey: String? = {
-        // First try Info.plist (set via xcconfig in production builds)
-        if let k = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String,
-           !k.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return k.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func environmentAPIKey() -> String? {
+        guard let raw = ProcessInfo.processInfo.environment[environmentVariableName]?.trimmedNonEmpty else {
+            return nil
         }
-        // Fallback to environment variable (for local development/testing)
-        if let e = ProcessInfo.processInfo.environment["OPENAI_API_KEY"],
-           !e.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return e.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return nil
-    }()
+        return raw
+    }
 
-    private let keychain: KeychainService
+    private let keychain: KeychainStoring
     private let cloudClient: CloudLLMClient
     private let localGenerator: OnDeviceCoachGenerator
     private let session: URLSession
@@ -160,7 +164,7 @@ public final class LLMGateway {
 
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
 
-    public init(keychain: KeychainService = KeychainService(),
+    public init(keychain: KeychainStoring = KeychainService(),
                 cloudClient: CloudLLMClient? = nil,
                 localGenerator: OnDeviceCoachGenerator? = nil,
                 session: URLSession = .shared) {
@@ -195,10 +199,8 @@ public final class LLMGateway {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let apiKey = try resolveAPIKey()
-        let keySource: String = (inMemoryAPIKey != nil) ? "memory"
-            : ((try? keychain.secret(for: Self.apiKeyIdentifier)) != nil ? "keychain"
-               : (Self.bundledAPIKey != nil ? "bundled" : "unknown"))
-        logger.debug("LLM using API key from \(keySource, privacy: .public).")
+        let source = keySourceDescriptor()
+        logger.debug("LLM using API key from \(source, privacy: .public).")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
@@ -234,10 +236,8 @@ public final class LLMGateway {
         if consentGranted {
             do {
                 let apiKey = try resolveAPIKey()
-                let keySource: String = (inMemoryAPIKey != nil) ? "memory"
-                    : ((try? keychain.secret(for: Self.apiKeyIdentifier)) != nil ? "keychain"
-                       : (Self.bundledAPIKey != nil ? "bundled" : "unknown"))
-                logger.info("Attempting cloud phrasing via GPT client.")
+                let keySource = keySourceDescriptor()
+                logger.info("Attempting cloud phrasing via GPT client (key=\(keySource, privacy: .public)).")
                 let phrasing = try await cloudClient.generateResponse(context: sanitizedContext,
                                                                       intentTopic: intentTopic,
                                                                       candidateMoments: candidateMoments,
@@ -277,13 +277,28 @@ public final class LLMGateway {
 #endif
     }
 
+    private func keySourceDescriptor() -> String {
+        if inMemoryAPIKey?.trimmedNonEmpty != nil {
+            return "memory"
+        }
+        if ((try? keychain.secret(for: Self.apiKeyIdentifier)) ?? nil) != nil {
+            return "keychain"
+        }
+        if Self.environmentAPIKey() != nil {
+            return "env"
+        }
+        return "missing"
+    }
+
     public func currentAPIKey() -> String? {
         if let m = inMemoryAPIKey?.trimmedNonEmpty { return m }
         if let data = try? keychain.secret(for: Self.apiKeyIdentifier),
            let k = String(data: data, encoding: .utf8)?.trimmedNonEmpty {
             return k
         }
-        if let d = Self.bundledAPIKey { return d }
+        if let env = Self.environmentAPIKey() {
+            return env
+        }
         return nil
     }
 
@@ -302,6 +317,18 @@ public final class LLMGateway {
             return cleaned.prefix(280).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return trimmed.joined(separator: ". ").appending(trimmed.isEmpty ? "" : ".")
+    }
+
+    func debugResolveAPIKey() throws -> String {
+        try resolveAPIKey()
+    }
+
+    func debugOverrideInMemoryKey(_ key: String?) {
+        inMemoryAPIKey = key?.trimmedNonEmpty
+    }
+
+    func debugClearPersistedAPIKey() throws {
+        try keychain.removeSecret(for: Self.apiKeyIdentifier)
     }
 }
 

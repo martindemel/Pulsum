@@ -225,6 +225,36 @@ Privacy Manifest (iOS 26 - MANDATORY for App Store)
 • Required for App Store submission - app will be rejected without proper manifests
 • No ads/marketing using HealthKit data.
 
+QA SMOKE — FIRST RUN & JOURNALING
+1. Run `scripts/ci/scan-secrets.sh` to ensure no credentials are bundled before installing.
+2. Install the app on a clean simulator/device so no permissions are cached.
+3. Launch Pulsum → expect sequential prompts for speech recognition entitlement and microphone access; decline/accept paths must surface actionable errors.
+4. Tap the Pulse button, start a 5–10s recording, cancel midway, and verify haptics fire, waveform animates, and storage isn’t blocked by the new “Storage Not Secured” overlay.
+5. Complete a journal (begin → stream → finish) and confirm transcripts stream without leaking to the console in Release builds, sentiment analysis returns, and wellbeing refreshes automatically.
+6. Use the `Retry` button on the startup overlay to re-check storage security after toggling iCloud backup or sandbox settings.
+
+HOW TO RUN PRIVACY REPORT & SECRET SCANS
+• Secret scan (repo + optional .app/.ipa): `scripts/ci/scan-secrets.sh [path/to/Pulsum.app or Pulsum.ipa]`
+• Privacy manifests + optional Xcode Privacy Report: `scripts/ci/check-privacy-manifests.sh` (set `RUN_PRIVACY_REPORT=1` to run `xcrun privacyreport generate --project Pulsum.xcodeproj --scheme Pulsum`). **Note:** `privacyreport` ships with Xcode 16+; install the latest Xcode command line tools if the binary is missing, otherwise leave `RUN_PRIVACY_REPORT` unset and run the report manually once the tool is available.
+• Release build gate (TSan off, `OTHER_SWIFT_FLAGS` applied): `scripts/ci/build-release.sh` (disables code signing so CI can run the Release build without provisioning—remove the `CODE_SIGNING_*` overrides when archiving for App Store).
+
+RESOLVING DUPLICATE PRIVACYINFO.XCPRIVACY WARNINGS
+1. Keep a single canonical manifest at `Pulsum/PrivacyInfo.xcprivacy`. Do **not** add package manifests or workspace copies to the app target.
+2. In `Pulsum.xcodeproj/project.pbxproj`, the Pulsum target’s “Copy Bundle Resources” list must show exactly **one** `PrivacyInfo.xcprivacy in Resources`. Remove any duplicate `PBXBuildFile` entries if present.
+3. Run `scripts/ci/check-privacy-manifests.sh`—it now fails if `project.pbxproj` tries to copy more than one manifest or if any plist is missing. Re-run `xcodebuild -scheme Pulsum -configuration Release build` to confirm the “Multiple commands produce … PrivacyInfo.xcprivacy” warning is gone.
+
+GATE-0 TEST SUBSET
+Run these focused tests and gates before shipping any security/build fixes:
+```
+swift test --package-path Packages/PulsumServices --filter Gate0_
+swift test --package-path Packages/PulsumData --filter Gate0_
+swift test --package-path Packages/PulsumML --filter Gate0_
+xcodebuild -scheme Pulsum -configuration Release -destination 'platform=iOS Simulator,name=iPhone 15' build -derivedDataPath Build
+scripts/ci/scan-secrets.sh Build/Products/Release-iphonesimulator/Pulsum.app
+scripts/ci/check-privacy-manifests.sh
+RUN_PRIVACY_REPORT=1 scripts/ci/check-privacy-manifests.sh || true   # optional if privacyreport is installed
+```
+
 FOUNDATION MODELS REQUIREMENTS (Milestone 3 - IMPLEMENTED ✅)
 • Apple Intelligence must be enabled on device for Foundation Models features
 • All Foundation Models operations use async/await with proper error handling

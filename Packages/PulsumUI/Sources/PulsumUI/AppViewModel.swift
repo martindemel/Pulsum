@@ -16,6 +16,7 @@ final class AppViewModel {
         case loading
         case ready
         case failed(String)
+        case blocked(String)
     }
 
     enum Tab: String, CaseIterable, Identifiable, Hashable {
@@ -88,6 +89,11 @@ final class AppViewModel {
 
     func start() {
         guard startupState == .idle else { return }
+        if let issue = PulsumData.backupSecurityIssue {
+            let location = issue.url.lastPathComponent
+            startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")
+            return
+        }
         startupState = .loading
         Task { [weak self] in
             guard let self else { return }

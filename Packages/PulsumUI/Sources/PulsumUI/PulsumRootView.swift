@@ -48,6 +48,12 @@ public struct PulsumRootView: View {
                 .overlay(alignment: .center) {
                     failureOverlay(message: message)
                 }
+        case .blocked(let message):
+            Color.black.opacity(0.2)
+                .ignoresSafeArea()
+                .overlay(alignment: .center) {
+                    blockedOverlay(message: message)
+                }
         case .ready:
             EmptyView()
         }
@@ -66,6 +72,27 @@ public struct PulsumRootView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Button("Retry") {
+                viewModel.retryStartup()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(24)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private func blockedOverlay(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .font(.system(size: 52, weight: .semibold))
+                .foregroundStyle(.red)
+            Text("Storage Not Secured")
+                .font(.title2)
+                .bold()
+            Text(message)
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            Button("Check Again") {
                 viewModel.retryStartup()
             }
             .buttonStyle(.borderedProminent)
@@ -274,4 +301,3 @@ struct MainContainerView: View {
     }
 
 }
-

@@ -1,8 +1,10 @@
-# Xcode
+# macOS
 .DS_Store
 *.swp
-*~.nib
-DerivedData/
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
 *.pbxuser
 *.mode1v3
 *.mode2v3
@@ -11,25 +13,47 @@ DerivedData/
 !default.mode1v3
 !default.mode2v3
 !default.perspectivev3
-xcuserdata/
 *.moved-aside
 *.xccheckout
 *.xcscmblueprint
+*.xcworkspace/xcuserdata/
+Pulsum.xcodeproj/project.xcworkspace/xcuserdata/
 
-# Swift Package Manager
+# Build outputs
+DerivedData/
+Build/
+*.xcarchive
+*.xcresult
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.app
+
+# SwiftPM
 .build/
 .swiftpm/
 
 # CocoaPods
 Pods/
 
-# Build artifacts
-*.ipa
-*.dSYM.zip
-*.dSYM
+# Carthage
+Carthage/Build/
 
-# VSCode
+# Editors / tooling
 .vscode/
+.idea/
+.claude/
 
-# Configuration files with secrets
+# Logs / temp
+*.log
+*.tmp
+
+# Local config / secrets (track only template)
 Config.xcconfig
+.env
+.env.*
+!Config.xcconfig.template
+
+# NOTE: DO NOT ignore
+#  • PrivacyInfo.xcprivacy (app + packages)
+#  • Package.resolved (recommended to commit)

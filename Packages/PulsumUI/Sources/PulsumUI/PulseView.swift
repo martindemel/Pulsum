@@ -1,5 +1,8 @@
 import SwiftUI
 import Observation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct PulseView: View {
     @Bindable var viewModel: PulseViewModel
@@ -236,8 +239,7 @@ private struct VoiceJournalButton: View {
                     
                     // Stop button
                     Button {
-                        let impact = UIImpactFeedbackGenerator(style: .medium)
-                        impact.impactOccurred()
+                        performPulseHaptic(style: .medium)
                         stopAction()
                     } label: {
                         ZStack {
@@ -273,8 +275,7 @@ private struct VoiceJournalButton: View {
             } else {
                 // Idle state: record button + text
                 Button {
-                    let impact = UIImpactFeedbackGenerator(style: .heavy)
-                    impact.impactOccurred()
+                    performPulseHaptic(style: .heavy)
                     startAction()
                 } label: {
                     ZStack {
@@ -370,3 +371,12 @@ private struct InfoBubble: View {
         )
     }
 }
+
+#if canImport(UIKit)
+private func performPulseHaptic(style: UIImpactFeedbackGenerator.FeedbackStyle) {
+    let generator = UIImpactFeedbackGenerator(style: style)
+    generator.impactOccurred()
+}
+#else
+private func performPulseHaptic(style: Any) {}
+#endif

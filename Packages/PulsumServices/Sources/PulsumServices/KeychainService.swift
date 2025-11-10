@@ -1,6 +1,12 @@
 import Foundation
 import Security
 
+public protocol KeychainStoring: Sendable {
+    func setSecret(_ value: Data, for key: String) throws
+    func secret(for key: String) throws -> Data?
+    func removeSecret(for key: String) throws
+}
+
 public enum KeychainServiceError: LocalizedError {
     case unexpectedStatus(OSStatus)
 
@@ -16,7 +22,7 @@ public enum KeychainServiceError: LocalizedError {
 }
 
 /// Minimal wrapper around iOS Keychain for Pulsum secrets.
-public final class KeychainService {
+public final class KeychainService: KeychainStoring {
     public static let shared = KeychainService()
 
     private let accessGroup: String?

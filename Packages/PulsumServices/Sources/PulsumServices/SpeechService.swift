@@ -3,6 +3,46 @@ import Speech
 #if os(iOS)
 import AVFoundation
 #endif
+import os.log
+
+private let speechLogger = Logger(subsystem: "ai.pulsum", category: "SpeechService")
+
+enum SpeechLoggingPolicy {
+#if DEBUG
+    static let transcriptLoggingEnabled = true
+#else
+    static let transcriptLoggingEnabled = false
+#endif
+}
+
+public protocol SpeechAuthorizationProviding: Sendable {
+    func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus
+    func requestRecordPermission() async -> Bool
+}
+
+public struct SystemSpeechAuthorizationProvider: SpeechAuthorizationProviding {
+    public init() {}
+
+    public func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+
+    public func requestRecordPermission() async -> Bool {
+#if os(iOS)
+        await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                continuation.resume(returning: granted)
+            }
+        }
+#else
+        return true
+#endif
+    }
+}
 
 public struct SpeechSegment: Sendable {
     public let transcript: String
@@ -10,15 +50,21 @@ public struct SpeechSegment: Sendable {
 }
 
 public enum SpeechServiceError: LocalizedError {
-    case permissionDenied
+    case speechPermissionDenied
+    case speechPermissionRestricted
+    case microphonePermissionDenied
     case recognitionUnavailable
     case engineError(String)
     case audioSessionUnavailable
 
     public var errorDescription: String? {
         switch self {
-        case .permissionDenied:
+        case .speechPermissionDenied:
             return "Speech recognition permission denied."
+        case .speechPermissionRestricted:
+            return "Speech recognition is restricted on this device."
+        case .microphonePermissionDenied:
+            return "Microphone access is required to record journals."
         case .recognitionUnavailable:
             return "On-device speech recognition is not available."
         case let .engineError(message):
@@ -44,11 +90,12 @@ public actor SpeechService {
 
     private let backend: Backend
 
-    public init(locale: Locale = Locale(identifier: "en_US")) {
-        if #available(iOS 26.0, *), let modern = ModernSpeechBackend(locale: locale) {
+    public init(locale: Locale = Locale(identifier: "en_US"),
+                authorizationProvider: SpeechAuthorizationProviding = SystemSpeechAuthorizationProvider()) {
+        if #available(iOS 26.0, *), let modern = ModernSpeechBackend(locale: locale, authorizationProvider: authorizationProvider) {
             backend = .modern(modern)
         } else {
-            backend = .legacy(LegacySpeechBackend(locale: locale))
+            backend = .legacy(LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider))
         }
     }
 
@@ -87,44 +134,57 @@ private final class LegacySpeechBackend {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
     private var levelContinuation: AsyncStream<Float>.Continuation?
+    private let authorizationProvider: SpeechAuthorizationProviding
 
-    init(locale: Locale) {
+    init(locale: Locale, authorizationProvider: SpeechAuthorizationProviding) {
         let recognizer = SFSpeechRecognizer(locale: locale)
         recognizer?.supportsOnDeviceRecognition = true
         self.recognizer = recognizer
+        self.authorizationProvider = authorizationProvider
     }
 
     func requestAuthorization() async throws {
-        let status = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status)
-            }
+        let status = await authorizationProvider.requestSpeechAuthorization()
+        switch status {
+        case .authorized:
+            break
+        case .denied:
+            throw SpeechServiceError.speechPermissionDenied
+        case .restricted:
+            throw SpeechServiceError.speechPermissionRestricted
+        default:
+            throw SpeechServiceError.speechPermissionDenied
         }
-        guard status == .authorized else { throw SpeechServiceError.permissionDenied }
+#if os(iOS)
+        let granted = await authorizationProvider.requestRecordPermission()
+        guard granted else { throw SpeechServiceError.microphonePermissionDenied }
+#endif
     }
 
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
         guard let recognizer, recognizer.isAvailable else {
-            print("[SpeechService] ❌ Speech recognizer not available")
+            speechLogger.error("Speech recognizer not available.")
             throw SpeechServiceError.recognitionUnavailable
         }
-        
-        print("[SpeechService] ✅ Speech recognizer available, on-device: \(recognizer.supportsOnDeviceRecognition)")
+        speechLogger.info("Speech recognizer available (on-device: \(recognizer.supportsOnDeviceRecognition)).")
 
 #if os(iOS)
+        guard AVAudioSession.sharedInstance().recordPermission == .granted else {
+            throw SpeechServiceError.microphonePermissionDenied
+        }
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            print("[SpeechService] ✅ Audio session configured successfully")
+            speechLogger.info("Audio session configured.")
         } catch {
-            #if targetEnvironment(simulator)
+#if targetEnvironment(simulator)
             // In simulator, audio session config may fail but recording still works
-            print("[SpeechService] ⚠️ Audio session config failed in simulator (expected): \(error)")
-            #else
-            print("[SpeechService] ❌ Audio session configuration failed: \(error)")
+            speechLogger.debug("Audio session config failed in simulator (expected): \(error.localizedDescription, privacy: .public)")
+#else
+            speechLogger.error("Audio session configuration failed: \(error.localizedDescription, privacy: .public)")
             throw SpeechServiceError.audioSessionUnavailable
-            #endif
+#endif
         }
 #endif
 
@@ -133,22 +193,22 @@ private final class LegacySpeechBackend {
         request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         request.shouldReportPartialResults = true
         
-        print("[SpeechService] Starting audio engine...")
+        speechLogger.debug("Starting audio engine...")
 
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
-        print("[SpeechService] Audio format - sample rate: \(format.sampleRate), channels: \(format.channelCount)")
+        speechLogger.debug("Audio format sampleRate=\(format.sampleRate, privacy: .public) channels=\(format.channelCount, privacy: .public)")
         inputNode.removeTap(onBus: 0)
         
         // Create audio level stream with stored continuation
         let audioLevelStream = AsyncStream<Float> { continuation in
             self.levelContinuation = continuation
             continuation.onTermination = { @Sendable _ in
-                print("[SpeechService] Audio level stream terminated")
+                speechLogger.debug("Audio level stream terminated.")
             }
             
             // Install tap to capture audio and send to recognition
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
                 // Feed buffer to speech recognition
                 request.append(buffer)
                 
@@ -161,9 +221,9 @@ private final class LegacySpeechBackend {
         engine.prepare()
         do {
             try engine.start()
-            print("[SpeechService] ✅ Audio engine started successfully")
+            speechLogger.info("Audio engine started.")
         } catch {
-            print("[SpeechService] ❌ Failed to start audio engine: \(error)")
+            speechLogger.error("Failed to start audio engine: \(error.localizedDescription, privacy: .public)")
             throw SpeechServiceError.engineError(error.localizedDescription)
         }
 
@@ -174,17 +234,17 @@ private final class LegacySpeechBackend {
         let stream = AsyncThrowingStream<SpeechSegment, Error> { continuation in
             self.streamContinuation = continuation
             continuation.onTermination = { @Sendable _ in
-                print("[SpeechService] Speech segment stream terminated")
+                speechLogger.debug("Speech segment stream terminated.")
             }
         }
         
         // Start recognition task IMMEDIATELY (not deferred until stream consumption)
-        print("[SpeechService] Starting recognition task NOW...")
+        speechLogger.debug("Starting recognition task.")
         self.recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             
             if let error {
-                print("[SpeechService] ❌ Recognition error: \(error)")
+                speechLogger.error("Recognition error: \(error.localizedDescription, privacy: .public)")
                 self.streamContinuation?.finish(throwing: error)
                 return
             }
@@ -195,23 +255,28 @@ private final class LegacySpeechBackend {
             let transcript = result.bestTranscription.formattedString
             
             if !transcript.isEmpty {
-                print("[SpeechService] 🎤 Transcript update (final: \(result.isFinal)): \"\(transcript.prefix(50))...\" confidence: \(confidence)")
+#if DEBUG
+                if SpeechLoggingPolicy.transcriptLoggingEnabled {
+                    speechLogger
+                        .debug("PULSUM_TRANSCRIPT_LOG_MARKER final=\(result.isFinal, privacy: .public) chars=\(transcript.count, privacy: .public) confidence=\(confidence, privacy: .public)")
+                }
+#endif
                 self.streamContinuation?.yield(SpeechSegment(transcript: transcript, confidence: confidence))
             }
             
             if result.isFinal {
-                print("[SpeechService] ✅ Recognition completed with final transcript")
+                speechLogger.info("Recognition completed with final transcript.")
                 self.streamContinuation?.finish()
             }
         }
         
-        print("[SpeechService] ✅ Recognition task started and actively listening")
+        speechLogger.info("Recognition task listening.")
 
         // Set up max duration timeout
         if maxDuration > 0 {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(maxDuration * 1_000_000_000))
-                print("[SpeechService] ⏱️ Max duration reached, stopping recording")
+                speechLogger.info("Max recording duration reached; stopping.")
                 self?.stopRecording()
             }
         }
@@ -241,7 +306,7 @@ private final class LegacySpeechBackend {
     }
 
     func stopRecording() {
-        print("[SpeechService] 🛑 Stopping recording...")
+        speechLogger.info("Stopping recording.")
         
         // Finish streams
         streamContinuation?.finish()
@@ -263,7 +328,7 @@ private final class LegacySpeechBackend {
 #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 #endif
-        print("[SpeechService] ✅ Recording stopped and cleaned up")
+        speechLogger.info("Recording stopped and cleaned up.")
     }
 }
 
@@ -274,9 +339,9 @@ private final class ModernSpeechBackend {
     private let locale: Locale
     private let fallback: LegacySpeechBackend
 
-    init?(locale: Locale) {
+    init?(locale: Locale, authorizationProvider: SpeechAuthorizationProviding) {
         self.locale = locale
-        self.fallback = LegacySpeechBackend(locale: locale)
+        self.fallback = LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider)
 
         guard ModernSpeechBackend.isSystemAnalyzerAvailable else {
             return nil
