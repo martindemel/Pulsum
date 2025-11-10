@@ -239,7 +239,7 @@ private struct VoiceJournalButton: View {
                     
                     // Stop button
                     Button {
-                        performPulseHaptic(style: .medium)
+                        performPulseHaptic(.medium)
                         stopAction()
                     } label: {
                         ZStack {
@@ -275,7 +275,7 @@ private struct VoiceJournalButton: View {
             } else {
                 // Idle state: record button + text
                 Button {
-                    performPulseHaptic(style: .heavy)
+                    performPulseHaptic(.heavy)
                     startAction()
                 } label: {
                     ZStack {
@@ -372,11 +372,19 @@ private struct InfoBubble: View {
     }
 }
 
+private enum PulseHapticStyle { case medium, heavy }
+
 #if canImport(UIKit)
-private func performPulseHaptic(style: UIImpactFeedbackGenerator.FeedbackStyle) {
-    let generator = UIImpactFeedbackGenerator(style: style)
+private func performPulseHaptic(_ style: PulseHapticStyle) {
+    let mapped: UIImpactFeedbackGenerator.FeedbackStyle = {
+        switch style {
+        case .medium: return .medium
+        case .heavy: return .heavy
+        }
+    }()
+    let generator = UIImpactFeedbackGenerator(style: mapped)
     generator.impactOccurred()
 }
 #else
-private func performPulseHaptic(style: Any) {}
+private func performPulseHaptic(_ style: PulseHapticStyle) {}
 #endif
