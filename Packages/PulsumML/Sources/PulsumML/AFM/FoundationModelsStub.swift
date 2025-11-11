@@ -8,40 +8,27 @@ import Foundation
 // Stub Foundation Models types for compilation compatibility
 public struct SystemLanguageModel: Sendable {
     @MainActor public static let `default` = SystemLanguageModel()
-    
     public var isAvailable: Bool { false }
-    
-    public enum Availability: Sendable {
-        case available
-        case unavailable(Reason)
-        
-        public enum Reason: Sendable {
-            case appleIntelligenceNotEnabled
-            case modelNotReady
-            case deviceNotSupported
-        }
-    }
-    
-    public var availability: Availability {
-        .unavailable(.deviceNotSupported)
-    }
 }
 
 public struct LanguageModelSession: Sendable {
     public init(instructions: Instructions? = nil) {}
-
-    public func respond<T: Decodable & Sendable>(to prompt: Prompt,
-                                                 generating type: T.Type,
-                                                 options: GenerationOptions) async throws -> LanguageModelResult<T> {
-        throw FoundationModelsStubError.unavailable
-    }
-
-    public func respond(to prompt: Prompt,
-                        options: GenerationOptions) async throws -> LanguageModelResult<String> {
-        throw FoundationModelsStubError.unavailable
-    }
-    
     public init(temperature: Double) {}
+
+    public func respond<T: Decodable & Sendable>(
+        to prompt: Prompt,
+        generating type: T.Type,
+        options: GenerationOptions
+    ) async throws -> LanguageModelResult<T> {
+        throw FoundationModelsStubError.unavailable
+    }
+
+    public func respond(
+        to prompt: Prompt,
+        options: GenerationOptions
+    ) async throws -> LanguageModelResult<String> {
+        throw FoundationModelsStubError.unavailable
+    }
 
     public enum GenerationError: Error, Sendable {
         case guardrailViolation(String)
@@ -90,6 +77,5 @@ public enum FoundationModelsStubError: Error, Sendable {
 }
 
 #endif
-
 
 
