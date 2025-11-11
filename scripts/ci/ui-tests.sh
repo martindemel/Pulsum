@@ -5,20 +5,20 @@ SCHEME="${SCHEME:-Pulsum}"
 CONFIG="${CONFIG:-Debug}"
 DERIVED="${DERIVED:-Build}"
 
-rm -rf "$DERIVED"
-mkdir -p "$DERIVED"
+# Prefer newer models, then fallback. Names must match `simctl list devices`.
+DEVICE_CANDIDATES=(
+  "iPhone 17 Pro"
+  "iPhone 17"
+  "iPhone 16 Pro"
+  "iPhone 16"
+  "iPhone SE (3rd generation)"
+)
 
-# pick the first available iPhone simulator UDID on this host
-UDID="$(xcrun simctl list devices available | awk -F'[()]' '/iPhone/ && $0 !~ /unavailable/ {print $2; exit}')"
-if [ -z "${UDID:-}" ]; then
-  echo "No available iPhone simulator found on this runner." >&2
-  exit 1
-fi
+# Do NOT pin a patch version; let xcodebuild pick the newest available runtime.
+OS_SPEC="${OS_SPEC:-latest}"
 
-# boot it (best-effort)
-xcrun simctl bootstatus "$UDID" -b || xcrun simctl boot "$UDID" || true
-
-run() {
+# Helper: xcodebuild with optional xcbeautify
+xc() {
   if command -v xcbeautify >/dev/null 2>&1; then
     xcodebuild "$@" | xcbeautify
   else
@@ -26,23 +26,48 @@ run() {
   fi
 }
 
-# build-for-testing (Debug, codesign off for test bundles)
-run -project Pulsum.xcodeproj \
-    -scheme "$SCHEME" \
-    -configuration "$CONFIG" \
-    -destination "id=$UDID" \
-    -derivedDataPath "$DERIVED" \
-    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-    build-for-testing
+# Pick first available device by name
+DEVICE_NAME=""
+for name in "${DEVICE_CANDIDATES[@]}"; do
+  if xcrun simctl list devices | grep -q "^[[:space:]]*${name} ("; then
+    DEVICE_NAME="$name"
+    break
+  fi
+done
+: "${DEVICE_NAME:=iPhone 17 Pro}"
 
-# test-without-building: only UI tests, deterministic seams, single destination
+DEST="platform=iOS Simulator,name=${DEVICE_NAME},OS=${OS_SPEC}"
+
+echo "Using simulator: ${DEVICE_NAME} (OS=${OS_SPEC})"
+echo "Destination: ${DEST}"
+
+# Clean derived data
+rm -rf "$DERIVED"
+mkdir -p "$DERIVED"
+
+# Best-effort: boot and wait for the device by name
+xcrun simctl boot "$DEVICE_NAME" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$DEVICE_NAME" -b || true
+
+# Build for testing (Debug, codesign off)
+xc \
+  -scheme "$SCHEME" \
+  -configuration "$CONFIG" \
+  -destination "$DEST" \
+  -destination-timeout 180 \
+  -derivedDataPath "$DERIVED" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+  build-for-testing
+
+# Run only UI tests, deterministic seams, single sim (no parallel clones)
 UITEST_USE_STUB_LLM=1 UITEST_FAKE_SPEECH=1 UITEST_AUTOGRANT=1 \
-run -project Pulsum.xcodeproj \
-    -scheme "$SCHEME" \
-    -configuration "$CONFIG" \
-    -destination "id=$UDID" \
-    -derivedDataPath "$DERIVED" \
-    -parallel-testing-enabled NO \
-    -maximum-concurrent-test-simulator-destinations 1 \
-    -only-testing:PulsumUITests \
-    test-without-building
+xc \
+  -scheme "$SCHEME" \
+  -configuration "$CONFIG" \
+  -destination "$DEST" \
+  -destination-timeout 180 \
+  -derivedDataPath "$DERIVED" \
+  -parallel-testing-enabled NO \
+  -maximum-concurrent-test-simulator-destinations 1 \
+  -only-testing:PulsumUITests \
+  test-without-building
