@@ -23,4 +23,3 @@ jobs:
 
       - name: Run test harness
         run: bash scripts/ci/test-harness.sh
-        continue-on-error: true

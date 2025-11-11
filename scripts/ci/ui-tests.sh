@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Config (override via env)
 SCHEME="${SCHEME:-Pulsum}"
 CONFIG="${CONFIG:-Debug}"
 DERIVED="${DERIVED:-Build}"
-DEVICE_NAME="${DEVICE_NAME:-iPhone 17 Pro}"
-OS_VERSION="${OS_VERSION:-26.1}"
-DEST="platform=iOS Simulator,name=${DEVICE_NAME},OS=${OS_VERSION}"
 
-xc() {
+rm -rf "$DERIVED"
+mkdir -p "$DERIVED"
+
+# pick the first available iPhone simulator UDID on this host
+UDID="$(xcrun simctl list devices available | awk -F'[()]' '/iPhone/ && $0 !~ /unavailable/ {print $2; exit}')"
+if [ -z "${UDID:-}" ]; then
+  echo "No available iPhone simulator found on this runner." >&2
+  exit 1
+fi
+
+# boot it (best-effort)
+xcrun simctl bootstatus "$UDID" -b || xcrun simctl boot "$UDID" || true
+
+run() {
   if command -v xcbeautify >/dev/null 2>&1; then
     xcodebuild "$@" | xcbeautify
   else
@@ -17,33 +26,23 @@ xc() {
   fi
 }
 
-# Fresh derived data
-rm -rf "$DERIVED"
-mkdir -p "$DERIVED"
+# build-for-testing (Debug, codesign off for test bundles)
+run -project Pulsum.xcodeproj \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIG" \
+    -destination "id=$UDID" \
+    -derivedDataPath "$DERIVED" \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+    build-for-testing
 
-# Make sure destination simulator exists & is booted (best-effort)
-SIM_UDID="$(xcrun simctl list devices | awk -v name="$DEVICE_NAME" -v os="$OS_VERSION" '$0 ~ name && $0 ~ os {print $2}' | tr -d '()' | head -n1 || true)"
-if [[ -n "${SIM_UDID:-}" ]]; then
-  xcrun simctl bootstatus "$SIM_UDID" -b || xcrun simctl boot "$SIM_UDID" || true
-fi
-
-# 1) Build for testing (Debug, simulator) – disable codesign for test bundles
-xc -project Pulsum.xcodeproj \
-   -scheme "$SCHEME" \
-   -configuration "$CONFIG" \
-   -destination "$DEST" \
-   -derivedDataPath "$DERIVED" \
-   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-   build-for-testing
-
-# 2) Test without building – run ONLY UI tests, inject seams, disable parallel clones
+# test-without-building: only UI tests, deterministic seams, single destination
 UITEST_USE_STUB_LLM=1 UITEST_FAKE_SPEECH=1 UITEST_AUTOGRANT=1 \
-xc -project Pulsum.xcodeproj \
-   -scheme "$SCHEME" \
-   -configuration "$CONFIG" \
-   -destination "$DEST" \
-   -derivedDataPath "$DERIVED" \
-   -parallel-testing-enabled NO \
-   -maximum-concurrent-test-simulator-destinations 1 \
-   -only-testing:PulsumUITests \
-   test-without-building
+run -project Pulsum.xcodeproj \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIG" \
+    -destination "id=$UDID" \
+    -derivedDataPath "$DERIVED" \
+    -parallel-testing-enabled NO \
+    -maximum-concurrent-test-simulator-destinations 1 \
+    -only-testing:PulsumUITests \
+    test-without-building
