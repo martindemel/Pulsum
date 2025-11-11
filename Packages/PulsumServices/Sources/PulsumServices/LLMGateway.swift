@@ -159,6 +159,7 @@ public final class LLMGateway {
     private let cloudClient: CloudLLMClient
     private let localGenerator: OnDeviceCoachGenerator
     private let session: URLSession
+    private let usesUITestStub: Bool
 
     private var inMemoryAPIKey: String?
 
@@ -169,7 +170,21 @@ public final class LLMGateway {
                 localGenerator: OnDeviceCoachGenerator? = nil,
                 session: URLSession = .shared) {
         self.keychain = keychain
-        self.cloudClient = cloudClient ?? GPT5Client(session: session)
+        let stubEnabled = Self.isUITestStubEnabled()
+        self.usesUITestStub = stubEnabled
+
+        let resolvedCloudClient: CloudLLMClient
+#if DEBUG || PULSUM_UITESTS
+        if BuildFlags.uiTestSeamsCompiledIn && stubEnabled {
+            resolvedCloudClient = UITestMockCloudClient()
+        } else {
+            resolvedCloudClient = cloudClient ?? GPT5Client(session: session)
+        }
+#else
+        resolvedCloudClient = cloudClient ?? GPT5Client(session: session)
+#endif
+        self.cloudClient = resolvedCloudClient
+
         self.localGenerator = localGenerator ?? createDefaultLocalGenerator()
         self.session = session
     }
@@ -185,6 +200,10 @@ public final class LLMGateway {
     }
 
     public func testAPIConnection() async throws -> Bool {
+        if usesUITestStub {
+            logger.debug("UITest stub enabled: short-circuiting GPT ping.")
+            return true
+        }
         let body = Self.makePingRequestBody()
         if let text = body["text"] as? [String: Any],
            let format = text["format"] as? [String: Any] {
@@ -278,6 +297,9 @@ public final class LLMGateway {
     }
 
     private func keySourceDescriptor() -> String {
+        if usesUITestStub {
+            return "uitest-stub"
+        }
         if inMemoryAPIKey?.trimmedNonEmpty != nil {
             return "memory"
         }
@@ -291,6 +313,9 @@ public final class LLMGateway {
     }
 
     public func currentAPIKey() -> String? {
+        if usesUITestStub {
+            return "UITEST_STUB_KEY"
+        }
         if let m = inMemoryAPIKey?.trimmedNonEmpty { return m }
         if let data = try? keychain.secret(for: Self.apiKeyIdentifier),
            let k = String(data: data, encoding: .utf8)?.trimmedNonEmpty {
@@ -329,6 +354,16 @@ public final class LLMGateway {
 
     func debugClearPersistedAPIKey() throws {
         try keychain.removeSecret(for: Self.apiKeyIdentifier)
+    }
+
+    // Gate-1b: UITest seams are compiled out of Release builds.
+    // In Release, env flags are ignored so remote stubs never activate.
+    private static func isUITestStubEnabled() -> Bool {
+#if DEBUG || PULSUM_UITESTS
+        return ProcessInfo.processInfo.environment["UITEST_USE_STUB_LLM"] == "1"
+#else
+        return false
+#endif
     }
 }
 
@@ -601,6 +636,29 @@ public final class GPT5Client: CloudLLMClient {
         return phrasing
     }
 }
+
+#if DEBUG || PULSUM_UITESTS
+private final class UITestMockCloudClient: CloudLLMClient {
+    private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.UITests")
+
+    func generateResponse(context: CoachLLMContext,
+                          intentTopic: String?,
+                          candidateMoments: [CandidateMoment],
+                          apiKey: String,
+                          keySource: String) async throws -> CoachPhrasing {
+        logger.debug("UITest stub invoked. keySource=\(keySource, privacy: .public)")
+        let reply = "Stub response: focus on \(context.topSignal.lowercased()). Three steady breaths and a quick stretch keep momentum."
+        return CoachPhrasing(
+            coachReply: reply,
+            isOnTopic: true,
+            groundingScore: 0.99,
+            intentTopic: intentTopic ?? "general",
+            refusalReason: nil,
+            nextAction: "Take a mindful breathing break"
+        )
+    }
+}
+#endif
 
 // MARK: - Generator Factory
 

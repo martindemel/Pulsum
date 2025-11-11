@@ -324,6 +324,7 @@ struct SettingsScreen: View {
                             .foregroundStyle(Color.pulsumTextSecondary)
                             .symbolRenderingMode(.hierarchical)
                     }
+                    .accessibilityLabel("Close Settings")
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
@@ -340,6 +341,7 @@ struct SettingsScreen: View {
                             .foregroundStyle(Color.pulsumTextSecondary)
                             .symbolRenderingMode(.hierarchical)
                     }
+                    .accessibilityLabel("Close Settings")
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)

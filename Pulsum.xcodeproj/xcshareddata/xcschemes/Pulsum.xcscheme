@@ -31,7 +31,7 @@
       shouldAutocreateTestPlan = "YES">
       <Testables>
          <TestableReference
-            skipped = "NO"
+            skipped = "YES"
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
@@ -52,7 +52,68 @@
                ReferencedContainer = "container:Pulsum.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "PulsumAgentsTests"
+               BuildableName = "PulsumAgentsTests.xctest"
+               BlueprintName = "PulsumAgentsTests"
+               ReferencedContainer = "container:Packages/PulsumAgents">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "PulsumServicesTests"
+               BuildableName = "PulsumServicesTests.xctest"
+               BlueprintName = "PulsumServicesTests"
+               ReferencedContainer = "container:Packages/PulsumServices">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "PulsumDataTests"
+               BuildableName = "PulsumDataTests.xctest"
+               BlueprintName = "PulsumDataTests"
+               ReferencedContainer = "container:Packages/PulsumData">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "PulsumMLTests"
+               BuildableName = "PulsumMLTests.xctest"
+               BlueprintName = "PulsumMLTests"
+               ReferencedContainer = "container:Packages/PulsumML">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "UITEST_USE_STUB_LLM"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "UITEST_FAKE_SPEECH"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "UITEST_AUTOGRANT"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

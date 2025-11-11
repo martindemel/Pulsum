@@ -47,6 +47,8 @@ public struct ChatInputView: View {
                         : Color.pulsumGreenSoft.opacity(0.7))
                 ).interactive()
             )
+            .accessibilityLabel("Send coach message")
+            .accessibilityIdentifier("CoachSendButton")
             .disabled(viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSendingChat)
             
             // Close keyboard button (iOS 26 style)

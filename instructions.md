@@ -238,6 +238,18 @@ HOW TO RUN PRIVACY REPORT & SECRET SCANS
 • Privacy manifests + optional Xcode Privacy Report: `scripts/ci/check-privacy-manifests.sh` (set `RUN_PRIVACY_REPORT=1` to run `xcrun privacyreport generate --project Pulsum.xcodeproj --scheme Pulsum`). **Note:** `privacyreport` ships with Xcode 16+; install the latest Xcode command line tools if the binary is missing, otherwise leave `RUN_PRIVACY_REPORT` unset and run the report manually once the tool is available.
 • Release build gate (TSan off, `OTHER_SWIFT_FLAGS` applied): `scripts/ci/build-release.sh` (disables code signing so CI can run the Release build without provisioning—remove the `CODE_SIGNING_*` overrides when archiving for App Store).
 
+RUN THE TEST HARNESS (GATE 1)
+• Use `scripts/ci/test-harness.sh` to run the end-to-end Gate 1 sweep locally—it chains the secret scan, privacy manifest check, `xcodebuild test -scheme Pulsum -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0'` (auto-falling back to iPhone 15), and `swift test --package-path Packages/Pulsum{Services,Data,ML} --filter 'Gate0_|Gate1_'`.
+• Logs land under `/tmp` as `pulsum_xcode_tests.log`, `pulsum_services_gate.log`, etc., so you can inspect failures quickly or attach them to PRs.
+• GitHub Actions (`.github/workflows/test-harness.yml`) invokes the same script on `macos-14` runners with Xcode 16 selected.
+
+UITEST ENVIRONMENT FLAGS
+| Flag | Purpose | Notes |
+| --- | --- | --- |
+| `UITEST_USE_STUB_LLM=1` | Forces `LLMGateway` to use an on-device stub client that produces deterministic, grounded replies (no network/API key required). | Keeps consent logic intact; still sanitizes outputs. |
+| `UITEST_FAKE_SPEECH=1` | Routes `SpeechService` to a deterministic fake backend that streams known transcript segments and audio levels. | Avoids microphone/audio-engine access during automation. |
+| `UITEST_AUTOGRANT=1` | When paired with the fake speech backend, skips mic/speech permission prompts for fast simulator runs. | Leave unset when manually verifying the real permission UX. |
+
 RESOLVING DUPLICATE PRIVACYINFO.XCPRIVACY WARNINGS
 1. Keep a single canonical manifest at `Pulsum/PrivacyInfo.xcprivacy`. Do **not** add package manifests or workspace copies to the app target.
 2. In `Pulsum.xcodeproj/project.pbxproj`, the Pulsum target’s “Copy Bundle Resources” list must show exactly **one** `PrivacyInfo.xcprivacy in Resources`. Remove any duplicate `PBXBuildFile` entries if present.

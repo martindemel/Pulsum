@@ -84,6 +84,7 @@ struct PulseView: View {
                         Text("Transcript")
                             .font(.pulsumFootnote)
                             .foregroundStyle(Color.pulsumTextSecondary)
+                            .accessibilityIdentifier("VoiceJournalTranscriptLabel")
                         
                         if viewModel.isRecording {
                             Text("• LIVE")
@@ -96,6 +97,7 @@ struct PulseView: View {
                     Text(transcript)
                         .font(.pulsumBody)
                         .foregroundStyle(Color.pulsumTextPrimary)
+                        .accessibilityIdentifier("VoiceJournalTranscriptText")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(PulsumSpacing.sm)
                         .background {
@@ -254,6 +256,7 @@ private struct VoiceJournalButton: View {
                     }
                     .accessibilityLabel("Stop recording")
                     .accessibilityHint("Double tap to stop recording")
+                    .accessibilityIdentifier("VoiceJournalStopButton")
                 }
             } else if isAnalyzing {
                 // Processing state: spinner + text
@@ -290,6 +293,7 @@ private struct VoiceJournalButton: View {
                 }
                 .accessibilityLabel("Record voice journal")
                 .accessibilityHint("Double tap to start recording")
+                .accessibilityIdentifier("VoiceJournalStartButton")
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Tap to record")

@@ -86,12 +86,28 @@ public actor SpeechService {
     private enum Backend {
         case modern(ModernSpeechBackend)
         case legacy(LegacySpeechBackend)
+#if DEBUG || PULSUM_UITESTS
+        case fake(FakeSpeechBackend)
+#endif
     }
 
     private let backend: Backend
 
-    public init(locale: Locale = Locale(identifier: "en_US"),
-                authorizationProvider: SpeechAuthorizationProviding = SystemSpeechAuthorizationProvider()) {
+    public init(
+        locale: Locale = Locale(identifier: "en_US"),
+        authorizationProvider: SpeechAuthorizationProviding = SystemSpeechAuthorizationProvider()
+    ) {
+#if DEBUG || PULSUM_UITESTS
+        let overrides = SpeechUITestOverrides()
+        if BuildFlags.uiTestSeamsCompiledIn && overrides.useFakeBackend {
+            backend = .fake(FakeSpeechBackend(
+                authorizationProvider: authorizationProvider,
+                autoGrantPermissions: overrides.autoGrantPermissions
+            ))
+            return
+        }
+#endif
+
         if #available(iOS 26.0, *), let modern = ModernSpeechBackend(locale: locale, authorizationProvider: authorizationProvider) {
             backend = .modern(modern)
         } else {
@@ -101,29 +117,49 @@ public actor SpeechService {
 
     public func requestAuthorization() async throws {
         switch backend {
-        case .modern(let backend):
-            try await backend.requestAuthorization()
-        case .legacy(let backend):
-            try await backend.requestAuthorization()
+        case .modern(let b): try await b.requestAuthorization()
+        case .legacy(let b): try await b.requestAuthorization()
+#if DEBUG || PULSUM_UITESTS
+        case .fake(let b):   try await b.requestAuthorization()
+#endif
         }
     }
 
     public func startRecording(maxDuration: TimeInterval = 30) async throws -> Session {
         switch backend {
-        case .modern(let backend):
-            return try await backend.startRecording(maxDuration: maxDuration)
-        case .legacy(let backend):
-            return try await backend.startRecording(maxDuration: maxDuration)
+        case .modern(let b): return try await b.startRecording(maxDuration: maxDuration)
+        case .legacy(let b): return try await b.startRecording(maxDuration: maxDuration)
+#if DEBUG || PULSUM_UITESTS
+        case .fake(let b):   return try await b.startRecording(maxDuration: maxDuration)
+#endif
         }
     }
 
     public func stopRecording() {
         switch backend {
-        case .modern(let backend):
-            backend.stopRecording()
-        case .legacy(let backend):
-            backend.stopRecording()
+        case .modern(let b): b.stopRecording()
+        case .legacy(let b): b.stopRecording()
+#if DEBUG || PULSUM_UITESTS
+        case .fake(let b):   b.stopRecording()
+#endif
         }
+    }
+}
+
+// Gate-1b: UITest seams are compiled out of Release builds.
+// Gate-1b: UITest seams are compiled out of Release builds.
+private struct SpeechUITestOverrides {
+    let useFakeBackend: Bool
+    let autoGrantPermissions: Bool
+
+    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+#if DEBUG || PULSUM_UITESTS
+        useFakeBackend = environment["UITEST_FAKE_SPEECH"] == "1"
+        autoGrantPermissions = environment["UITEST_AUTOGRANT"] == "1"
+#else
+        useFakeBackend = false
+        autoGrantPermissions = false
+#endif
     }
 }
 
@@ -333,6 +369,97 @@ private final class LegacySpeechBackend {
 }
 
 extension LegacySpeechBackend: @unchecked Sendable {}
+
+#if DEBUG || PULSUM_UITESTS
+#if DEBUG || PULSUM_UITESTS
+private final class FakeSpeechBackend {
+    private let authorizationProvider: SpeechAuthorizationProviding
+    private let autoGrantPermissions: Bool
+    private var streamTask: Task<Void, Never>?
+    private var levelTask: Task<Void, Never>?
+    private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
+    private var levelContinuation: AsyncStream<Float>.Continuation?
+    private var stopHandler: (@Sendable () -> Void)?
+
+    init(authorizationProvider: SpeechAuthorizationProviding, autoGrantPermissions: Bool) {
+        self.authorizationProvider = authorizationProvider
+        self.autoGrantPermissions = autoGrantPermissions
+    }
+
+    func requestAuthorization() async throws {
+        guard !autoGrantPermissions else { return }
+        let status = await authorizationProvider.requestSpeechAuthorization()
+        switch status {
+        case .authorized:
+            break
+        case .denied:
+            throw SpeechServiceError.speechPermissionDenied
+        case .restricted:
+            throw SpeechServiceError.speechPermissionRestricted
+        default:
+            throw SpeechServiceError.speechPermissionDenied
+        }
+#if os(iOS)
+        let granted = await authorizationProvider.requestRecordPermission()
+        guard granted else { throw SpeechServiceError.microphonePermissionDenied }
+#endif
+    }
+
+    func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
+        let stream = AsyncThrowingStream<SpeechSegment, Error> { continuation in
+            self.streamContinuation = continuation
+            self.streamTask = Task {
+                for segment in Self.scriptedSegments {
+                    if Task.isCancelled { break }
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    continuation.yield(segment)
+                }
+                continuation.finish()
+            }
+        }
+
+        let levelStream = AsyncStream<Float> { continuation in
+            self.levelContinuation = continuation
+            self.levelTask = Task {
+                var cursor: Float = 0.15
+                while !Task.isCancelled {
+                    cursor = cursor >= 0.9 ? 0.2 : cursor + 0.15
+                    continuation.yield(cursor)
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                }
+            }
+        }
+
+        let stop: @Sendable () -> Void = { [weak self] in
+            guard let self else { return }
+            self.streamTask?.cancel()
+            self.levelTask?.cancel()
+            self.streamContinuation?.finish()
+            self.levelContinuation?.finish()
+        }
+        stopHandler = stop
+
+        return SpeechService.Session(
+            stream: stream,
+            stop: stop,
+            audioLevels: levelStream
+        )
+    }
+
+    func stopRecording() {
+        stopHandler?()
+        stopHandler = nil
+    }
+
+    private static let scriptedSegments: [SpeechSegment] = [
+        SpeechSegment(transcript: "Quick calm check-in for Pulsum.", confidence: 0.92),
+        SpeechSegment(transcript: "Energy feels steady and focus is clear.", confidence: 0.95),
+        SpeechSegment(transcript: "Plan is to stretch after meetings.", confidence: 0.97)
+    ]
+}
+extension FakeSpeechBackend: @unchecked Sendable {}
+#endif
+#endif
 
 @available(iOS 26.0, *)
 private final class ModernSpeechBackend {

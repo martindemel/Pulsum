@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		910D1C8BDF7B4BE0A79330B5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile /* PrivacyInfo.xcprivacy in Resources */ ; fileRef = 163A3F3C451B4A0D810BEBDC /* PrivacyInfo.xcprivacy */; };
+		910D1C8BDF7B4BE0A79330B5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 163A3F3C451B4A0D810BEBDC /* PrivacyInfo.xcprivacy */; };
 		94293E602E8CD700003E5840 /* streak_low_poly_copy.splineswift in Resources */ = {isa = PBXBuildFile; fileRef = 94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */; };
 		9429413D2E8E32C7003E5840 /* podcastrecommendations 2.json in Resources */ = {isa = PBXBuildFile; fileRef = 9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */; };
 		945EC8922E8AD321001CCF2E /* PulsumUI in Frameworks */ = {isa = PBXBuildFile; productRef = C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */; };
@@ -45,7 +45,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		163A3F3C451B4A0D810BEBDC /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference ; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Pulsum/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+		163A3F3C451B4A0D810BEBDC /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Pulsum/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
 		941192802E8A01FF0078B278 /* Pulsum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pulsum.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		941192922E8A01FF0078B278 /* PulsumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -566,6 +566,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X6FJFZCXY3;
@@ -609,10 +611,13 @@
 		941192AD2E8A01FF0078B278 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X6FJFZCXY3;
 				GENERATE_INFOPLIST_FILE = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D PULSUM_UITESTS";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -633,6 +638,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X6FJFZCXY3;
 				GENERATE_INFOPLIST_FILE = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D PULSUM_UITESTS";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

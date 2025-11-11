@@ -593,7 +593,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Test
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 1 — Test harness ON)
 - **Symptom/Impact:** Running Product ▸ Test executes only empty XCTest bundles (PulsumTests, PulsumUITests); package tests for Agents, Services, Data, ML never run in Xcode.
 - **Where/Scope:** Pulsum shared scheme configuration.
 - **Evidence:**
@@ -601,7 +601,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
   - No references to `PulsumAgentsTests`, `PulsumServicesTests`, `PulsumDataTests`, `PulsumMLTests`
 - **Upstream/Downstream:** CI misses regressions in guardrails, services, and data layers; safety-critical tests never run; developers see "all tests pass" but package tests are silently skipped.
 - **Why This Is a Problem:** Architecture section 14 counts on package tests for guardrails and services as essential coverage; current scheme silently skips 95% of the test suite.
-- **Suggested Diagnostics (no code):** Compare `xcodebuild test` output with `swift test`; add package test bundles to shared scheme Testables section; document workflow; verify tests run in CI.
+- **Fix (2025-11-09, commit gate1-test-harness-final):** The shared `Pulsum` scheme now test-runs PulsumAgents/Services/Data/ML bundles with deterministic UITest env vars, and `scripts/ci/test-harness.sh` enforces `xcodebuild test` plus filtered `swift test` subsets on macOS CI.
 - **Related Contract (from architecture.md):** Testing strategy (section 14) notes service and guardrail tests as essential coverage; mentions property tests and acceptance tests that aren't running.
 
 ### BUG: Test targets contain only empty scaffolds with no assertions
@@ -609,7 +609,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Test
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 1 — Test harness ON)
 - **Symptom/Impact:** PulsumTests and PulsumUITests bundles contain only boilerplate template code with no actual test assertions, providing zero coverage.
 - **Where/Scope:** PulsumTests and PulsumUITests targets.
 - **Evidence:**
@@ -618,7 +618,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
   - PulsumUITests/PulsumUITests.swift:34-40  [sig8:0e1f2a3b] — `testLaunchPerformance()` only measures launch time
 - **Upstream/Downstream:** CI reports 100% test pass rate but tests verify nothing; regressions in app logic go undetected; false confidence from green CI.
 - **Why This Is a Problem:** Tests exist but provide no coverage; architecture section 17 lists incomplete UI tests as risk #3; no validation of voice journaling, chat flows, settings.
-- **Suggested Diagnostics (no code):** Generate code coverage report; confirm 0% line coverage from these targets; compare against package test coverage; prioritize UI flow tests.
+- **Fix (2025-11-09, commit gate1-test-harness-final):** New smoke suites (`FirstRunPermissionsUITests`, `JournalFlowUITests`, `SettingsAndCoachUITests`) drive the consent banner, journaling stream, and stubbed coach chat using the new UITest seams; placeholder files were removed.
 - **Related Contract (from architecture.md):** Section 14 describes testing strategy including UI tests; section 17 acknowledges UI tests are placeholders but this wasn't addressed.
 
 ### BUG: LLM PING validation has case mismatch causing all pings to fail
@@ -905,6 +905,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - ✅ Backup exclusion failures now block startup and are tested via xattr checks (BUG-20251026-0018).
 - File descriptor leaks (BUG-20251026-0017) and concurrency issues (BUG-20251026-0012, BUG-20251026-0016) still pose stability risks.
 - Core Data model has no attribute-level validation, relying on caller validation.
+- UITest-only seams now exist for LLM (`UITEST_USE_STUB_LLM`) and speech capture (`UITEST_FAKE_SPEECH`, `UITEST_AUTOGRANT`); they keep PHI on-device while enabling deterministic harness runs.
 
 ## Open Questions
 - **Foundation Models APIs:** Are SpeechAnalyzer/SpeechTranscriber publicly available in iOS 26 SDK? (BUG-20251026-0007)

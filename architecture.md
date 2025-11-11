@@ -109,7 +109,8 @@
 - Property-style tests cover topic gate margins, safety classification, and ranker heuristics. (Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailTests.swift:11-168; Packages/PulsumML/Tests/PulsumMLTests/TopicGateMarginTests.swift:6-34; Packages/PulsumML/Tests/PulsumMLTests/PackageEmbedTests.swift:4-69)
 - Services tests validate HealthKit anchor persistence, Keychain storage, LLM schema compliance, and HTTP error handling via URL protocol stubs. (Packages/PulsumServices/Tests/PulsumServicesTests/HealthKitAnchorStoreTests.swift:5-44; Packages/PulsumServices/Tests/PulsumServicesTests/KeychainServiceTests.swift:5-14; Packages/PulsumServices/Tests/PulsumServicesTests/LLMGatewayTests.swift:64-215)
 - Data tests ensure library ingestion seeds vector index matches. (Packages/PulsumData/Tests/PulsumDataTests/LibraryImporterTests.swift:5-33)
-- UI test targets exist but currently contain boilerplate launch checks only. (PulsumUITests/PulsumUITests.swift:12-39)
+- UI test targets now exercise permissions, journaling, and coach/settings flows via deterministic stubs, and the env flags are injected from `PulsumUITestCase.launchPulsum()` so the shared scheme stays clean for unit tests. (PulsumUITests/FirstRunPermissionsUITests.swift, PulsumUITests/JournalFlowUITests.swift, PulsumUITests/SettingsAndCoachUITests.swift)
+- UITest-only seams are controlled via environment flags (`UITEST_USE_STUB_LLM`, `UITEST_FAKE_SPEECH`, `UITEST_AUTOGRANT`) so CI can run smoke flows without network access or microphone prompts.
 
 ## 15. Internationalization & Resources
 - UI copy is hard-coded English within SwiftUI views; no localized `.strings` catalogs are configured. (Packages/PulsumUI/Sources/PulsumUI/CoachView.swift:15-386; Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift:28-526)
