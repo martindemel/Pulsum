@@ -6,7 +6,7 @@ final class CoreMLSentimentProvider: SentimentProviding {
     private let model: NLModel
 
     init?() {
-        let bundle = Bundle.forPulsumML()
+        let bundle = Bundle.pulsumMLResources
         if let compiledURL = bundle.url(forResource: "PulsumSentimentCoreML", withExtension: "mlmodelc"),
            let nlModel = try? NLModel(contentsOf: compiledURL) {
             model = nlModel

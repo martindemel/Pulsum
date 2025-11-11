@@ -31,7 +31,7 @@ let package = Package(
                 .process("PulsumAgents/PrivacyInfo.xcprivacy")
             ],
             linkerSettings: [
-                .linkedFramework("FoundationModels")
+                .linkedFramework("FoundationModels", .when(platforms: [.iOS]))
             ]
         ),
         .testTarget(
