@@ -28,7 +28,7 @@ let package = Package(
                 .process("PulsumML/PrivacyInfo.xcprivacy")
             ],
             linkerSettings: [
-                .linkedFramework("FoundationModels"),
+                .linkedFramework("FoundationModels", .when(platforms: [.iOS])),
                 .linkedFramework("Accelerate")
             ]
         ),
