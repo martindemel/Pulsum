@@ -79,7 +79,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Symptom/Impact:** Every clone and shipped build carries a live OpenAI project key, exposing billing and rate limits to anyone who inspects the app bundle.
 - **Where/Scope:** Config.xcconfig:5; all targets that link PulsumServices.
 - **Evidence:**
-  - Config.xcconfig:5  [sig8:0b61c5eb] — `OPENAI_API_KEY = sk-proj-YclZLIxRMVlukaL...` (full 176-char key hardcoded)
+  - Config.xcconfig:5  [sig8:0b61c5eb] — `OPENAI_API_KEY = <redacted>...` (full 176-char key hardcoded)
   - Pulsum.xcodeproj/project.pbxproj:483,526  [sig8:a8f3c2d1] — `INFOPLIST_KEY_OPENAI_API_KEY = "$(OPENAI_API_KEY)"` exposes key in Info.plist
 - **Upstream/Downstream:** LLMGateway.resolveAPIKey() reads from Info.plist (LLMGateway.swift:136-210), so all coach prompts leak the credential in built IPA.
 - **Why This Is a Problem:** Shipping live secrets violates OpenAI policy and allows immediate abuse; App Store review can flag the leak; any user can extract key from IPA with `strings` command.

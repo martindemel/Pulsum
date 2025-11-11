@@ -339,7 +339,7 @@ Packages/PulsumServices/
      - Endpoint: `https://api.openai.com/v1/responses`
      - Model: `gpt-5`
      - Payload: `{"model": "gpt-5", "input": [...], "max_output_tokens": 512, "reasoning": {"effort": "medium"}, "text": {"verbosity": "medium"}}`
-     - Hardcoded API key: `sk-proj-CV00PjpfJjs...` (for testing)
+     - Hardcoded API key: `<redacted>...` (for testing)
    - **On-Device Path**: `FoundationModelsCoachGenerator` (iOS 26+) → `LegacyCoachGenerator` (phrase matching)
    - PII redaction via `PIIRedactor` before cloud calls
    - Response sanitization: max 2 sentences, 280 chars per sentence
