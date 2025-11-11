@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "PulsumML",
     platforms: [
-        .iOS(.v26),
+        .iOS(.v17),
         .macOS(.v14)
     ],
     products: [
