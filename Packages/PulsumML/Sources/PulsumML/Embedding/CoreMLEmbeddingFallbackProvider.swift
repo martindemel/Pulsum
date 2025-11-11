@@ -49,6 +49,9 @@ final class PulsumMLBundleLocator {}
 @available(iOS 17.0, macOS 13.0, *)
 extension Bundle {
     static func forPulsumML() -> Bundle {
+#if SWIFT_PACKAGE
+        return .module
+#else
         let bundleName = "PulsumML_PulsumML"
         let candidates: [URL?] = [
             Bundle.main.resourceURL,
@@ -66,5 +69,6 @@ extension Bundle {
         }
 
         return Bundle(for: PulsumMLBundleLocator.self)
+#endif
     }
 }

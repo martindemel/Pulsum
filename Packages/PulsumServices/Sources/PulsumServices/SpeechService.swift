@@ -83,67 +83,48 @@ public actor SpeechService {
         public let audioLevels: AsyncStream<Float>?
     }
 
-    private enum Backend {
-        case modern(ModernSpeechBackend)
-        case legacy(LegacySpeechBackend)
-#if DEBUG || PULSUM_UITESTS
-        case fake(FakeSpeechBackend)
-#endif
-    }
-
-    private let backend: Backend
+    private let backend: any SpeechBackending
 
     public init(
         locale: Locale = Locale(identifier: "en_US"),
         authorizationProvider: SpeechAuthorizationProviding = SystemSpeechAuthorizationProvider()
     ) {
-#if DEBUG || PULSUM_UITESTS
+#if DEBUG
         let overrides = SpeechUITestOverrides()
         if BuildFlags.uiTestSeamsCompiledIn && overrides.useFakeBackend {
-            backend = .fake(FakeSpeechBackend(
+            backend = FakeSpeechBackend(
                 authorizationProvider: authorizationProvider,
                 autoGrantPermissions: overrides.autoGrantPermissions
-            ))
+            )
             return
         }
 #endif
 
-        if #available(iOS 26.0, *), let modern = ModernSpeechBackend(locale: locale, authorizationProvider: authorizationProvider) {
-            backend = .modern(modern)
+        if #available(iOS 26.0, *),
+           let modern = ModernSpeechBackend(locale: locale, authorizationProvider: authorizationProvider) {
+            backend = modern
         } else {
-            backend = .legacy(LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider))
+            backend = LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider)
         }
     }
 
     public func requestAuthorization() async throws {
-        switch backend {
-        case .modern(let b): try await b.requestAuthorization()
-        case .legacy(let b): try await b.requestAuthorization()
-#if DEBUG || PULSUM_UITESTS
-        case .fake(let b):   try await b.requestAuthorization()
-#endif
-        }
+        try await backend.requestAuthorization()
     }
 
     public func startRecording(maxDuration: TimeInterval = 30) async throws -> Session {
-        switch backend {
-        case .modern(let b): return try await b.startRecording(maxDuration: maxDuration)
-        case .legacy(let b): return try await b.startRecording(maxDuration: maxDuration)
-#if DEBUG || PULSUM_UITESTS
-        case .fake(let b):   return try await b.startRecording(maxDuration: maxDuration)
-#endif
-        }
+        try await backend.startRecording(maxDuration: maxDuration)
     }
 
     public func stopRecording() {
-        switch backend {
-        case .modern(let b): b.stopRecording()
-        case .legacy(let b): b.stopRecording()
-#if DEBUG || PULSUM_UITESTS
-        case .fake(let b):   b.stopRecording()
-#endif
-        }
+        backend.stopRecording()
     }
+}
+
+private protocol SpeechBackending: Sendable {
+    func requestAuthorization() async throws
+    func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session
+    func stopRecording()
 }
 
 // Gate-1b: UITest seams are compiled out of Release builds.
@@ -153,7 +134,7 @@ private struct SpeechUITestOverrides {
     let autoGrantPermissions: Bool
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
-#if DEBUG || PULSUM_UITESTS
+#if DEBUG
         useFakeBackend = environment["UITEST_FAKE_SPEECH"] == "1"
         autoGrantPermissions = environment["UITEST_AUTOGRANT"] == "1"
 #else
@@ -163,7 +144,7 @@ private struct SpeechUITestOverrides {
     }
 }
 
-private final class LegacySpeechBackend {
+private final class LegacySpeechBackend: SpeechBackending {
     private let recognizer: SFSpeechRecognizer?
     private var audioEngine: AVAudioEngine?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -205,10 +186,17 @@ private final class LegacySpeechBackend {
         speechLogger.info("Speech recognizer available (on-device: \(recognizer.supportsOnDeviceRecognition)).")
 
 #if os(iOS)
-        guard AVAudioSession.sharedInstance().recordPermission == .granted else {
+        let session = AVAudioSession.sharedInstance()
+        if session.recordPermission == .undetermined {
+            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+                session.requestRecordPermission { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+        }
+        guard session.recordPermission == .granted else {
             throw SpeechServiceError.microphonePermissionDenied
         }
-        let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
@@ -370,9 +358,9 @@ private final class LegacySpeechBackend {
 
 extension LegacySpeechBackend: @unchecked Sendable {}
 
-#if DEBUG || PULSUM_UITESTS
-#if DEBUG || PULSUM_UITESTS
-private final class FakeSpeechBackend {
+#if DEBUG
+#if DEBUG
+private final class FakeSpeechBackend: SpeechBackending {
     private let authorizationProvider: SpeechAuthorizationProviding
     private let autoGrantPermissions: Bool
     private var streamTask: Task<Void, Never>?
@@ -462,7 +450,7 @@ extension FakeSpeechBackend: @unchecked Sendable {}
 #endif
 
 @available(iOS 26.0, *)
-private final class ModernSpeechBackend {
+private final class ModernSpeechBackend: SpeechBackending {
     private let locale: Locale
     private let fallback: LegacySpeechBackend
 

@@ -174,7 +174,7 @@ public final class LLMGateway {
         self.usesUITestStub = stubEnabled
 
         let resolvedCloudClient: CloudLLMClient
-#if DEBUG || PULSUM_UITESTS
+#if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn && stubEnabled {
             resolvedCloudClient = UITestMockCloudClient()
         } else {
@@ -359,7 +359,7 @@ public final class LLMGateway {
     // Gate-1b: UITest seams are compiled out of Release builds.
     // In Release, env flags are ignored so remote stubs never activate.
     private static func isUITestStubEnabled() -> Bool {
-#if DEBUG || PULSUM_UITESTS
+#if DEBUG
         return ProcessInfo.processInfo.environment["UITEST_USE_STUB_LLM"] == "1"
 #else
         return false
@@ -637,7 +637,7 @@ public final class GPT5Client: CloudLLMClient {
     }
 }
 
-#if DEBUG || PULSUM_UITESTS
+#if DEBUG
 private final class UITestMockCloudClient: CloudLLMClient {
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.UITests")
 
@@ -741,7 +741,7 @@ Keep JSON compact. Do not echo the schema or input.
         return [
             "model": "gpt-5",
             "input": [
-                ["role": "user", "content": "PING"]
+                ["role": "user", "content": "ping"]
             ],
             "max_output_tokens": 32,
             "text": [

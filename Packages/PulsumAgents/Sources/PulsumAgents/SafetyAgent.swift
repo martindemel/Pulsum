@@ -6,7 +6,7 @@ import PulsumML
 
 @MainActor
 public final class SafetyAgent {
-    private let foundationModelsProvider: FoundationModelsSafetyProvider?
+    private let foundationModelsProvider: Any?
     private let fallbackClassifier = SafetyLocal()
     private let crisisKeywords: [String] = [
         "suicide",
@@ -26,7 +26,8 @@ public final class SafetyAgent {
 
     public func evaluate(text: String) async -> SafetyDecision {
         // Try Foundation Models classification first
-        if let provider = foundationModelsProvider {
+        if #available(iOS 26.0, *),
+           let provider = foundationModelsProvider as? FoundationModelsSafetyProvider {
             do {
                 let result = try await provider.classify(text: text)
                 let lowered = text.lowercased()

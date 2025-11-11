@@ -1,4 +1,5 @@
 import Foundation
+
 #if canImport(FoundationModels) && os(iOS)
 import FoundationModels
 
@@ -51,10 +52,20 @@ final class FoundationModelsSentimentProvider: SentimentProviding {
         }
     }
 }
+
+@available(iOS 26.0, *)
+extension FoundationModelsSentimentProvider: @unchecked Sendable {}
+
 #else
+
 final class FoundationModelsSentimentProvider: SentimentProviding {
+    private let local = NaturalLanguageSentimentProvider()
+
     func sentimentScore(for text: String) async throws -> Double {
-        throw SentimentProviderError.unavailable
+        try await local.sentimentScore(for: text)
     }
 }
+
+extension FoundationModelsSentimentProvider: @unchecked Sendable {}
+
 #endif

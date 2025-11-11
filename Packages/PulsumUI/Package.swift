@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "PulsumUI",
     platforms: [
-        .iOS(.v17),
+        .iOS("26.0"),
         .macOS(.v14)
     ],
     products: [
@@ -26,7 +26,10 @@ let package = Package(
                 "PulsumServices",
                 "PulsumData"
             ],
-            path: "Sources"
+            path: "Sources",
+            resources: [
+                .process("PulsumUI/PrivacyInfo.xcprivacy")
+            ]
         ),
         .testTarget(
             name: "PulsumUITests",

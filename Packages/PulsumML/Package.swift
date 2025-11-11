@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "PulsumML",
     platforms: [
-        .iOS(.v17),
+        .iOS("26.0"),
         .macOS(.v14)
     ],
     products: [
@@ -24,7 +24,8 @@ let package = Package(
             ],
             resources: [
                 .process("PulsumML/Resources/PulsumFallbackEmbedding.mlmodel"),
-                .process("PulsumML/Resources/PulsumSentimentCoreML.mlmodel")
+                .process("PulsumML/Resources/PulsumSentimentCoreML.mlmodel"),
+                .process("PulsumML/PrivacyInfo.xcprivacy")
             ],
             linkerSettings: [
                 .linkedFramework("FoundationModels"),

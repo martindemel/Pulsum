@@ -6,16 +6,16 @@ import Foundation
 #if !canImport(FoundationModels)
 
 // Stub Foundation Models types for compilation compatibility
-public struct SystemLanguageModel {
-    public static let `default` = SystemLanguageModel()
+public struct SystemLanguageModel: Sendable {
+    @MainActor public static let `default` = SystemLanguageModel()
     
     public var isAvailable: Bool { false }
     
-    public enum Availability {
+    public enum Availability: Sendable {
         case available
         case unavailable(Reason)
         
-        public enum Reason {
+        public enum Reason: Sendable {
             case appleIntelligenceNotEnabled
             case modelNotReady
             case deviceNotSupported
@@ -27,12 +27,12 @@ public struct SystemLanguageModel {
     }
 }
 
-public struct LanguageModelSession {
+public struct LanguageModelSession: Sendable {
     public init(instructions: Instructions? = nil) {}
 
-    public func respond<T: Decodable>(to prompt: Prompt,
-                                      generating type: T.Type,
-                                      options: GenerationOptions) async throws -> LanguageModelResult<T> {
+    public func respond<T: Decodable & Sendable>(to prompt: Prompt,
+                                                 generating type: T.Type,
+                                                 options: GenerationOptions) async throws -> LanguageModelResult<T> {
         throw FoundationModelsStubError.unavailable
     }
 
@@ -41,25 +41,27 @@ public struct LanguageModelSession {
         throw FoundationModelsStubError.unavailable
     }
     
-    public enum GenerationError: Error {
+    public init(temperature: Double) {}
+
+    public enum GenerationError: Error, Sendable {
         case guardrailViolation(String)
         case refusal(String, String)
     }
 }
 
-public struct Instructions {
+public struct Instructions: Sendable {
     public init(_ text: String) {}
 }
 
-public struct Prompt {
+public struct Prompt: Sendable {
     public init(_ text: String) {}
 }
 
-public struct GenerationOptions {
+public struct GenerationOptions: Sendable {
     public init(temperature: Double) {}
 }
 
-public struct LanguageModelResult<Content>: Sendable {
+public struct LanguageModelResult<Content: Sendable>: Sendable {
     public let content: Content
 
     public init(content: Content) {
@@ -68,31 +70,26 @@ public struct LanguageModelResult<Content>: Sendable {
 }
 
 @propertyWrapper
-public struct Generable<T> {
+public struct Generable<T: Sendable>: Sendable {
     public var wrappedValue: T
     public init(wrappedValue: T) {
         self.wrappedValue = wrappedValue
     }
 }
 
-@propertyWrapper 
-public struct Guide<T> {
+@propertyWrapper
+public struct Guide<T: Sendable>: Sendable {
     public var wrappedValue: T
     public init(wrappedValue: T, description: String) {
         self.wrappedValue = wrappedValue
     }
 }
 
-enum FoundationModelsStubError: Error {
+public enum FoundationModelsStubError: Error, Sendable {
     case unavailable
 }
 
 #endif
-
-
-
-
-
 
 
 

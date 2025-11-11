@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "PulsumAgents",
     platforms: [
-        .iOS(.v17),
+        .iOS("26.0"),
         .macOS(.v14)
     ],
     products: [
@@ -27,6 +27,9 @@ let package = Package(
                 "PulsumML"
             ],
             path: "Sources",
+            resources: [
+                .process("PulsumAgents/PrivacyInfo.xcprivacy")
+            ],
             linkerSettings: [
                 .linkedFramework("FoundationModels")
             ]

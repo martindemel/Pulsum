@@ -7,6 +7,7 @@ import ObjectiveC.runtime
 import FoundationModels
 #endif
 
+#if canImport(FoundationModels) && os(iOS)
 /// Uses Apple contextual embeddings with mean pooling, falling back to legacy word embeddings.
 @available(iOS 17.0, macOS 13.0, *)
 final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
@@ -111,3 +112,15 @@ final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
         #endif
     }
 }
+#else
+@available(iOS 17.0, macOS 13.0, *)
+final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
+    private let fallback = CoreMLEmbeddingFallbackProvider()
+
+    init() {}
+
+    func embedding(for text: String) throws -> [Float] {
+        try fallback.embedding(for: text)
+    }
+}
+#endif

@@ -199,11 +199,8 @@ struct MainContainerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        viewModel.isPresentingPulse = true
-                    } label: {
-                        Label("Pulse", systemImage: "waveform.path.ecg")
-                            .labelStyle(.titleAndIcon)
+                    Button { viewModel.isPresentingPulse = true } label: {
+                        Label("Pulse", systemImage: "waveform.path.ecg").labelStyle(.titleAndIcon)
                     }
                     .pulsumToolbarButton()
                     .accessibilityIdentifier("PulseButton")
