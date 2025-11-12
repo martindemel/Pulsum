@@ -199,13 +199,11 @@ struct MainContainerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        viewModel.isPresentingPulse = true
-                    } label: {
-                        Label("Pulse", systemImage: "waveform.path.ecg")
-                            .labelStyle(.titleAndIcon)
+                    Button { viewModel.isPresentingPulse = true } label: {
+                        Label("Pulse", systemImage: "waveform.path.ecg").labelStyle(.titleAndIcon)
                     }
                     .pulsumToolbarButton()
+                    .accessibilityIdentifier("PulseButton")
                     .matchedTransitionSource(id: "pulseButton", in: transitionNamespace)
                 }
                 
@@ -216,6 +214,8 @@ struct MainContainerView: View {
                         Image(systemName: "gearshape")
                     }
                     .pulsumToolbarButton()
+                    .accessibilityLabel("Settings")
+                    .accessibilityIdentifier("SettingsButton")
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
@@ -245,6 +245,7 @@ struct MainContainerView: View {
                             .labelStyle(.titleAndIcon)
                     }
                     .pulsumToolbarButton()
+                    .accessibilityIdentifier("PulseButton")
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -254,6 +255,8 @@ struct MainContainerView: View {
                         Image(systemName: "gearshape")
                     }
                     .pulsumToolbarButton()
+                    .accessibilityLabel("Settings")
+                    .accessibilityIdentifier("SettingsButton")
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
@@ -281,6 +284,7 @@ struct MainContainerView: View {
                             .labelStyle(.titleAndIcon)
                     }
                     .pulsumToolbarButton()
+                    .accessibilityIdentifier("PulseButton")
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -290,6 +294,8 @@ struct MainContainerView: View {
                         Image(systemName: "gearshape")
                     }
                     .pulsumToolbarButton()
+                    .accessibilityLabel("Settings")
+                    .accessibilityIdentifier("SettingsButton")
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)

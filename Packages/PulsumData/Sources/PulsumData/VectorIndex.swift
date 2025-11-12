@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 public struct VectorMatch: Equatable {
     public let id: String
@@ -101,7 +102,13 @@ private final class VectorIndexShard {
 
         try queue.sync(flags: .barrier) {
             let handle = try FileHandle(forUpdating: shardURL)
-            defer { try? handle.close() }
+            defer {
+                do {
+                    try handle.close()
+                } catch {
+                    os_log("VectorIndex: close() failed: %@", type: .error, String(describing: error))
+                }
+            }
 
             var metadataChanged = false
 
@@ -125,7 +132,13 @@ private final class VectorIndexShard {
         try queue.sync(flags: .barrier) {
             guard let offset = metadata.removeValue(forKey: id) else { return }
             let handle = try FileHandle(forUpdating: shardURL)
-            defer { try? handle.close() }
+            defer {
+                do {
+                    try handle.close()
+                } catch {
+                    os_log("VectorIndex: close() failed: %@", type: .error, String(describing: error))
+                }
+            }
             try markRecordDeleted(at: offset, handle: handle)
             try persistMetadata()
             try updateRecordCount(handle: handle)
@@ -310,30 +323,27 @@ final class VectorIndex {
     }
 
     private func shard(forShardIndex index: Int) throws -> VectorIndexShard {
-        if let shard = shards[index] { return shard }
-        var creationError: Error?
-        var createdShard: VectorIndexShard?
+        var result: Result<VectorIndexShard, Error>?
         queue.sync(flags: .barrier) {
-            if let shard = shards[index] {
-                createdShard = shard
-                return
-            }
             do {
+                if let existing = shards[index] {
+                    result = .success(existing)
+                    return
+                }
                 let shard = try VectorIndexShard(baseDirectory: directory,
                                                  name: name,
                                                  shardIdentifier: "shard_\(index)",
                                                  dimension: dimension)
                 shards[index] = shard
-                createdShard = shard
+                result = .success(shard)
             } catch {
-                creationError = error
+                result = .failure(error)
             }
         }
-        if let creationError { throw creationError }
-        guard let shard = createdShard else {
+        guard let resolved = result else {
             throw VectorIndexError.ioFailure("Unable to initialize shard \(index)")
         }
-        return shard
+        return try resolved.get()
     }
 }
 

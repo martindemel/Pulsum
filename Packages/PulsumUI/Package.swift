@@ -1,10 +1,10 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
     name: "PulsumUI",
     platforms: [
-        .iOS(.v26),
+        .iOS("26.0"),
         .macOS(.v14)
     ],
     products: [
@@ -26,7 +26,10 @@ let package = Package(
                 "PulsumServices",
                 "PulsumData"
             ],
-            path: "Sources"
+            path: "Sources",
+            resources: [
+                .process("PulsumUI/PrivacyInfo.xcprivacy")
+            ]
         ),
         .testTarget(
             name: "PulsumUITests",

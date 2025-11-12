@@ -250,6 +250,11 @@ final class MyTests: XCTestCase {
 }
 ```
 
+### UITest Env Flags
+- `UITEST_USE_STUB_LLM=1` routes `LLMGateway` to a deterministic stub so smoke tests never call GPT-5 or require API keys.
+- `UITEST_FAKE_SPEECH=1` plus `UITEST_AUTOGRANT=1` swaps the speech backend with a deterministic transcript stream that auto-grants permissions—ideal for CI harnesses.
+- `UITEST_AUTOGRANT=1` alone simply fast-tracks microphone permission prompts for simulator runs (ignored when the fake backend is off).
+
 ### iOS 26 Availability Checks
 
 When working with Foundation Models or iOS 26 APIs:

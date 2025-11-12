@@ -2,7 +2,7 @@
 // Copy this file to Config.xcconfig if you need local overrides.
 // Secrets are never stored here. Provide `PULSUM_COACH_API_KEY` via the environment (e.g., launchctl setenv) instead.
 
-
+OPENAI_API_KEY = YOUR_OPENAI_API_KEY_HERE
 
 
 

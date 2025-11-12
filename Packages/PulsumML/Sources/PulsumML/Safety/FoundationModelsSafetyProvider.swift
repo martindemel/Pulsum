@@ -1,4 +1,5 @@
 import Foundation
+
 #if canImport(FoundationModels) && os(iOS)
 import FoundationModels
 
@@ -57,7 +58,6 @@ public final class FoundationModelsSafetyProvider {
             }
         } catch LanguageModelSession.GenerationError.guardrailViolation {
             // Guardrails triggered - treat as safe to avoid false positives
-            // If truly dangerous, keyword-based fallback will catch it
             return .safe
         } catch LanguageModelSession.GenerationError.refusal {
             // Model refused to analyze - treat as safe and let fallback handle it
@@ -67,13 +67,24 @@ public final class FoundationModelsSafetyProvider {
         }
     }
 }
+
+@available(iOS 26.0, *)
+extension FoundationModelsSafetyProvider: @unchecked Sendable {}
+
 #else
+
 public final class FoundationModelsSafetyProvider {
+    private let local = SafetyLocal()
+    
     public init() {}
+    
     public func classify(text: String) async throws -> SafetyClassification {
-        throw SafetyError.modelUnavailable
+        local.classify(text: text)
     }
 }
+
+extension FoundationModelsSafetyProvider: @unchecked Sendable {}
+
 #endif
 
 public enum SafetyError: LocalizedError {
@@ -89,5 +100,3 @@ public enum SafetyError: LocalizedError {
         }
     }
 }
-
-extension FoundationModelsSafetyProvider: @unchecked Sendable {}

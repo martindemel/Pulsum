@@ -1,0 +1,25 @@
+name: gate-tests
+on:
+  push:
+    branches: [ main, gate1-testing-harness ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  gate-tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          brew update
+          brew install ripgrep xcbeautify || true
+
+      - name: Package gate tests (Services/Data/ML)
+        run: |
+          swift --version
+          swift test --package-path Packages/PulsumServices --filter 'Gate0_|Gate1_'
+          swift test --package-path Packages/PulsumData     --filter 'Gate0_|Gate1_'
+          swift test --package-path Packages/PulsumML       --filter 'Gate0_|Gate1_'

@@ -1,10 +1,10 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
     name: "PulsumServices",
     platforms: [
-        .iOS(.v26),
+        .iOS("26.0"),
         .macOS(.v14)
     ],
     products: [
@@ -25,8 +25,11 @@ let package = Package(
                 "PulsumML"
             ],
             path: "Sources",
+            resources: [
+                .process("PulsumServices/PrivacyInfo.xcprivacy")
+            ],
             linkerSettings: [
-                .linkedFramework("FoundationModels")
+                .linkedFramework("FoundationModels", .when(platforms: [.iOS]))
             ]
         ),
         .testTarget(

@@ -108,9 +108,9 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 - [ ] **Aggregate SDK privacy manifests** from third-party dependencies (SplineRuntime, any others)
 - Notes: Milestone 3 already implements privacy architecture (NSFileProtectionComplete, PII redaction, consent routing). Milestone 5 focuses on UI wiring, compliance validation, and Privacy Manifest creation.
 
-## Milestone 6 - QA, Testing, and Release Prep (Planned)
-- [ ] Ensure PulsumAgents/PulsumServices/PulsumData/PulsumML test bundles are added to the shared Xcode scheme so Product ▸ Test + CI exercise package suites.
-- [ ] Replace placeholder UITests with real end-to-end coverage (onboarding permissions, journaling begin/stream/finish, consent toggles, coach chat, score refresh).
+## Milestone 6 - QA, Testing, and Release Prep (In Progress)
+- [x] Ensure PulsumAgents/PulsumServices/PulsumData/PulsumML test bundles are added to the shared Xcode scheme so Product ▸ Test + CI exercise package suites.
+- [x] Replace placeholder UITests with real end-to-end coverage (onboarding permissions, journaling begin/stream/finish, consent toggles, coach chat, score refresh).
 - [ ] Expand automated tests: unit coverage for agents/services/ML math, UI snapshot tests, end-to-end smoke tests with mocks
 - [ ] **Add Foundation Models-specific tests**: guided generation validation, @Generable struct parsing, temperature behavior, guardrail handling
 - [ ] **Validate Swift 6 concurrency compliance**: Verify zero warnings in all packages, proper @Sendable usage, actor isolation correctness
@@ -126,3 +126,7 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 - [ ] **Prepare iOS 26 SDK validation**: Test on devices with Apple Intelligence enabled, verify Foundation Models activation
 - [ ] **Profile @MainActor agent operations**: Measure UI responsiveness during Foundation Models operations; if >100ms lag detected, refactor ML ranking/embeddings to background actors (conditional optimization)
 - [ ] **Evaluate BGTaskScheduler integration**: Monitor HealthKit background processing reliability in production; implement BGProcessingTask if observer callbacks show timeouts or battery impact (conditional enhancement)
+
+### Gate 2/3 follow-ups
+- [ ] Expand UITests to cover real cloud consent flows once Settings surfaces runtime key entry and API health (Gate 2).
+- [ ] Add journal transcript persistence + Saved toast assertions after BUG-0009 is resolved (Gate 2).

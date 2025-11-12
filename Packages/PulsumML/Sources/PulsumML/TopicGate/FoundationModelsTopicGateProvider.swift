@@ -1,9 +1,8 @@
 import Foundation
-#if canImport(FoundationModels)
-import FoundationModels
-#endif
 
 #if canImport(FoundationModels) && os(iOS)
+import FoundationModels
+
 @available(iOS 26.0, *)
 @Generable
 public struct OnTopic: Codable, Sendable {
@@ -19,7 +18,7 @@ public struct OnTopic: Codable, Sendable {
 }
 
 @available(iOS 26.0, *)
-public final class FoundationModelsTopicGateProvider: TopicGateProviding, @unchecked Sendable {
+public final class FoundationModelsTopicGateProvider: TopicGateProviding {
     private let session: LanguageModelSession
 
     public init() {
@@ -53,6 +52,21 @@ public final class FoundationModelsTopicGateProvider: TopicGateProviding, @unche
         )
     }
 }
+
+@available(iOS 26.0, *)
+extension FoundationModelsTopicGateProvider: @unchecked Sendable {}
+#else
+public final class FoundationModelsTopicGateProvider: TopicGateProviding {
+    private let local = EmbeddingTopicGateProvider()
+
+    public init() {}
+
+    public func classify(_ text: String) async throws -> GateDecision {
+        try await local.classify(text)
+    }
+}
+
+extension FoundationModelsTopicGateProvider: @unchecked Sendable {}
 #endif
 
 public enum TopicGateError: LocalizedError {

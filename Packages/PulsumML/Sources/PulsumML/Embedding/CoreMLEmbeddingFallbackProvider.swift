@@ -9,7 +9,7 @@ final class CoreMLEmbeddingFallbackProvider: TextEmbeddingProviding {
     private let targetDimension = 384
 
     init() {
-        let bundle = Bundle.forPulsumML()
+        let bundle = Bundle.pulsumMLResources
 
         if let compiledURL = bundle.url(forResource: "PulsumFallbackEmbedding", withExtension: "mlmodelc"),
            let loaded = try? NLEmbedding(contentsOf: compiledURL) {
@@ -40,31 +40,5 @@ final class CoreMLEmbeddingFallbackProvider: TextEmbeddingProviding {
             padded.append(0)
         }
         return padded
-    }
-}
-
-@available(iOS 17.0, macOS 13.0, *)
-final class PulsumMLBundleLocator {}
-
-@available(iOS 17.0, macOS 13.0, *)
-extension Bundle {
-    static func forPulsumML() -> Bundle {
-        let bundleName = "PulsumML_PulsumML"
-        let candidates: [URL?] = [
-            Bundle.main.resourceURL,
-            Bundle.main.bundleURL,
-            Bundle(for: PulsumMLBundleLocator.self).resourceURL,
-            Bundle(for: PulsumMLBundleLocator.self).bundleURL
-        ]
-
-        for candidate in candidates {
-            guard let candidate else { continue }
-            let bundleURL = candidate.appendingPathComponent(bundleName + ".bundle")
-            if let bundle = Bundle(url: bundleURL) {
-                return bundle
-            }
-        }
-
-        return Bundle(for: PulsumMLBundleLocator.self)
     }
 }

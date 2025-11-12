@@ -1,10 +1,10 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
     name: "PulsumML",
     platforms: [
-        .iOS(.v26),
+        .iOS("26.0"),
         .macOS(.v14)
     ],
     products: [
@@ -24,10 +24,11 @@ let package = Package(
             ],
             resources: [
                 .process("PulsumML/Resources/PulsumFallbackEmbedding.mlmodel"),
-                .process("PulsumML/Resources/PulsumSentimentCoreML.mlmodel")
+                .process("PulsumML/Resources/PulsumSentimentCoreML.mlmodel"),
+                .process("PulsumML/PrivacyInfo.xcprivacy")
             ],
             linkerSettings: [
-                .linkedFramework("FoundationModels"),
+                .linkedFramework("FoundationModels", .when(platforms: [.iOS])),
                 .linkedFramework("Accelerate")
             ]
         ),
