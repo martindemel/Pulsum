@@ -51,12 +51,28 @@ else
   info "scripts/ci/scan-secrets.sh not found; skipped"
 fi
 
+info "Placeholder audit"
+if [ -x scripts/ci/scan-placeholders.sh ]; then
+  scripts/ci/scan-placeholders.sh >/tmp/pulsum_placeholder_scan.log 2>&1 || { cat /tmp/pulsum_placeholder_scan.log; fail "placeholder scan failed"; }
+  pass "no forbidden placeholders"
+else
+  info "scripts/ci/scan-placeholders.sh not found; skipped"
+fi
+
 info "Privacy manifests"
 if [ -x scripts/ci/check-privacy-manifests.sh ]; then
   scripts/ci/check-privacy-manifests.sh >/tmp/pulsum_privacy.log 2>&1 || { cat /tmp/pulsum_privacy.log; fail "privacy manifest check failed"; }
   pass "privacy manifests ok"
 else
   info "scripts/ci/check-privacy-manifests.sh not found; skipped"
+fi
+
+info "Gate test harness"
+if [ -x scripts/ci/test-harness.sh ]; then
+  scripts/ci/test-harness.sh >/tmp/pulsum_gate_harness.log 2>&1 || { tail -n +1 /tmp/pulsum_gate_harness.log; fail "gate test harness failed"; }
+  pass "dynamic gate suites executed"
+else
+  info "scripts/ci/test-harness.sh not found; skipped"
 fi
 
 info "Release build (signing disabled)"

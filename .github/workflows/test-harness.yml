@@ -17,9 +17,7 @@ jobs:
           brew update
           brew install ripgrep xcbeautify || true
 
-      - name: Package gate tests (Services/Data/ML)
+      - name: Dynamic gate harness
         run: |
           swift --version
-          swift test --package-path Packages/PulsumServices --filter 'Gate0_|Gate1_'
-          swift test --package-path Packages/PulsumData     --filter 'Gate0_|Gate1_'
-          swift test --package-path Packages/PulsumML       --filter 'Gate0_|Gate1_'
+          scripts/ci/test-harness.sh
