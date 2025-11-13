@@ -16,7 +16,8 @@ let package = Package(
     dependencies: [
         .package(path: "../PulsumData"),
         .package(path: "../PulsumServices"),
-        .package(path: "../PulsumML")
+        .package(path: "../PulsumML"),
+        .package(path: "../PulsumTypes")
     ],
     targets: [
         .target(
@@ -24,7 +25,8 @@ let package = Package(
             dependencies: [
                 "PulsumData",
                 "PulsumServices",
-                "PulsumML"
+                "PulsumML",
+                "PulsumTypes"
             ],
             path: "Sources",
             resources: [
@@ -38,7 +40,9 @@ let package = Package(
             name: "PulsumAgentsTests",
             dependencies: [
                 "PulsumAgents",
-                "PulsumServices"
+                "PulsumServices",
+                "PulsumML",
+                "PulsumTypes"
             ],
             path: "Tests"
         )

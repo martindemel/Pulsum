@@ -7,15 +7,38 @@ import os
 import PulsumData
 import PulsumServices
 import PulsumML
+import PulsumTypes
+
+public enum OrchestratorStartupError: Error {
+    case healthDataUnavailable
+    case healthBackgroundDeliveryMissing(underlying: Error)
+}
 
 protocol DataAgentProviding: AnyObject, Sendable {
     func start() async throws
     func latestFeatureVector() async throws -> FeatureVectorSnapshot?
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws
     func scoreBreakdown() async throws -> ScoreBreakdown?
+    func reprocessDay(date: Date) async throws
 }
 
 extension DataAgent: DataAgentProviding {}
+
+@MainActor
+protocol SentimentAgentProviding: AnyObject {
+    func beginVoiceJournal(maxDuration: TimeInterval) async throws
+    func finishVoiceJournal(transcript: String?) async throws -> JournalResult
+    func recordVoiceJournal(maxDuration: TimeInterval) async throws -> JournalResult
+    func importTranscript(_ transcript: String) async throws -> JournalResult
+    func requestAuthorization() async throws
+    func stopRecording()
+    var audioLevels: AsyncStream<Float>? { get }
+    var speechStream: AsyncThrowingStream<SpeechSegment, Error>? { get }
+    func updateTranscript(_ transcript: String)
+    func latestTranscriptSnapshot() -> String
+}
+
+extension SentimentAgent: SentimentAgentProviding {}
 
 public struct RecommendationResponse {
     public let cards: [RecommendationCard]
@@ -42,8 +65,9 @@ public struct SafetyDecision {
     public let crisisMessage: String?
 }
 
-public struct JournalResult {
+public struct JournalResult: @unchecked Sendable {
     public let entryID: NSManagedObjectID
+    public let date: Date
     public let transcript: String
     public let sentimentScore: Double
     public let vectorURL: URL
@@ -64,7 +88,7 @@ public struct CheerEvent {
 @MainActor
 public final class AgentOrchestrator {
     private let dataAgent: any DataAgentProviding
-    private let sentimentAgent: SentimentAgent
+    private let sentimentAgent: any SentimentAgentProviding
     private let coachAgent: CoachAgent
     private let safetyAgent: SafetyAgent
     private let cheerAgent: CheerAgent
@@ -72,6 +96,7 @@ public final class AgentOrchestrator {
     private let afmAvailable: Bool
     private let topicGate: TopicGateProviding
     private let logger = Logger(subsystem: "com.pulsum", category: "AgentOrchestrator")
+    private var isVoiceJournalActive = false
     
     public init() throws {
         // Check Foundation Models availability
@@ -104,7 +129,7 @@ public final class AgentOrchestrator {
     }
 #if DEBUG
     init(dataAgent: any DataAgentProviding,
-                sentimentAgent: SentimentAgent,
+                sentimentAgent: any SentimentAgentProviding,
                 coachAgent: CoachAgent,
                 safetyAgent: SafetyAgent,
                 cheerAgent: CheerAgent,
@@ -122,7 +147,7 @@ public final class AgentOrchestrator {
 
 #if DEBUG
     init(testDataAgent: DataAgent,
-         testSentimentAgent: SentimentAgent,
+         testSentimentAgent: any SentimentAgentProviding,
          testCoachAgent: CoachAgent,
          testSafetyAgent: SafetyAgent,
          testCheerAgent: CheerAgent,
@@ -148,8 +173,19 @@ public final class AgentOrchestrator {
     }
 
     public func start() async throws {
-        try await coachAgent.prepareLibraryIfNeeded()
-        try await dataAgent.start()
+        do {
+            try await coachAgent.prepareLibraryIfNeeded()
+            try await dataAgent.start()
+        } catch let healthError as HealthKitServiceError {
+            switch healthError {
+            case .healthDataUnavailable:
+                throw OrchestratorStartupError.healthDataUnavailable
+            case let .backgroundDeliveryFailed(_, underlying):
+                throw OrchestratorStartupError.healthBackgroundDeliveryMissing(underlying: underlying)
+            default:
+                throw healthError
+            }
+        }
     }
 
     /// Begins voice journal recording and returns immediately after starting audio capture.
@@ -157,31 +193,51 @@ public final class AgentOrchestrator {
     /// The caller should consume `voiceJournalSpeechStream` for real-time transcription.
     /// Call `finishVoiceJournalRecording(transcript:)` to complete recording and get the result.
     public func beginVoiceJournalRecording(maxDuration: TimeInterval = 30) async throws {
-        try await sentimentAgent.beginVoiceJournal(maxDuration: maxDuration)
+        guard !isVoiceJournalActive else {
+            throw SentimentAgentError.sessionAlreadyActive
+        }
+        isVoiceJournalActive = true
+        do {
+            try await sentimentAgent.beginVoiceJournal(maxDuration: maxDuration)
+        } catch {
+            isVoiceJournalActive = false
+            throw error
+        }
     }
     
     /// Completes the voice journal recording that was started with `beginVoiceJournalRecording()`.
     /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
     /// Returns the journal result with safety evaluation.
     public func finishVoiceJournalRecording(transcript: String? = nil) async throws -> JournalCaptureResponse {
+        defer { isVoiceJournalActive = false }
         let result = try await sentimentAgent.finishVoiceJournal(transcript: transcript)
         let safety = await safetyAgent.evaluate(text: result.transcript)
+        try await dataAgent.reprocessDay(date: result.date)
+        postScoresUpdated(for: result.date)
         return JournalCaptureResponse(result: result, safety: safety)
     }
 
     /// Legacy method that combines begin + finish for backward compatibility
     public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalCaptureResponse {
         try await beginVoiceJournalRecording(maxDuration: maxDuration)
-        
-        // Consume the speech stream
         var transcript = ""
-        if let stream = voiceJournalSpeechStream {
-            for try await segment in stream {
-                transcript = segment.transcript
+        do {
+            if let stream = voiceJournalSpeechStream {
+                for try await segment in stream {
+                    transcript = segment.transcript
+                    sentimentAgent.updateTranscript(transcript)
+                }
             }
+            return try await finishVoiceJournalRecording(transcript: transcript)
+        } catch {
+            let fallbackTranscript = transcript.isEmpty ? sentimentAgent.latestTranscriptSnapshot() : transcript
+            if !fallbackTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                _ = try? await finishVoiceJournalRecording(transcript: fallbackTranscript)
+            } else {
+                stopVoiceJournalRecording()
+            }
+            throw error
         }
-        
-        return try await finishVoiceJournalRecording(transcript: transcript)
     }
 
     public func submitTranscript(_ text: String) async throws -> JournalCaptureResponse {
@@ -190,7 +246,20 @@ public final class AgentOrchestrator {
         return JournalCaptureResponse(result: result, safety: safety)
     }
 
+    public func currentLLMAPIKey() -> String? {
+        coachAgent.currentLLMAPIKey()
+    }
+
+    public func setLLMAPIKey(_ key: String) throws {
+        try coachAgent.setLLMAPIKey(key)
+    }
+
+    public func testLLMAPIConnection() async throws -> Bool {
+        try await coachAgent.testLLMAPIConnection()
+    }
+
     public func stopVoiceJournalRecording() {
+        isVoiceJournalActive = false
         sentimentAgent.stopRecording()
     }
     
@@ -200,6 +269,10 @@ public final class AgentOrchestrator {
     
     public var voiceJournalSpeechStream: AsyncThrowingStream<SpeechSegment, Error>? {
         sentimentAgent.speechStream
+    }
+
+    public func updateVoiceJournalTranscript(_ transcript: String) {
+        sentimentAgent.updateTranscript(transcript)
     }
 
     public func updateSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {
@@ -425,6 +498,12 @@ public final class AgentOrchestrator {
                                         object: nil,
                                         userInfo: info)
 #endif
+    }
+
+    private func postScoresUpdated(for date: Date) {
+        NotificationCenter.default.post(name: .pulsumScoresUpdated,
+                                        object: nil,
+                                        userInfo: [AgentNotificationKeys.date: date])
     }
 
     public func logCompletion(momentId: String) async throws -> CheerEvent {

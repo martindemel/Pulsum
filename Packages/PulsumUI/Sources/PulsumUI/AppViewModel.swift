@@ -3,7 +3,7 @@ import CoreData
 import Observation
 import PulsumAgents
 import PulsumData
-import PulsumServices
+import PulsumTypes
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -45,6 +45,7 @@ final class AppViewModel {
 
     private let consentStore = ConsentStore()
     @ObservationIgnored private(set) var orchestrator: AgentOrchestrator?
+    @ObservationIgnored private var scoreRefreshObserver: NSObjectProtocol?
 
     var startupState: StartupState = .idle
     var selectedTab: Tab = .main
@@ -83,6 +84,15 @@ final class AppViewModel {
             if !decision.allowCloud, case .crisis = decision.classification {
                 self.safetyMessage = decision.crisisMessage ?? "If in danger, call 911"
                 self.isShowingSafetyCard = true
+            }
+        }
+
+        scoreRefreshObserver = NotificationCenter.default.addObserver(forName: .pulsumScoresUpdated,
+                                                                      object: nil,
+                                                                      queue: .main) { [weak self] _ in
+            guard let self else { return }
+            Task { [weak self] in
+                await self?.coachViewModel.refreshRecommendations()
             }
         }
     }
@@ -124,15 +134,15 @@ final class AppViewModel {
                         print("[Pulsum] Recommendations refreshed")
                     } catch {
                         print("[Pulsum] Orchestrator start failed: \(error)")
-                        if let healthError = error as? HealthKitServiceError,
-                           case .healthDataUnavailable = healthError {
-                            // Expected on simulators or devices without HealthKit; continue without blocking UI.
-                            return
-                        }
-                        if let healthError = error as? HealthKitServiceError,
-                           case let .backgroundDeliveryFailed(_, underlying) = healthError,
-                           shouldIgnoreBackgroundDeliveryError(underlying) {
-                            return
+                        if let startupError = error as? OrchestratorStartupError {
+                            switch startupError {
+                            case .healthDataUnavailable:
+                                return
+                            case let .healthBackgroundDeliveryMissing(underlying):
+                                if shouldIgnoreBackgroundDeliveryError(underlying) {
+                                    return
+                                }
+                            }
                         }
                         self.startupState = .failed(error.localizedDescription)
                     }

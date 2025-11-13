@@ -4,8 +4,7 @@ import PackageDescription
 let package = Package(
     name: "PulsumUI",
     platforms: [
-        .iOS("26.0"),
-        .macOS(.v14)
+        .iOS("26.0")
     ],
     products: [
         .library(
@@ -15,16 +14,16 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../PulsumAgents"),
-        .package(path: "../PulsumServices"),
-        .package(path: "../PulsumData")
+        .package(path: "../PulsumData"),
+        .package(path: "../PulsumTypes")
     ],
     targets: [
         .target(
             name: "PulsumUI",
             dependencies: [
                 "PulsumAgents",
-                "PulsumServices",
-                "PulsumData"
+                "PulsumData",
+                "PulsumTypes"
             ],
             path: "Sources",
             resources: [

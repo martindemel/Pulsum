@@ -4,6 +4,7 @@ import Speech
 import AVFoundation
 #endif
 import os.log
+import PulsumTypes
 
 private let speechLogger = Logger(subsystem: "ai.pulsum", category: "SpeechService")
 
@@ -13,6 +14,11 @@ enum SpeechLoggingPolicy {
 #else
     static let transcriptLoggingEnabled = false
 #endif
+}
+
+private struct SpeechAuthorizationState {
+    let speechStatus: SFSpeechRecognizerAuthorizationStatus
+    let microphoneGranted: Bool
 }
 
 public protocol SpeechAuthorizationProviding: Sendable {
@@ -42,11 +48,6 @@ public struct SystemSpeechAuthorizationProvider: SpeechAuthorizationProviding {
         return true
 #endif
     }
-}
-
-public struct SpeechSegment: Sendable {
-    public let transcript: String
-    public let confidence: Float
 }
 
 public enum SpeechServiceError: LocalizedError {
@@ -84,44 +85,99 @@ public actor SpeechService {
     }
 
     private let backend: any SpeechBackending
+    private let authorizationProvider: SpeechAuthorizationProviding
+    private let overrides: SpeechUITestOverrides
+    private let backendName: String
+    private var cachedAuthorization: SpeechAuthorizationState?
 
     public init(
         locale: Locale = Locale(identifier: "en_US"),
         authorizationProvider: SpeechAuthorizationProviding = SystemSpeechAuthorizationProvider()
     ) {
+        self.authorizationProvider = authorizationProvider
+        self.overrides = SpeechUITestOverrides()
 #if DEBUG
-        let overrides = SpeechUITestOverrides()
         if BuildFlags.uiTestSeamsCompiledIn && overrides.useFakeBackend {
             backend = FakeSpeechBackend(
                 authorizationProvider: authorizationProvider,
                 autoGrantPermissions: overrides.autoGrantPermissions
             )
+            backendName = backend.backendName
             return
         }
 #endif
 
         if #available(iOS 26.0, *),
+           BuildFlags.useModernSpeechBackend,
            let modern = ModernSpeechBackend(locale: locale, authorizationProvider: authorizationProvider) {
             backend = modern
         } else {
             backend = LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider)
         }
+        backendName = backend.backendName
     }
 
     public func requestAuthorization() async throws {
+        try await preflightPermissions()
         try await backend.requestAuthorization()
     }
 
     public func startRecording(maxDuration: TimeInterval = 30) async throws -> Session {
-        try await backend.startRecording(maxDuration: maxDuration)
+#if DEBUG
+        let clock = ContinuousClock()
+        let start = clock.now
+        let session = try await backend.startRecording(maxDuration: maxDuration)
+        let elapsed = start.duration(to: clock.now)
+        speechLogger.debug("Speech backend \(self.backendName, privacy: .public) start latency \(elapsed.components.seconds, privacy: .public)s")
+        return session
+#else
+        return try await backend.startRecording(maxDuration: maxDuration)
+#endif
     }
 
     public func stopRecording() {
         backend.stopRecording()
     }
+
+    public nonisolated var selectedBackendIdentifier: String { backendName }
+
+    private func preflightPermissions() async throws {
+#if DEBUG
+        if overrides.autoGrantPermissions {
+            cachedAuthorization = SpeechAuthorizationState(speechStatus: .authorized, microphoneGranted: true)
+            return
+        }
+#endif
+        if let cached = cachedAuthorization,
+           cached.speechStatus == .authorized,
+           cached.microphoneGranted {
+            return
+        }
+
+        let speechStatus = await authorizationProvider.requestSpeechAuthorization()
+        switch speechStatus {
+        case .authorized:
+            break
+        case .denied:
+            throw SpeechServiceError.speechPermissionDenied
+        case .restricted:
+            throw SpeechServiceError.speechPermissionRestricted
+        default:
+            throw SpeechServiceError.speechPermissionDenied
+        }
+
+#if os(iOS)
+        let microphoneGranted = await authorizationProvider.requestRecordPermission()
+        guard microphoneGranted else { throw SpeechServiceError.microphonePermissionDenied }
+#else
+        let microphoneGranted = true
+#endif
+        cachedAuthorization = SpeechAuthorizationState(speechStatus: speechStatus, microphoneGranted: microphoneGranted)
+    }
 }
 
 private protocol SpeechBackending: Sendable {
+    var backendName: String { get }
     func requestAuthorization() async throws
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session
     func stopRecording()
@@ -151,31 +207,21 @@ private final class LegacySpeechBackend: SpeechBackending {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
     private var levelContinuation: AsyncStream<Float>.Continuation?
-    private let authorizationProvider: SpeechAuthorizationProviding
+    let backendName = "legacy"
 
-    init(locale: Locale, authorizationProvider: SpeechAuthorizationProviding) {
+    init(locale: Locale, authorizationProvider _: SpeechAuthorizationProviding) {
         let recognizer = SFSpeechRecognizer(locale: locale)
         recognizer?.supportsOnDeviceRecognition = true
         self.recognizer = recognizer
-        self.authorizationProvider = authorizationProvider
     }
 
     func requestAuthorization() async throws {
-        let status = await authorizationProvider.requestSpeechAuthorization()
-        switch status {
-        case .authorized:
-            break
-        case .denied:
-            throw SpeechServiceError.speechPermissionDenied
-        case .restricted:
-            throw SpeechServiceError.speechPermissionRestricted
-        default:
-            throw SpeechServiceError.speechPermissionDenied
+        guard let recognizer else {
+            throw SpeechServiceError.recognitionUnavailable
         }
-#if os(iOS)
-        let granted = await authorizationProvider.requestRecordPermission()
-        guard granted else { throw SpeechServiceError.microphonePermissionDenied }
-#endif
+        guard recognizer.isAvailable else {
+            throw SpeechServiceError.recognitionUnavailable
+        }
     }
 
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
@@ -285,7 +331,9 @@ private final class LegacySpeechBackend: SpeechBackending {
                         .debug("PULSUM_TRANSCRIPT_LOG_MARKER final=\(result.isFinal, privacy: .public) chars=\(transcript.count, privacy: .public) confidence=\(confidence, privacy: .public)")
                 }
 #endif
-                self.streamContinuation?.yield(SpeechSegment(transcript: transcript, confidence: confidence))
+                self.streamContinuation?.yield(
+                    SpeechSegment(transcript: transcript, isFinal: result.isFinal, confidence: confidence)
+                )
             }
             
             if result.isFinal {
@@ -368,6 +416,7 @@ private final class FakeSpeechBackend: SpeechBackending {
     private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
     private var levelContinuation: AsyncStream<Float>.Continuation?
     private var stopHandler: (@Sendable () -> Void)?
+    let backendName = "fake"
 
     init(authorizationProvider: SpeechAuthorizationProviding, autoGrantPermissions: Bool) {
         self.authorizationProvider = authorizationProvider
@@ -376,20 +425,9 @@ private final class FakeSpeechBackend: SpeechBackending {
 
     func requestAuthorization() async throws {
         guard !autoGrantPermissions else { return }
-        let status = await authorizationProvider.requestSpeechAuthorization()
-        switch status {
-        case .authorized:
-            break
-        case .denied:
-            throw SpeechServiceError.speechPermissionDenied
-        case .restricted:
-            throw SpeechServiceError.speechPermissionRestricted
-        default:
-            throw SpeechServiceError.speechPermissionDenied
-        }
+        _ = await authorizationProvider.requestSpeechAuthorization()
 #if os(iOS)
-        let granted = await authorizationProvider.requestRecordPermission()
-        guard granted else { throw SpeechServiceError.microphonePermissionDenied }
+        _ = await authorizationProvider.requestRecordPermission()
 #endif
     }
 
@@ -440,9 +478,9 @@ private final class FakeSpeechBackend: SpeechBackending {
     }
 
     private static let scriptedSegments: [SpeechSegment] = [
-        SpeechSegment(transcript: "Quick calm check-in for Pulsum.", confidence: 0.92),
-        SpeechSegment(transcript: "Energy feels steady and focus is clear.", confidence: 0.95),
-        SpeechSegment(transcript: "Plan is to stretch after meetings.", confidence: 0.97)
+        SpeechSegment(transcript: "Quick calm check-in for Pulsum.", isFinal: false, confidence: 0.92),
+        SpeechSegment(transcript: "Energy feels steady and focus is clear.", isFinal: false, confidence: 0.95),
+        SpeechSegment(transcript: "Plan is to stretch after meetings.", isFinal: true, confidence: 0.97)
     ]
 }
 extension FakeSpeechBackend: @unchecked Sendable {}
@@ -451,11 +489,13 @@ extension FakeSpeechBackend: @unchecked Sendable {}
 
 @available(iOS 26.0, *)
 private final class ModernSpeechBackend: SpeechBackending {
-    private let locale: Locale
     private let fallback: LegacySpeechBackend
+    let backendName = "modern"
+#if DEBUG
+    nonisolated(unsafe) static var availabilityOverride: Bool?
+#endif
 
     init?(locale: Locale, authorizationProvider: SpeechAuthorizationProviding) {
-        self.locale = locale
         self.fallback = LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider)
 
         guard ModernSpeechBackend.isSystemAnalyzerAvailable else {
@@ -468,8 +508,8 @@ private final class ModernSpeechBackend: SpeechBackending {
     }
 
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
-        // Placeholder: integrate SpeechAnalyzer/SpeechTranscriber APIs when publicly available.
-        // For now we reuse the legacy backend to ensure functionality while maintaining the interface.
+        // NOTE: When Apple ships public SpeechAnalyzer/SpeechTranscriber APIs, integrate them here.
+        // For now we reuse the legacy backend under a feature flag (Gate-2 hook) to preserve functionality.
         return try await fallback.startRecording(maxDuration: maxDuration)
     }
 
@@ -478,7 +518,10 @@ private final class ModernSpeechBackend: SpeechBackending {
     }
 
     private static var isSystemAnalyzerAvailable: Bool {
-        NSClassFromString("SpeechTranscriber") != nil || NSClassFromString("SpeechAnalyzer") != nil
+#if DEBUG
+        if let override = availabilityOverride { return override }
+#endif
+        return NSClassFromString("SpeechTranscriber") != nil || NSClassFromString("SpeechAnalyzer") != nil
     }
 }
 
@@ -496,5 +539,15 @@ private extension Array where Element == SFTranscriptionSegment {
 #else
 private extension Array where Element == SFTranscriptionSegment {
     var averageConfidence: Float { 0 }
+}
+#endif
+
+#if DEBUG
+enum SpeechServiceDebug {
+    static func overrideModernBackendAvailability(_ value: Bool?) {
+        if #available(iOS 26.0, *) {
+            ModernSpeechBackend.availabilityOverride = value
+        }
+    }
 }
 #endif
