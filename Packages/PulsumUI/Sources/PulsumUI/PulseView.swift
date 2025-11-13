@@ -68,17 +68,24 @@ struct PulseView: View {
                 .font(.pulsumHeadline)
                 .foregroundStyle(Color.pulsumTextPrimary)
 
+            if let toast = viewModel.savedToastMessage {
+                SavedToastView(message: toast)
+                    .accessibilityIdentifier("VoiceJournalSavedToast")
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             VoiceJournalButton(
                 isRecording: viewModel.isRecording,
                 isAnalyzing: viewModel.isAnalyzing,
                 remaining: viewModel.recordingSecondsRemaining,
-                audioLevels: viewModel.audioLevels,
+                waveformLevels: viewModel.waveformLevels,
                 startAction: { viewModel.startRecording() },
                 stopAction: { viewModel.stopRecording() }
             )
             
-            // Real-time transcript display
-            if let transcript = viewModel.transcript, !transcript.isEmpty, (viewModel.isRecording || viewModel.isAnalyzing) {
+            // Transcript display
+            if let transcript = viewModel.transcript,
+               !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
                     HStack {
                         Text("Transcript")
@@ -92,6 +99,14 @@ struct PulseView: View {
                                 .foregroundStyle(Color.pulsumError)
                                 .fontWeight(.semibold)
                         }
+                        
+                        Spacer()
+                        
+                        Button("Clear") {
+                            viewModel.clearTranscript()
+                        }
+                        .font(.pulsumCaption)
+                        .foregroundStyle(Color.pulsumTextSecondary)
                     }
                     
                     Text(transcript)
@@ -213,7 +228,7 @@ private struct VoiceJournalButton: View {
     let isRecording: Bool
     let isAnalyzing: Bool
     let remaining: Int
-    let audioLevels: [CGFloat]
+    let waveformLevels: LiveWaveformLevels
     let startAction: () -> Void
     let stopAction: () -> Void
     
@@ -317,15 +332,12 @@ private struct VoiceJournalButton: View {
             let height = size.height
             let barWidth: CGFloat = 2.5
             let barSpacing: CGFloat = 2
-            let barCount = Int(width / (barWidth + barSpacing))
-            
-            let samplesToShow = min(audioLevels.count, barCount)
-            let startIndex = max(0, audioLevels.count - samplesToShow)
-            let samples = Array(audioLevels[startIndex..<audioLevels.count])
-            
+            let barCount = Swift.max(1, Int(width / (barWidth + barSpacing)))
+            let samples = Array(waveformLevels.suffix(barCount))
+
             for (index, level) in samples.enumerated() {
                 let x = CGFloat(index) * (barWidth + barSpacing)
-                let normalizedLevel = max(0.05, min(1.0, level))
+                let normalizedLevel = Swift.max(0.05, Swift.min(1.0, level))
                 let barHeight = height * normalizedLevel
                 let y = (height - barHeight) / 2
                 
@@ -372,6 +384,27 @@ private struct InfoBubble: View {
             radius: 8,
             x: 0,
             y: 3
+        )
+    }
+}
+
+private struct SavedToastView: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: PulsumSpacing.sm) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.pulsumHeadline)
+                .foregroundStyle(Color.pulsumSuccess)
+            Text(message)
+                .font(.pulsumCallout)
+                .foregroundStyle(Color.pulsumTextPrimary)
+        }
+        .padding(PulsumSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: PulsumRadius.md, style: .continuous)
+                .fill(Color.pulsumBackgroundBeige.opacity(0.6))
         )
     }
 }
