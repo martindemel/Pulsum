@@ -25,7 +25,7 @@ struct ChatGuardrailTests {
 
         for _ in offTopicPrompts {
             // Test would require full orchestrator initialization
-            // Placeholder for integration test structure
+            // Integration harness stubbed out; this assertion documents the expected redirect
             #expect(expectedRedirect.contains("wellbeing"), "Redirect message should mention wellbeing")
         }
     }
