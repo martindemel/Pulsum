@@ -16,6 +16,21 @@ private struct MockSpeechAuthorizationProvider: SpeechAuthorizationProviding {
     }
 }
 
+private final class CountingSpeechAuthorizationProvider: SpeechAuthorizationProviding {
+    var speechRequests = 0
+    var micRequests = 0
+
+    func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        speechRequests += 1
+        return .authorized
+    }
+
+    func requestRecordPermission() async -> Bool {
+        micRequests += 1
+        return true
+    }
+}
+
 final class Gate0_SpeechServiceAuthorizationTests: XCTestCase {
     func testSpeechPermissionDenied() async {
         let provider = MockSpeechAuthorizationProvider(speechStatus: .denied, microphoneGranted: true)
@@ -43,6 +58,17 @@ final class Gate0_SpeechServiceAuthorizationTests: XCTestCase {
         let service = SpeechService(authorizationProvider: provider)
 
         XCTAssertNoThrow(try await service.requestAuthorization())
+    }
+
+    func testAuthorizationCachingSkipsRepeatPrompts() async throws {
+        let provider = CountingSpeechAuthorizationProvider()
+        let service = SpeechService(authorizationProvider: provider)
+
+        try await service.requestAuthorization()
+        try await service.requestAuthorization()
+
+        XCTAssertEqual(provider.speechRequests, 1)
+        XCTAssertEqual(provider.micRequests, 1)
     }
 }
 
