@@ -159,6 +159,11 @@ Agent types:
 - **SafetyAgent**: Crisis detection, safety classification, cloud processing decisions
 - **CheerAgent**: Positive reinforcement and encouragement
 
+**Gate‑2 contract notes (2025‑11‑11):**
+- `DataAgent` now exposes `reprocessDay(date:)` so journaling can refresh wellbeing immediately; `AgentOrchestrator.finishVoiceJournalRecording` awaits that call and emits `Notification.Name.pulsumScoresUpdated`.
+- `SentimentAgent` uses an internal `JournalSessionState` (serial queue) to enforce a single `SpeechService.Session`; duplicate `beginVoiceJournal` calls throw `SentimentAgentError.sessionAlreadyActive`.
+- UI surfaces `.savedToastMessage` + `updateVoiceJournalTranscript(_:)` via `PulseViewModel`, so transcripts remain visible until the user explicitly clears them.
+
 ## Key Technical Details
 
 ### iOS 26 Requirement

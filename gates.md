@@ -2,6 +2,26 @@ Got it — I read **every line** of your `bugs.md` (43 bugs) and the companion `
 
 ---
 
+## Gate Progress Tracker
+
+| Gate | Focus | Status | Notes |
+| --- | --- | --- | --- |
+| 0 | Security & build blockers | ✅ Complete (2025‑11‑09) | LLM key rotation, privacy manifests, speech auth, AFM stub hardening shipped with Gate-0 tests. |
+| 1 | Deterministic test harness & seams | ✅ Complete (2025‑11‑09) | Shared scheme + UITest seams + Gate0_/Gate1_ package suites enabled locally & in CI. |
+| 2 | Voice journal E2E | ✅ Complete (2025‑11‑11) | Closed BUG‑0005/0007/0009/0015/0016/0032/0034 with mic preflight hardening, session guardrails, waveform perf, and wellbeing refresh. |
+| 3 | HealthKit ingestion & UI freshness | ⏳ Not started | Blocks: BUG‑0024/0037/0040/0043. |
+| 4 | RAG/LLM wiring & consent UX | ⏳ Not started | Blocks: BUG‑0004/0010/0011/0023/0041. |
+| 5 | Vector index & data I/O integrity | ⏳ Not started | Blocks: BUG‑0012/0013/0017/0022/0036. |
+| 6 | ML correctness & personalization | ⏳ Not started | Blocks: BUG‑0020/0021/0027/0028/0038/0039. |
+| 7 | UI polish & spec gaps | ⏳ Not started | Blocks: BUG‑0009/0010/0011/0030/0031/0042. |
+| 8 | Release compliance & final audit | ⏳ Not started | Re-run `scripts/ci/integrity.sh`, privacy report, and release smoke once Gates 0‑7 are green. |
+
+### Recently Completed Gates
+- **Gate 0 (Security & Build Blockers)** — Closed BUG‑0001/0002/0003/0006/0018/0019/0026/0033/0035 with hardened secret handling, privacy manifests, speech auth, backup exclusion, and typed AFM stubs. Verified via `scripts/ci/scan-secrets.sh`, `scripts/ci/check-privacy-manifests.sh`, Gate0_* package tests.
+- **Gate 1 (Deterministic Test Harness & Seams)** — Closed BUG‑0014/0025 by wiring package tests into the shared scheme, adding UITest seams/env vars, and enforcing Gate0_|Gate1_ filters in CI (see `.github/workflows/test-harness.yml` and `Gate1_SpeechFakeBackendTests.swift`).
+
+---
+
 ## Executive approach (why this order)
 
 We’ll fix in **risk‑ordered “gates”** so the app is always shippable after each gate:
@@ -20,7 +40,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 
 ---
 
-## Gate 0 — **Emergency security + hard build blockers**
+## Gate 0 — **Emergency security + hard build blockers**  
+*Status: ✅ Completed 2025‑11‑09 (see tracker above for verification details).*
 
 **G0.1 — Rotate & unship the OpenAI key (BUG‑0001, S0)**
 **Fix**: Immediately rotate the exposed key, purge it from repo history, remove Info.plist exposure, and make `LLMGateway` read only Keychain/env (fall back to in‑memory during tests). Add a runtime key input in Settings (see BUG‑0041).
@@ -51,7 +72,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 
 ---
 
-## Gate 1 — **Test harness ON**
+## Gate 1 — **Test harness ON**  
+*Status: ✅ Completed 2025‑11‑09; remaining items listed below stayed for regression awareness.*
 
 **G1.1 — Add package test bundles to scheme (BUG‑0014, S1)**
 **Fix**: Update `Pulsum.xcscheme` Testables to include `PulsumAgentsTests`, `PulsumServicesTests`, `PulsumDataTests`, `PulsumMLTests`.
@@ -64,6 +86,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 ---
 
 ## Gate 2 — **Voice journaling, end‑to‑end**
+
+**Status (2025‑11‑11):** ✅ Mic preflight now chains speech + microphone requests, voice journaling rejects duplicates and always finalizes SafetyAgent, transcripts/toasts persist until cleared, wellbeing recomputes via `DataAgent.reprocessDay`, and the waveform renderer uses the new `LiveWaveformLevels` ring buffer. Shared types/notifications now live in `PulsumTypes`, so Services/Agents/UI all link the same `SpeechSegment` + `.pulsum*` notifications and Gate harness runs clean across packages + UI. Coverage: `Gate0_SpeechServiceAuthorizationTests`, `Gate2_ModernSpeechBackendTests`, `Gate2_JournalSessionTests`, `Gate2_OrchestratorLLMKeyAPITests`, `LiveWaveformBufferTests`, `Gate2_TypesWiringTests`, and the updated `JournalFlowUITests`.
 
 **G2.1 — Mic permission preflight (BUG‑0006, S1)**
 **Fix**: In `SpeechService.requestAuthorization()`, chain `SFSpeechRecognizer.requestAuthorization` + `AVAudioSession.requestRecordPermission`.
