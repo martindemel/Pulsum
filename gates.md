@@ -64,7 +64,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 **G0.5 — Speech entitlement & permissions (BUG‑0003 S1, BUG‑0026 S1)**
 **Fix**: Add `com.apple.developer.speech` entitlement; preflight with `AVAudioSession.requestRecordPermission` **before** starting audio engine.
 **Automated**: Mock `AVAudioSession` & `SFSpeechRecognizer` authorizations; assert first‑run prompts occur.
-**Manual**: Clean install → attempt first journal → see both permission prompts and successful capture. 
+**Manual**: Clean install → attempt first journal → see both permission prompts and successful capture.
+**Signing note (2025‑11‑12)**: Apple’s Developer portal still lacks a Speech toggle for `ai.pulsum.Pulsum`, so the entitlement is temporarily removed from `Pulsum.entitlements` while keeping SFSpeechRecognizer + mic preflight logic intact. Re‑enable the entitlement once the capability becomes available. 
 
 **G0.6 — Privacy manifests required (BUG‑0002, S1)**
 **Fix**: Create `PrivacyInfo.xcprivacy` for app **and each package** with the Required‑Reason API codes listed in the spec (C617.1, E174.1, CA92.1).

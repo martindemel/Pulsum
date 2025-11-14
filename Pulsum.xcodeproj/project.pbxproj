@@ -497,7 +497,7 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This is for the journaling.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes your voice journals on-device to keep coaching relevant.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -541,7 +541,7 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This is for the journaling.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes your voice journals on-device to keep coaching relevant.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
