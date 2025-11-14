@@ -228,7 +228,7 @@ Privacy Manifest (iOS 26 - MANDATORY for App Store)
 QA SMOKE — FIRST RUN & JOURNALING
 1. Run `scripts/ci/scan-secrets.sh` to ensure no credentials are bundled before installing.
 2. Install the app on a clean simulator/device so no permissions are cached.
-3. Launch Pulsum → expect sequential prompts for speech recognition entitlement and microphone access; decline/accept paths must surface actionable errors.
+3. Launch Pulsum → expect sequential prompts for speech recognition permission (entitlement temporarily removed from signing) and microphone access; decline/accept paths must surface actionable errors.
 4. Tap the Pulse button, start a 5–10s recording, cancel midway, and verify haptics fire, the waveform stays smooth (no frame drops), and storage isn’t blocked by the “Storage Not Secured” overlay.
 5. Complete a journal (begin → stream → finish) and confirm transcripts stream live, the “Saved to Journal” toast appears then dismisses, the transcript remains until you tap Clear, and wellbeing/coach cards refresh automatically (watch `.pulsumScoresUpdated` logs).
 6. Use the `Retry` button on the startup overlay to re-check storage security after toggling iCloud backup or sandbox settings.
