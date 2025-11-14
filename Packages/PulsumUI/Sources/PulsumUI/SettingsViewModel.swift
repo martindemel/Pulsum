@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 import PulsumAgents
-import PulsumServices
 import HealthKit
+import PulsumTypes
 
 @MainActor
 @Observable
@@ -18,12 +18,11 @@ final class SettingsViewModel {
     private(set) var healthKitError: String?
 
     // GPT-5 API Status
-    private(set) var gptAPIStatus: String = "Checking..."
+    private(set) var gptAPIStatus: String = "Missing API key"
     private(set) var isGPTAPIWorking: Bool = false
     var gptAPIKeyDraft: String = ""
 
     var onConsentChanged: ((Bool) -> Void)?
-    private let llmGateway = LLMGateway()
 
 #if DEBUG
     var diagnosticsVisible: Bool = false
@@ -37,13 +36,6 @@ final class SettingsViewModel {
 
     init(initialConsent: Bool) {
         self.consentGranted = initialConsent
-        if let stored = llmGateway.currentAPIKey() {
-            gptAPIKeyDraft = stored
-        }
-        // Auto-test on load if we have any seed
-        if !gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Task { await checkGPTAPIKey() }
-        }
 #if DEBUG
         setupDiagnosticsObservers()
 #endif
@@ -52,6 +44,18 @@ final class SettingsViewModel {
     func bind(orchestrator: AgentOrchestrator) {
         self.orchestrator = orchestrator
         foundationModelsStatus = orchestrator.foundationModelsStatus
+        if let stored = orchestrator.currentLLMAPIKey() {
+            gptAPIKeyDraft = stored
+            if !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Task { await checkGPTAPIKey() }
+            } else {
+                gptAPIStatus = "Missing API key"
+                isGPTAPIWorking = false
+            }
+        } else {
+            gptAPIStatus = "Missing API key"
+            isGPTAPIWorking = false
+        }
     }
 
     func refreshFoundationStatus() {
@@ -127,12 +131,23 @@ final class SettingsViewModel {
 
     @MainActor
     func saveAPIKeyAndTest(_ key: String) async {
+        guard let orchestrator else {
+            gptAPIStatus = "Agent unavailable"
+            isGPTAPIWorking = false
+            return
+        }
+        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            gptAPIStatus = "Missing API key"
+            isGPTAPIWorking = false
+            return
+        }
         gptAPIStatus = "Saving..."
         isGPTAPIWorking = false
         do {
-            try llmGateway.setAPIKey(key)
+            try orchestrator.setLLMAPIKey(trimmedKey)
             gptAPIStatus = "Testing..."
-            let ok = try await llmGateway.testAPIConnection()
+            let ok = try await orchestrator.testLLMAPIConnection()
             isGPTAPIWorking = ok
             gptAPIStatus = ok ? "OpenAI reachable" : "OpenAI ping failed"
         } catch {
@@ -143,8 +158,21 @@ final class SettingsViewModel {
 
     @MainActor
     func checkGPTAPIKey() async {
-        // Route through the same unified path
-        await saveAPIKeyAndTest(gptAPIKeyDraft)
+        guard let orchestrator else {
+            gptAPIStatus = "Agent unavailable"
+            isGPTAPIWorking = false
+            return
+        }
+        gptAPIStatus = "Testing..."
+        isGPTAPIWorking = false
+        do {
+            let ok = try await orchestrator.testLLMAPIConnection()
+            isGPTAPIWorking = ok
+            gptAPIStatus = ok ? "OpenAI reachable" : "OpenAI ping failed"
+        } catch {
+            isGPTAPIWorking = false
+            gptAPIStatus = "Missing or invalid API key"
+        }
     }
 
     func makeScoreBreakdownViewModel() -> ScoreBreakdownViewModel? {

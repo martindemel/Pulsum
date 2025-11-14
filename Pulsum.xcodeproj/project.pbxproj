@@ -487,6 +487,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Pulsum/Pulsum.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X6FJFZCXY3;
@@ -496,7 +497,7 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes recordings locally so you can reflect on your check-ins.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This is for the journaling.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -509,6 +510,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.Pulsum;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -526,6 +528,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Pulsum/Pulsum.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -538,7 +541,7 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pulsum uses the microphone to capture on-device voice journals.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pulsum transcribes recordings locally so you can reflect on your check-ins.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This is for the journaling.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -552,6 +555,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -DRELEASE_LOG_AUDIT";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.Pulsum;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -619,6 +623,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D PULSUM_UITESTS";
 				MARKETING_VERSION = 1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D PULSUM_UITESTS";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -640,6 +645,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D PULSUM_UITESTS";
 				MARKETING_VERSION = 1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D PULSUM_UITESTS";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.pulsum.PulsumUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;

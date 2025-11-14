@@ -1,24 +1,30 @@
 import Foundation
 import Observation
 import PulsumAgents
+import SwiftUI
 
 @MainActor
 @Observable
 final class PulseViewModel {
-    private enum RecorderState {
-        case idle
-        case recording
-        case processing
-    }
+    private enum RecordingError: LocalizedError {
+        case streamUnavailable
 
+        var errorDescription: String? {
+            switch self {
+            case .streamUnavailable:
+                return "Unable to access the microphone stream."
+            }
+        }
+    }
     @ObservationIgnored private var orchestrator: AgentOrchestrator?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var recordingTask: Task<Void, Never>?
     @ObservationIgnored private var audioLevelTask: Task<Void, Never>?
+    @ObservationIgnored private var toastTask: Task<Void, Never>?
 
     var isRecording = false
     var recordingSecondsRemaining: Int = 30
-    var audioLevels: [CGFloat] = Array(repeating: 0, count: 120)
+    var waveformLevels = LiveWaveformLevels(capacity: 180)
     var transcript: String?
     var sentimentScore: Double?
     var analysisError: String?
@@ -34,6 +40,7 @@ final class PulseViewModel {
 
     var isAnalyzing = false
     var onSafetyDecision: ((SafetyDecision) -> Void)?
+    var savedToastMessage: String?
 
     func bind(orchestrator: AgentOrchestrator) {
         self.orchestrator = orchestrator
@@ -43,11 +50,13 @@ final class PulseViewModel {
         guard let orchestrator else { return }
         guard !isRecording && !isAnalyzing else { return }
         cancelCountdown()
+        toastTask?.cancel()
+        savedToastMessage = nil
         analysisError = nil
         transcript = nil
         sentimentScore = nil
         lastCapturedAt = nil
-        audioLevels = Array(repeating: 0, count: 120)
+        waveformLevels.reset()
         recordingSecondsRemaining = Int(maxDuration.rounded(.up))
         isRecording = true
         isAnalyzing = true
@@ -55,7 +64,7 @@ final class PulseViewModel {
         recordingTask = nil
         audioLevelTask?.cancel()
         audioLevelTask = nil
-        
+
         countdownTask = Task { [weak self] in
             guard let self else { return }
             var remaining = maxDuration
@@ -70,72 +79,47 @@ final class PulseViewModel {
 
         recordingTask = Task { [weak self] in
             guard let self else { return }
+            var latestTranscript = ""
             do {
-                // Begin recording - this returns immediately after starting audio capture
                 try await orchestrator.beginVoiceJournalRecording(maxDuration: maxDuration)
-                
-                // Get the speech stream for real-time transcription
-                guard let speechStream = orchestrator.voiceJournalSpeechStream else {
-                    self.analysisError = "Unable to access speech stream"
-                    self.isRecording = false
-                    self.isAnalyzing = false
-                    self.cancelCountdown()
-                    return
+
+                guard let speechStream = orchestrator.voiceJournalSpeechStream,
+                      let levelStream = orchestrator.voiceJournalAudioLevels else {
+                    throw RecordingError.streamUnavailable
                 }
-                
-                // Audio levels are now available synchronously
-                guard let levelStream = orchestrator.voiceJournalAudioLevels else {
-                    self.analysisError = "Unable to access audio stream"
-                    self.isRecording = false
-                    self.isAnalyzing = false
-                    self.cancelCountdown()
-                    return
-                }
-                
-                // Start consuming audio levels in parallel
-                self.audioLevelTask = Task { [weak self] in
+
+                audioLevelTask = Task.detached { [weak self] in
                     guard let self else { return }
                     for await level in levelStream {
                         guard !Task.isCancelled else { break }
-                        var levels = self.audioLevels
-                        levels.append(CGFloat(level))
-                        levels.removeFirst()
-                        self.audioLevels = levels
+                        await MainActor.run {
+                            self.waveformLevels.append(CGFloat(level))
+                        }
                     }
                 }
-                
-                // Consume speech stream for REAL-TIME transcription display
-                var latestTranscript = ""
+
                 for try await segment in speechStream {
                     guard !Task.isCancelled else { break }
                     latestTranscript = segment.transcript
-                    // Update UI with real-time transcript
-                    self.transcript = latestTranscript
+                    orchestrator.updateVoiceJournalTranscript(latestTranscript)
+                    transcript = latestTranscript
                 }
-                
-                // Recording complete, now processing sentiment
-                self.isRecording = false
-                // Keep isAnalyzing = true during sentiment processing
-                
-                // Process the final transcript (passing it to avoid re-processing)
+
+                isRecording = false
                 let response = try await orchestrator.finishVoiceJournalRecording(transcript: latestTranscript)
-                
-                self.transcript = response.result.transcript
-                self.sentimentScore = response.result.sentimentScore
-                self.onSafetyDecision?(response.safety)
-                self.lastCapturedAt = Date()
-                
+                handleJournalResponse(response)
             } catch {
-                self.analysisError = error.localizedDescription
+                await handleRecordingFailure(error,
+                                             orchestrator: orchestrator,
+                                             latestTranscript: latestTranscript)
             }
-            
-            // All processing complete
-            self.isRecording = false
-            self.isAnalyzing = false
-            self.cancelCountdown()
-            self.recordingTask = nil
-            self.audioLevelTask?.cancel()
-            self.audioLevelTask = nil
+
+            isRecording = false
+            isAnalyzing = false
+            cancelCountdown()
+            recordingTask = nil
+            audioLevelTask?.cancel()
+            audioLevelTask = nil
         }
     }
 
@@ -180,12 +164,68 @@ final class PulseViewModel {
         }
     }
 
+    func clearTranscript() {
+        transcript = nil
+        sentimentScore = nil
+        analysisError = nil
+        savedToastMessage = nil
+        lastCapturedAt = nil
+        toastTask?.cancel()
+        toastTask = nil
+    }
+
     private func scheduleSubmissionReset() {
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let self else { return }
             self.sliderSubmissionMessage = nil
         }
+    }
+
+    private func handleJournalResponse(_ response: JournalCaptureResponse) {
+        transcript = response.result.transcript
+        sentimentScore = response.result.sentimentScore
+        lastCapturedAt = Date()
+        onSafetyDecision?(response.safety)
+        analysisError = nil
+        savedToastMessage = "Saved to Journal"
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await MainActor.run {
+                self?.savedToastMessage = nil
+            }
+        }
+    }
+
+    private func handleRecordingFailure(_ error: Error,
+                                        orchestrator: AgentOrchestrator,
+                                        latestTranscript: String) async {
+        analysisError = mapRecordingError(error)
+        let fallback = latestTranscript.isEmpty ? (transcript ?? "") : latestTranscript
+        let trimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            orchestrator.stopVoiceJournalRecording()
+            return
+        }
+        if let response = try? await orchestrator.finishVoiceJournalRecording(transcript: trimmed) {
+            handleJournalResponse(response)
+        }
+    }
+
+    private func mapRecordingError(_ error: Error) -> String {
+        if let sentimentError = error as? SentimentAgentError {
+            switch sentimentError {
+            case .noSpeechDetected:
+                return "I couldn't hear anything. Let's try again."
+            case .sessionAlreadyActive:
+                return "Recording already in progress."
+            case .noActiveRecording:
+                return "No active recording to finish."
+            }
+        }
+        // NOTE: keep UI layer decoupled from PulsumServices; lower layers surface user-facing copy via LocalizedError.
+        return error.localizedDescription
     }
 
     private func cancelCountdown() {
@@ -197,5 +237,6 @@ final class PulseViewModel {
         countdownTask?.cancel()
         recordingTask?.cancel()
         audioLevelTask?.cancel()
+        toastTask?.cancel()
     }
 }

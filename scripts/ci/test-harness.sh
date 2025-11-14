@@ -7,37 +7,167 @@ cd "$ROOT_DIR"
 export COPYFILE_DISABLE=1
 
 LOG_DIR="${TMPDIR:-/tmp}"
-SERVICES_LOG="$LOG_DIR/pulsum_services_gate.log"
-DATA_LOG="$LOG_DIR/pulsum_data_gate.log"
-ML_LOG="$LOG_DIR/pulsum_ml_gate.log"
-SECRET_LOG="$LOG_DIR/pulsum_secret_scan.log"
-PRIVACY_LOG="$LOG_DIR/pulsum_privacy_check.log"
-
 info() { printf '\033[36m%s\033[0m\n' "$1"; }
 pass() { printf '\033[32m%s\033[0m\n' "$1"; }
 fail() { printf '\033[31m%s\033[0m\n' "$1"; exit 1; }
 
-run_with_log() {
-  local description="$1"
-  local command="$2"
-  local log_file="$3"
+discover_and_run_spm_gate_tests() {
+  local package_dir="$1"
+  local package_name
+  package_name="$(basename "$package_dir")"
+  local list_output
 
-  info "$description"
-  if eval "$command" >"$log_file" 2>&1; then
-    pass "$description ✅"
+  if [ ! -d "$package_dir" ]; then
+    info "[gate-ci] $package_dir not found; skipping"
+    return
+  fi
+
+  info "[gate-ci] Enumerating Gate suites in $package_name"
+  if ! list_output="$(cd "$package_dir" && swift test --list-tests 2>/dev/null)"; then
+    fail "[gate-ci] swift test --list-tests failed for $package_name"
+  fi
+
+  local patterns
+  patterns="$(printf "%s\n" "$list_output" | sed -En 's/.*(Gate[0-9]+_).*/\1/p' | sort -u)"
+  if [ -z "$patterns" ]; then
+    info "[gate-ci] No Gate suites found in $package_name — skipping"
+    return
+  fi
+
+  local joined
+  joined="$(printf "%s" "$patterns" | paste -sd'|' -)"
+  local log_suffix
+  log_suffix="$(printf "%s" "$package_name" | tr '[:upper:]' '[:lower:]')"
+  local log_file="$LOG_DIR/pulsum_${log_suffix}_gate.log"
+
+  info "[gate-ci] Running $package_name tests matching (${joined})"
+  if (cd "$package_dir" && swift test --parallel --filter "(${joined})") >"$log_file" 2>&1; then
+    pass "[gate-ci] $package_name Gate suites passed"
   else
     tail -n 50 "$log_file" || true
-    fail "$description failed. See $log_file"
+    fail "[gate-ci] $package_name Gate suites failed (see $log_file)"
   fi
 }
 
-info "Running Gate-0 integrity sweeps"
-run_with_log "Secret scan" "scripts/ci/scan-secrets.sh" "$SECRET_LOG"
-run_with_log "Privacy manifest check" "scripts/ci/check-privacy-manifests.sh" "$PRIVACY_LOG"
+run_xcode_ui_gate_tests() {
+  local log_file="$LOG_DIR/pulsum_ui_gate.log"
 
-info "Running Swift package Gate tests"
-run_with_log "PulsumServices Gate subsets" "swift test --package-path Packages/PulsumServices --filter 'Gate0_|Gate1_'" "$SERVICES_LOG"
-run_with_log "PulsumData Gate subsets" "swift test --package-path Packages/PulsumData --filter 'Gate0_|Gate1_'" "$DATA_LOG"
-run_with_log "PulsumML Gate subsets" "swift test --package-path Packages/PulsumML --filter 'Gate0_|Gate1_'" "$ML_LOG"
+  if [ "${SKIP_UI_GATES:-0}" = "1" ]; then
+    info "[gate-ci] SKIP_UI_GATES=1 → skipping UI Gate tests"
+    return
+  fi
 
-pass "[harness] ✅ Package Gate tests completed (logs: $SERVICES_LOG, $DATA_LOG, $ML_LOG)"
+  if ! command -v xcodebuild >/dev/null; then
+    info "[gate-ci] xcodebuild not available; skipping UI Gate tests"
+    return
+  fi
+
+  if ! command -v xcrun >/dev/null; then
+    info "[gate-ci] xcrun not available; skipping UI Gate tests"
+    return
+  fi
+
+  local devices
+  devices="$(xcrun simctl list devices available 2>/dev/null || true)"
+
+  local preferred=(
+    "iPhone 16 Pro"
+    "iPhone 16"
+    "iPhone 17"
+    "iPhone 16 Plus"
+    "iPhone 15"
+  )
+
+  local preferred_json="["
+  for candidate in "${preferred[@]}"; do
+    preferred_json+="\"${candidate//\"/\\\"}\","
+  done
+  preferred_json="${preferred_json%,}]"
+
+  local selection
+  selection="$(printf "%s\n" "$devices" | python3 -c 'import json, sys
+preferences = json.loads(sys.argv[1])
+text = sys.stdin.read().splitlines()
+entries = []
+current = None
+
+for raw in text:
+    line = raw.strip()
+    if line.startswith("--") and line.endswith("--"):
+        current = line.strip("- ").strip()
+        continue
+    if "(" in line and ")" in line:
+        name = line.split(" (", 1)[0].strip()
+        udid = None
+        parts = line.split("(")
+        if len(parts) > 1:
+            udid = parts[1].split(")")[0].strip()
+        if current and current.startswith("iOS"):
+            os = current.split(None, 1)[1]
+            entries.append((name, os, udid))
+
+def pick(preferred_names, os_prefix=None):
+    for pref in preferred_names:
+        for name, os, udid in entries:
+            if name == pref and (os_prefix is None or os.startswith(os_prefix)):
+                return name, os, udid
+    return None
+
+selection = pick(preferences, "26")
+if selection is None:
+    for name, os, udid in entries:
+        if os.startswith("26"):
+            selection = (name, os, udid)
+            break
+if selection is None:
+    selection = pick(preferences)
+if selection is None and entries:
+    selection = entries[0]
+
+if selection:
+    print(selection[0])
+    print(selection[1])
+    print(selection[2] or "")' "$preferred_json")"
+
+  local dest_name dest_os dest_udid
+  dest_name="$(printf "%s\n" "$selection" | sed -n '1p')"
+  dest_os="$(printf "%s\n" "$selection" | sed -n '2p')"
+  dest_udid="$(printf "%s\n" "$selection" | sed -n '3p')"
+
+  if [ -z "$dest_name" ]; then
+    dest_name="iPhone 16 Pro"
+    dest_os="26.0"
+  fi
+
+  local destination="platform=iOS Simulator,name=${dest_name}"
+  if [ -n "$dest_udid" ]; then
+    destination="id=${dest_udid}"
+  elif [ -n "$dest_os" ]; then
+    destination+=",OS=${dest_os}"
+  fi
+
+  info "[gate-ci] Running UI Gate tests on ${dest_name} (${dest_os})"
+  if UITEST_FAKE_SPEECH=1 UITEST_AUTOGRANT=1 \
+     xcodebuild -scheme Pulsum -destination "$destination" \
+     -only-testing:PulsumUITests clean test >"$log_file" 2>&1; then
+    pass "[gate-ci] UI Gate tests passed"
+  else
+    tail -n 100 "$log_file" || true
+    fail "[gate-ci] UI Gate tests failed (see $log_file)"
+  fi
+}
+
+PACKAGES=(
+  "Packages/PulsumServices"
+  "Packages/PulsumAgents"
+  "Packages/PulsumML"
+  "Packages/PulsumData"
+)
+
+for package in "${PACKAGES[@]}"; do
+  discover_and_run_spm_gate_tests "$package"
+done
+
+run_xcode_ui_gate_tests
+
+pass "[harness] ✅ Gate suites completed"

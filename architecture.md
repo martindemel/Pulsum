@@ -3,13 +3,14 @@
 - Generated on: 2025-10-26T01:14:51Z UTC
 
 ## 2. Executive Summary
-- Pulsum is an iOS 26+ wellbeing coach that boots an `AgentOrchestrator` to connect data ingestion, sentiment capture, safety vetting, and coaching agents behind the SwiftUI front end. (Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:45-175; Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:65-207)
+- Pulsum is an iOS 26+ wellbeing coach that boots an `AgentOrchestrator` to connect data ingestion, sentiment capture, safety vetting, and coaching agents behind the SwiftUI front end. Journaling now triggers `DataAgent.reprocessDay(date:)` and posts `.pulsumScoresUpdated`, so wellbeing/coach surfaces refresh immediately. (Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:45-175; Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:65-207)
 - The orchestrator enforces a three-wall guardrail—safety classification, on-topic gating, and retrieval coverage—before escalating to the GPT-5 cloud pathway or falling back to on-device generation. (Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:221-399; Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:136-270)
 - Health metrics and journals flow through a `DataAgent` actor that merges HealthKit streams, subjective sliders, and sentiment embeddings to drive a wellbeing score and metric breakdown surfaced in UI dashboards. (Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:46-216; Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownViewModel.swift:7-56)
 
 ## 3. Repository Map
 - `Pulsum/` – App entry point, entitlements, and Core Data model bundle. (Pulsum/PulsumApp.swift:11-16; Pulsum/Pulsum.entitlements:5-8; Pulsum/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents:3-80)
 - `Packages/PulsumUI/` – SwiftUI presentation layer with tab shell, voice journal sheet, coach chat UI, settings, and design system. (Packages/PulsumUI/Package.swift:5-36; Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift:5-274)
+- `Packages/PulsumTypes/` – Shared Swift types (e.g., `SpeechSegment`, notification identifiers) consumed by Services, Agents, and UI so cross-layer contracts compile/link without introducing UI→Services coupling. (Packages/PulsumTypes/Package.swift:1-18; Packages/PulsumTypes/Sources/PulsumTypes/{SpeechTypes.swift,Notifications.swift})
 - `Packages/PulsumAgents/` – Domain orchestrators, data ingestion, coaching logic, safety, and sentiment agents. (Packages/PulsumAgents/Package.swift:5-41; Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:65-404)
 - `Packages/PulsumServices/` – Platform services: HealthKit wrapper, LLM gateway, speech capture, keychain, and diagnostics notifications. (Packages/PulsumServices/Package.swift:5-37; Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:136-304)
 - `Packages/PulsumData/` – Core Data stack, vector index implementation, and library importer that seeds recommendation content. (Packages/PulsumData/Package.swift:5-36; Packages/PulsumData/Sources/PulsumData/DataStack.swift:18-137; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168)

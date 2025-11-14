@@ -1,7 +1,8 @@
 import Foundation
 import os.log
-import PulsumML
 import PulsumData
+import PulsumML
+import PulsumTypes
 
 /// Candidate micro-moment snippet for context (privacy-safe; no PHI)
 public struct CandidateMoment: Codable, Sendable {

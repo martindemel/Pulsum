@@ -216,6 +216,11 @@ actor DataAgent {
                               generalNotes: generalNotes)
     }
 
+    func reprocessDay(date: Date) async throws {
+        let day = calendar.startOfDay(for: date)
+        try await reprocessDayInternal(day)
+    }
+
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {
         let targetDate = calendar.startOfDay(for: date)
         let context = self.context
@@ -230,7 +235,7 @@ actor DataAgent {
             vector.subjectiveSleepQuality = NSNumber(value: sleepQuality)
             try context.save()
         }
-        try await reprocessDay(targetDate)
+        try await reprocessDayInternal(targetDate)
     }
 
     // MARK: - Observation
@@ -296,7 +301,7 @@ actor DataAgent {
         }
 
         for day in dirtyDays {
-            try await reprocessDay(day)
+            try await reprocessDayInternal(day)
         }
     }
 
@@ -325,7 +330,7 @@ actor DataAgent {
         }
 
         for day in dirtyDays {
-            try await reprocessDay(day)
+            try await reprocessDayInternal(day)
         }
     }
 
@@ -352,13 +357,13 @@ actor DataAgent {
         }
 
         for day in dirtyDays {
-            try await reprocessDay(day)
+            try await reprocessDayInternal(day)
         }
     }
 
     // MARK: - Daily Computation
 
-    private func reprocessDay(_ day: Date) async throws {
+    private func reprocessDayInternal(_ day: Date) async throws {
         let context = self.context
         let calendar = self.calendar
         let sedentaryThreshold = sedentaryThresholdStepsPerHour
@@ -954,7 +959,7 @@ actor DataAgent {
     }
 
     func _testReprocess(day: Date) async throws {
-        try await reprocessDay(day)
+        try await reprocessDayInternal(day)
     }
 #endif
 }

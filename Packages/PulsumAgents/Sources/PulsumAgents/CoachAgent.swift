@@ -294,6 +294,18 @@ public final class CoachAgent {
         return CardCandidate(card: card, features: features)
     }
 
+    public func currentLLMAPIKey() -> String? {
+        llmGateway.currentAPIKey()
+    }
+
+    public func setLLMAPIKey(_ key: String) throws {
+        try llmGateway.setAPIKey(key)
+    }
+
+    public func testLLMAPIConnection() async throws -> Bool {
+        try await llmGateway.testAPIConnection()
+    }
+
     private func buildBody(for moment: MicroMoment) -> String {
         var paragraphs: [String] = [moment.shortDescription]
         if let detail = moment.detail, !detail.isEmpty {

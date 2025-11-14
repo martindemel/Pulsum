@@ -64,7 +64,12 @@ class PulsumUITestCase: XCTestCase {
     func startVoiceJournal() {
         let startButton = app.buttons["VoiceJournalStartButton"]
         XCTAssertTrue(startButton.waitForExistence(timeout: 4), "Voice journal start button missing.")
-        startButton.tap()
+        if startButton.isHittable {
+            startButton.tap()
+        } else {
+            let coordinate = startButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            coordinate.tap()
+        }
         app.tap() // Trigger permission monitors if alerts appear.
         XCTAssertTrue(app.buttons["VoiceJournalStopButton"].waitForExistence(timeout: 4), "Recording UI did not activate.")
     }
@@ -103,5 +108,14 @@ class PulsumUITestCase: XCTestCase {
         } else {
             app.swipeDown()
         }
+    }
+}
+
+extension XCUIElement {
+    func waitForDisappearance(timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "exists == false")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: self)
+        let result = XCTWaiter().wait(for: [expectation], timeout: timeout)
+        return result == .completed
     }
 }

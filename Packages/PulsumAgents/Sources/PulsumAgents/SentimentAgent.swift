@@ -6,10 +6,12 @@ import FoundationModels
 import PulsumData
 import PulsumML
 import PulsumServices
+import PulsumTypes
 
 public enum SentimentAgentError: LocalizedError {
     case noActiveRecording
     case noSpeechDetected
+    case sessionAlreadyActive
     
     public var errorDescription: String? {
         switch self {
@@ -17,6 +19,8 @@ public enum SentimentAgentError: LocalizedError {
             return "No active recording session found."
         case .noSpeechDetected:
             return "No speech detected. Please try again and speak clearly."
+        case .sessionAlreadyActive:
+            return "A recording is already in progress."
         }
     }
 }
@@ -28,15 +32,14 @@ public final class SentimentAgent {
     private let context: NSManagedObjectContext
     private let calendar = Calendar(identifier: .gregorian)
     private let sentimentService: SentimentService
-    private var activeSession: SpeechService.Session?
-    private var latestTranscript: String = ""
+    private let sessionState = JournalSessionState()
     
     public var audioLevels: AsyncStream<Float>? {
-        activeSession?.audioLevels
+        sessionState.audioLevels
     }
     
     public var speechStream: AsyncThrowingStream<SpeechSegment, Error>? {
-        activeSession?.stream
+        sessionState.speechStream
     }
 
     public init(speechService: SpeechService = SpeechService(),
@@ -60,33 +63,31 @@ public final class SentimentAgent {
     public func beginVoiceJournal(maxDuration: TimeInterval = 30) async throws {
         try await speechService.requestAuthorization()
         let session = try await speechService.startRecording(maxDuration: min(maxDuration, 30))
-        activeSession = session
-        latestTranscript = ""
+        do {
+            try sessionState.begin(with: session)
+        } catch {
+            session.stop()
+            throw error
+        }
     }
     
     /// Updates the latest transcript. Called by the UI as it consumes the speech stream.
     public func updateTranscript(_ transcript: String) {
-        latestTranscript = transcript
+        sessionState.updateTranscript(transcript)
     }
     
     /// Completes the voice journal recording that was started with `beginVoiceJournal()`.
     /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
     /// Returns the persisted journal result with transcript and sentiment.
     public func finishVoiceJournal(transcript: String? = nil) async throws -> JournalResult {
-        guard activeSession != nil else {
+        guard let (session, cachedTranscript) = sessionState.takeSession() else {
             throw SentimentAgentError.noActiveRecording
         }
         
-        defer {
-            activeSession = nil
-            latestTranscript = ""
-        }
-        
-        // Stop the recording session
-        activeSession?.stop()
+        defer { session.stop() }
         
         // Use provided transcript or fall back to stored transcript
-        let finalTranscript = transcript ?? latestTranscript
+        let finalTranscript = transcript ?? cachedTranscript
         
         // Check for empty transcript
         let trimmed = finalTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -107,9 +108,10 @@ public final class SentimentAgent {
             do {
                 for try await segment in stream {
                     transcript = segment.transcript
+                    sessionState.updateTranscript(transcript)
                 }
             } catch {
-                activeSession?.stop()
+                sessionState.stopActiveSession()
                 throw error
             }
         }
@@ -118,7 +120,11 @@ public final class SentimentAgent {
     }
 
     public func stopRecording() {
-        activeSession?.stop()
+        sessionState.stopActiveSession()
+    }
+
+    func latestTranscriptSnapshot() -> String {
+        sessionState.latestTranscriptSnapshot()
     }
 
     public func importTranscript(_ transcript: String) async throws -> JournalResult {
@@ -155,6 +161,7 @@ public final class SentimentAgent {
             try context.save()
 
             return JournalResult(entryID: entry.objectID,
+                                 date: entry.date,
                                  transcript: sanitized,
                                  sentimentScore: sentiment,
                                  vectorURL: vectorURL)
@@ -177,5 +184,53 @@ public final class SentimentAgent {
         try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
         return url
+    }
+}
+
+final class JournalSessionState: @unchecked Sendable {
+    private var activeSession: SpeechService.Session?
+    private var latestTranscript: String = ""
+    private let queue = DispatchQueue(label: "ai.pulsum.sentimentAgent.session", qos: .userInitiated)
+
+    var audioLevels: AsyncStream<Float>? {
+        queue.sync { activeSession?.audioLevels }
+    }
+
+    var speechStream: AsyncThrowingStream<SpeechSegment, Error>? {
+        queue.sync { activeSession?.stream }
+    }
+
+    func begin(with session: SpeechService.Session) throws {
+        try queue.sync {
+            guard activeSession == nil else { throw SentimentAgentError.sessionAlreadyActive }
+            activeSession = session
+            latestTranscript = ""
+        }
+    }
+
+    func updateTranscript(_ transcript: String) {
+        queue.async { self.latestTranscript = transcript }
+    }
+
+    func takeSession() -> (SpeechService.Session, String)? {
+        queue.sync {
+            guard let session = activeSession else { return nil }
+            let transcript = latestTranscript
+            activeSession = nil
+            latestTranscript = ""
+            return (session, transcript)
+        }
+    }
+
+    func stopActiveSession() {
+        queue.sync {
+            activeSession?.stop()
+            activeSession = nil
+            latestTranscript = ""
+        }
+    }
+
+    func latestTranscriptSnapshot() -> String {
+        queue.sync { latestTranscript }
     }
 }

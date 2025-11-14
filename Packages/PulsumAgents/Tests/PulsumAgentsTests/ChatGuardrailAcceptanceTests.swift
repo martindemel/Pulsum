@@ -140,6 +140,8 @@ private actor StubDataAgent: DataAgentProviding {
 
     func scoreBreakdown() async throws -> ScoreBreakdown? { nil }
 
+    func reprocessDay(date: Date) async throws {}
+
     func reset() {}
 }
 

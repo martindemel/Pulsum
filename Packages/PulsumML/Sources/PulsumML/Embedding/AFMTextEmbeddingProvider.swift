@@ -27,7 +27,7 @@ final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
 
     func embedding(for text: String) throws -> [Float] {
         // Temporarily disabled contextual embedding due to unsafe runtime code
-        // TODO: Re-enable when safe API is available
+        // Re-enable when a safe public API is available
         // if let contextualEmbedding,
         //    #available(iOS 17.0, macOS 14.0, *) {
         //     if let vector = Self.sentenceEmbeddingVector(embedding: contextualEmbedding, text: text) {
