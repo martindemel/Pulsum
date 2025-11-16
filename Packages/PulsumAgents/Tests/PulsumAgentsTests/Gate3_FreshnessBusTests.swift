@@ -4,24 +4,39 @@ import PulsumTypes
 import XCTest
 
 final class Gate3_FreshnessBusTests: XCTestCase {
-    func testSnapshotPublishPostsNotificationExactlyOnce() async {
+    func testReprocessDayPostsSingleNotification() async throws {
         let stub = HealthKitServiceStub()
         let center = RecordingNotificationCenter()
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
                               notificationCenter: center)
 
-        await agent._testPublishSnapshotUpdate(for: Date())
+        let today = Date()
+        try await agent.reprocessDay(date: today)
 
-        XCTAssertEqual(center.postedNames.filter { $0 == .pulsumScoresUpdated }.count, 1)
+        let posts = center.notifications(named: .pulsumScoresUpdated)
+        XCTAssertEqual(posts.count, 1)
+        let expectedDay = Calendar(identifier: .gregorian).startOfDay(for: today)
+        let postedDay = posts.first?.userInfo?[AgentNotificationKeys.date] as? Date
+        XCTAssertEqual(postedDay, expectedDay)
     }
 }
 
+private struct PostedNotification {
+    let name: Notification.Name
+    let object: Any?
+    let userInfo: [AnyHashable: Any]?
+}
+
 private final class RecordingNotificationCenter: NotificationCenter, @unchecked Sendable {
-    private(set) var postedNames: [Notification.Name] = []
+    private(set) var postedNotifications: [PostedNotification] = []
 
     override func post(name aName: Notification.Name, object anObject: Any?, userInfo aUserInfo: [AnyHashable: Any]? = nil) {
-        postedNames.append(aName)
+        postedNotifications.append(PostedNotification(name: aName, object: anObject, userInfo: aUserInfo))
         super.post(name: aName, object: anObject, userInfo: aUserInfo)
+    }
+
+    func notifications(named name: Notification.Name) -> [PostedNotification] {
+        postedNotifications.filter { $0.name == name }
     }
 }

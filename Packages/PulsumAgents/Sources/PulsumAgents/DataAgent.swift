@@ -344,6 +344,7 @@ actor DataAgent {
     func reprocessDay(date: Date) async throws {
         let day = calendar.startOfDay(for: date)
         try await reprocessDayInternal(day)
+        notifySnapshotUpdate(for: day)
     }
 
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {
@@ -361,6 +362,7 @@ actor DataAgent {
             try context.save()
         }
         try await reprocessDayInternal(targetDate)
+        notifySnapshotUpdate(for: targetDate)
     }
 
     // MARK: - Observation
@@ -383,17 +385,30 @@ actor DataAgent {
 
     private func handle(update: HealthKitService.AnchoredUpdate, sampleType: HKSampleType) async {
         do {
+            var touchedDays: Set<Date> = []
             switch sampleType {
             case let quantityType as HKQuantityType:
-                try await processQuantitySamples(update.samples.compactMap { $0 as? HKQuantitySample },
-                                                 type: quantityType)
+                let days = try await processQuantitySamples(update.samples.compactMap { $0 as? HKQuantitySample },
+                                                            type: quantityType)
+                touchedDays.formUnion(days)
             case let categoryType as HKCategoryType:
-                try await processCategorySamples(update.samples.compactMap { $0 as? HKCategorySample },
-                                                 type: categoryType)
+                let days = try await processCategorySamples(update.samples.compactMap { $0 as? HKCategorySample },
+                                                            type: categoryType)
+                touchedDays.formUnion(days)
             default:
                 break
             }
-            try await handleDeletedSamples(update.deletedSamples)
+            let deletedDays = try await handleDeletedSamples(update.deletedSamples)
+            touchedDays.formUnion(deletedDays)
+
+            if touchedDays.isEmpty {
+                let today = calendar.startOfDay(for: Date())
+                notifySnapshotUpdate(for: today)
+            } else {
+                for day in touchedDays {
+                    notifySnapshotUpdate(for: day)
+                }
+            }
         } catch {
 #if DEBUG
             print("DataAgent processing error: \(error)")
@@ -404,8 +419,8 @@ actor DataAgent {
     // MARK: - Sample Processing
 
     private func processQuantitySamples(_ samples: [HKQuantitySample],
-                                        type: HKQuantityType) async throws {
-        guard !samples.isEmpty else { return }
+                                        type: HKQuantityType) async throws -> Set<Date> {
+        guard !samples.isEmpty else { return [] }
 
         let calendar = self.calendar
         let context = self.context
@@ -430,12 +445,14 @@ actor DataAgent {
         for day in dirtyDays {
             try await reprocessDayInternal(day)
         }
+
+        return dirtyDays
     }
 
     private func processCategorySamples(_ samples: [HKCategorySample],
-                                        type: HKCategoryType) async throws {
-        guard type.identifier == HKCategoryTypeIdentifier.sleepAnalysis.rawValue else { return }
-        guard !samples.isEmpty else { return }
+                                        type: HKCategoryType) async throws -> Set<Date> {
+        guard type.identifier == HKCategoryTypeIdentifier.sleepAnalysis.rawValue else { return [] }
+        guard !samples.isEmpty else { return [] }
 
         let calendar = self.calendar
         let context = self.context
@@ -459,10 +476,12 @@ actor DataAgent {
         for day in dirtyDays {
             try await reprocessDayInternal(day)
         }
+
+        return dirtyDays
     }
 
-    private func handleDeletedSamples(_ deletedObjects: [HKDeletedObject]) async throws {
-        guard !deletedObjects.isEmpty else { return }
+    private func handleDeletedSamples(_ deletedObjects: [HKDeletedObject]) async throws -> Set<Date> {
+        guard !deletedObjects.isEmpty else { return [] }
 
         let identifiers = Set(deletedObjects.map { $0.uuid })
         let context = self.context
@@ -486,6 +505,8 @@ actor DataAgent {
         for day in dirtyDays {
             try await reprocessDayInternal(day)
         }
+
+        return dirtyDays
     }
 
     // MARK: - Daily Computation
