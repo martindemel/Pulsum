@@ -514,7 +514,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** UI
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 3 — `.pulsumScoresUpdated` freshness bus now drives Coach/Main view refreshes and slider/journal completions trigger updates immediately.)
 - **Symptom/Impact:** HealthKit samples and nightly recomputations land in Core Data but the wellbeing card and recommendations stay frozen until the user manually visits Insights or toggles consent, so “Calculated nightly” data never appears in the main tab.
 - **Where/Scope:** AppViewModel startup, CoachViewModel refresh wiring, Insights tab task.
 - **Evidence:**
@@ -564,7 +564,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S2
 - **Area:** UI
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 3 — Settings + Onboarding now display per-type statuses, partial counts, and success toasts via the shared `HealthAccessStatus` model.)
 - **Symptom/Impact:** Settings shows “Health Data Access – Authorized” as soon as HRV is granted, even if sleep, respiratory rate, resting heart rate, heart rate, or steps are still denied. Users think Pulsum is ingesting their data, but DataAgent never receives those metrics, so wellbeing math silently runs on partial inputs.
 - **Where/Scope:** SettingsViewModel.refreshHealthKitStatus; HealthKit requirements per docs.
 - **Evidence:**
@@ -582,7 +582,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Wiring
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 3 — Settings/Onboarding now call `AgentOrchestrator.requestHealthAccess()` which restarts DataAgent idempotently.)
 - **Symptom/Impact:** Tapping “Request Health Data Access” (in Settings or onboarding) reopens the iOS permission sheet but never restarts `DataAgent`/`HealthKitService`. Newly granted permissions therefore do nothing until the user force-quits or hits Retry on the startup overlay, so wellbeing metrics stay empty despite a successful prompt.
 - **Where/Scope:** SettingsViewModel; OnboardingView; App bootstrap.
 - **Evidence:**
@@ -652,12 +652,12 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Suggested Diagnostics (no code):** Test with valid API key; log validation failures; confirm case mismatch; fix either request or validator to match.
 - **Related Contract (from architecture.md):** Section 9 describes LLM gateway with validation; Settings (section 10) promises API key testing.
 
-### BUG: HealthKit queries lack authorization status checks before execution
-- **ID:** BUG-20251026-0024
-- **Severity:** S1
-- **Area:** Wiring
-- **Confidence:** High
-- **Status:** Open
+-### BUG: HealthKit queries lack authorization status checks before execution
++ **ID:** BUG-20251026-0024
++ **Severity:** S1
++ **Area:** Wiring
++ **Confidence:** High
++ **Status:** Fixed (Gate 3 — DataAgent now computes `HealthAccessStatus` and skips denied/notDetermined types before building observers.)
 - **Symptom/Impact:** Observer queries execute without checking authorization status, causing silent failures if user revokes HealthKit permission after initial grant.
 - **Where/Scope:** HealthKitService query execution.
 - **Evidence:**
@@ -896,10 +896,10 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **FIXED (Gate 2)** — Session lifecycle management prevents duplicate starts (BUG-20251026-0016)
 - **MISSING** — StateEstimator personalization must persist across sessions (BUG-20251026-0038)
 - **MISSING** — Journal sentiment must influence wellbeing contributions (BUG-20251026-0039)
-- **MISSING** — HealthKit reauthorization must actually rewire ingestion (BUG-20251026-0040)
+- **FIXED (Gate 3)** — HealthKit reauthorization now restarts ingestion inside the app (BUG-20251026-0040)
 - **MISSING** — Settings must allow runtime GPT-5 API key configuration/testing (BUG-20251026-0041)
 - **MISSING** — Tab navigation should dismiss keyboards/overlays when contexts change (BUG-20251026-0042)
-- **MISSING** — HealthKit status UI must reflect all required permissions (BUG-20251026-0043)
+- **FIXED (Gate 3)** — HealthKit status UI reflects every required permission (BUG-20251026-0043)
 - **PARTIAL** — Test coverage for core flows (BUG-20251026-0014, BUG-20251026-0025)
 
 ## Test Audit

@@ -1,6 +1,11 @@
 import Foundation
 @preconcurrency import HealthKit
 
+public protocol HealthKitObservationToken: AnyObject {}
+#if canImport(HealthKit)
+extension HKObserverQuery: HealthKitObservationToken {}
+#endif
+
 /// Errors thrown by `HealthKitService`.
 public enum HealthKitServiceError: LocalizedError {
     case healthDataUnavailable
@@ -22,8 +27,107 @@ public enum HealthKitServiceError: LocalizedError {
     }
 }
 
+#if DEBUG
+private enum HealthKitStatusOverrideBehavior: String {
+    case none
+    case grantAll
+}
+
+private final class HealthKitAuthorizationOverrides: @unchecked Sendable {
+    static let shared = HealthKitAuthorizationOverrides()
+
+    private let queue = DispatchQueue(label: "ai.pulsum.healthkit.override", qos: .utility)
+    private var overrides: [String: HKAuthorizationStatus]
+    private let requestBehavior: HealthKitStatusOverrideBehavior
+    private let debugLoggingEnabled: Bool
+
+    private init() {
+        self.overrides = Self.parseOverrides(ProcessInfo.processInfo.environment["PULSUM_HEALTHKIT_STATUS_OVERRIDE"])
+        if let rawBehavior = ProcessInfo.processInfo.environment["PULSUM_HEALTHKIT_REQUEST_BEHAVIOR"],
+           let behavior = HealthKitStatusOverrideBehavior(rawValue: rawBehavior) {
+            self.requestBehavior = behavior
+        } else {
+            self.requestBehavior = .none
+        }
+        self.debugLoggingEnabled = ProcessInfo.processInfo.environment["PULSUM_HEALTHKIT_DEBUG"] == "1"
+    }
+
+    func status(for identifier: String) -> HKAuthorizationStatus? {
+        queue.sync { overrides[identifier] }
+    }
+
+    func handleRequest(availableTypes: Set<HKSampleType>) -> Bool {
+        switch requestBehavior {
+        case .grantAll:
+            queue.sync {
+                for type in availableTypes {
+                    overrides[type.identifier] = .sharingAuthorized
+                }
+                if debugLoggingEnabled {
+                    let identifiers = availableTypes.map(\.identifier).sorted()
+                    print("[PulsumHealthKitOverride] Granting all overrides for: \(identifiers.joined(separator: ", "))")
+                }
+            }
+            return true
+        case .none:
+            if debugLoggingEnabled {
+                print("[PulsumHealthKitOverride] No override behavior configured.")
+            }
+            return false
+        }
+    }
+
+    private static func parseOverrides(_ raw: String?) -> [String: HKAuthorizationStatus] {
+        guard let raw, !raw.isEmpty else { return [:] }
+        var result: [String: HKAuthorizationStatus] = [:]
+        for entry in raw.split(separator: ",") {
+            let pair = entry.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            guard pair.count == 2,
+                  let status = status(from: pair[1]) else { continue }
+            let identifier = identifier(from: pair[0])
+            guard !identifier.isEmpty else { continue }
+            result[identifier] = status
+        }
+        return result
+    }
+
+    private static func status(from value: String) -> HKAuthorizationStatus? {
+        switch value.lowercased() {
+        case "authorized", "sharingauthorized", "granted", "allow":
+            return .sharingAuthorized
+        case "denied", "sharingdenied":
+            return .sharingDenied
+        case "undetermined", "notdetermined", "pending":
+            return .notDetermined
+        default:
+            return nil
+        }
+    }
+
+    private static func identifier(from raw: String) -> String {
+        let lower = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch lower {
+        case "hrv", "heartratevariability", "heartratevariabilitysdnn":
+            return HKQuantityTypeIdentifier.heartRateVariabilitySDNN.rawValue
+        case "heartrate", "hr":
+            return HKQuantityTypeIdentifier.heartRate.rawValue
+        case "restingheartrate", "restinghr":
+            return HKQuantityTypeIdentifier.restingHeartRate.rawValue
+        case "respiratoryrate", "rr":
+            return HKQuantityTypeIdentifier.respiratoryRate.rawValue
+        case "steps", "stepcount":
+            return HKQuantityTypeIdentifier.stepCount.rawValue
+        case "sleep", "sleepanalysis":
+            return HKCategoryTypeIdentifier.sleepAnalysis.rawValue
+        default:
+            return raw
+        }
+    }
+}
+#endif
+
 /// Encapsulates HealthKit anchored + observer queries for Pulsum ingestion.
-public final class HealthKitService {
+public final class HealthKitService: @unchecked Sendable {
     public struct AnchoredUpdate {
         public let samples: [HKSample]
         public let deletedSamples: [HKDeletedObject]
@@ -56,11 +160,27 @@ private let anchorStore: HealthKitAnchorStore
         return types
     }
 
+    /// Sorted array of required sample types for deterministic UI display.
+    public static var orderedReadSampleTypes: [HKSampleType] {
+        readSampleTypes.sorted { $0.identifier < $1.identifier }
+    }
+
+    public var isHealthDataAvailable: Bool {
+        HKHealthStore.isHealthDataAvailable()
+    }
+
     /// Requests read authorization for Pulsum health data requirements.
     public func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw HealthKitServiceError.healthDataUnavailable
         }
+
+#if DEBUG
+        if BuildFlags.uiTestSeamsCompiledIn,
+           HealthKitAuthorizationOverrides.shared.handleRequest(availableTypes: HealthKitService.readSampleTypes) {
+            return
+        }
+#endif
 
         let readTypes = HealthKitService.readSampleTypes
 
@@ -79,8 +199,14 @@ private let anchorStore: HealthKitAnchorStore
 
     /// Configures background delivery for all supported data types.
     public func enableBackgroundDelivery() async throws {
+        try await enableBackgroundDelivery(for: HealthKitService.readSampleTypes)
+    }
+
+    /// Configures background delivery for a subset of data types.
+    public func enableBackgroundDelivery(for types: Set<HKSampleType>) async throws {
         try await withThrowingTaskGroup(of: Void.self) { group in
-            for type in HealthKitService.readSampleTypes {
+            guard !types.isEmpty else { return }
+            for type in types {
                 group.addTask { [healthStore] in
                     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                         healthStore.enableBackgroundDelivery(for: type, frequency: .immediate) { success, error in
@@ -104,7 +230,7 @@ private let anchorStore: HealthKitAnchorStore
     @discardableResult
     public func observeSampleType(_ sampleType: HKSampleType,
                                   predicate: NSPredicate? = nil,
-                                  updateHandler: @escaping AnchoredUpdateHandler) throws -> HKObserverQuery {
+                                  updateHandler: @escaping AnchoredUpdateHandler) throws -> HealthKitObservationToken {
         let predicateBox = PredicateBox(value: predicate)
 
         let observer = HKObserverQuery(sampleType: sampleType, predicate: predicateBox.value) { [weak self] _, completionHandler, error in
@@ -147,6 +273,17 @@ private let anchorStore: HealthKitAnchorStore
                 self.anchorStore.removeAnchor(for: sampleType.identifier)
             }
         }
+    }
+
+    /// Returns the current authorization status for a specific sample type.
+    public func authorizationStatus(for sampleType: HKSampleType) -> HKAuthorizationStatus {
+#if DEBUG
+        if BuildFlags.uiTestSeamsCompiledIn,
+           let override = HealthKitAuthorizationOverrides.shared.status(for: sampleType.identifier) {
+            return override
+        }
+#endif
+        return healthStore.authorizationStatus(for: sampleType)
     }
 
     private func executeAnchoredQuery(for sampleType: HKSampleType,
@@ -202,7 +339,20 @@ private let anchorStore: HealthKitAnchorStore
     }
 }
 
-extension HealthKitService: @unchecked Sendable {}
+public protocol HealthKitServicing: AnyObject, Sendable {
+    var isHealthDataAvailable: Bool { get }
+    func requestAuthorization() async throws
+    func enableBackgroundDelivery(for types: Set<HKSampleType>) async throws
+    func enableBackgroundDelivery() async throws
+    @discardableResult
+    func observeSampleType(_ sampleType: HKSampleType,
+                           predicate: NSPredicate?,
+                           updateHandler: @escaping HealthKitService.AnchoredUpdateHandler) throws -> HealthKitObservationToken
+    func stopObserving(sampleType: HKSampleType, resetAnchor: Bool)
+    func authorizationStatus(for sampleType: HKSampleType) -> HKAuthorizationStatus
+}
+
+extension HealthKitService: HealthKitServicing {}
 
 extension HealthKitService.AnchoredUpdate: @unchecked Sendable {}
 

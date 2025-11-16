@@ -249,6 +249,8 @@ UITEST ENVIRONMENT FLAGS
 | `UITEST_USE_STUB_LLM=1` | Forces `LLMGateway` to use an on-device stub client that produces deterministic, grounded replies (no network/API key required). | Keeps consent logic intact; still sanitizes outputs. |
 | `UITEST_FAKE_SPEECH=1` | Routes `SpeechService` to a deterministic fake backend that streams known transcript segments and audio levels. | Avoids microphone/audio-engine access during automation. |
 | `UITEST_AUTOGRANT=1` | When paired with the fake speech backend, skips mic/speech permission prompts for fast simulator runs. | Leave unset when manually verifying the real permission UX. |
+| `PULSUM_HEALTHKIT_STATUS_OVERRIDE` | Comma-separated list of `identifier=state` pairs (`granted`, `denied`, `notDetermined`) to simulate per-type authorization in DEBUG/UITest builds. | Example: `HKCategoryTypeIdentifierSleepAnalysis=denied,HKQuantityTypeIdentifierStepCount=granted`. |
+| `PULSUM_HEALTHKIT_REQUEST_BEHAVIOR` | Controls how `requestHealthKitAuthorization()` behaves in UITests (`grantAll`, unset for normal behavior). | Set to `grantAll` to flip all required types to granted after tapping “Request Health Access”. |
 
 RESOLVING DUPLICATE PRIVACYINFO.XCPRIVACY WARNINGS
 1. Keep a single canonical manifest at `Pulsum/PrivacyInfo.xcprivacy`. Do **not** add package manifests or workspace copies to the app target.

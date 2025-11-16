@@ -12,10 +12,30 @@ final class SettingsViewModel {
     var consentGranted: Bool
     var lastConsentUpdated: Date = Date()
 
+    struct HealthAccessRow: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let detail: String
+        let iconName: String
+        let status: HealthAccessGrantState
+    }
+
     // HealthKit State
-    private(set) var healthKitAuthorizationStatus: String = "Unknown"
+    private(set) var healthKitSummary: String = "Checking..."
+    private(set) var missingHealthKitDetail: String?
+    private(set) var healthAccessRows: [HealthAccessRow] = HealthAccessRequirement.ordered.map {
+        HealthAccessRow(id: $0.id,
+                        title: $0.title,
+                        detail: $0.detail,
+                        iconName: $0.iconName,
+                        status: .pending)
+    }
+    private(set) var showHealthKitUnavailableBanner: Bool = false
     private(set) var isRequestingHealthKitAuthorization: Bool = false
     private(set) var healthKitError: String?
+    private(set) var healthKitSuccessMessage: String?
+    @ObservationIgnored private var healthKitSuccessTask: Task<Void, Never>?
+    private var lastHealthAccessStatus: HealthAccessStatus?
 
     // GPT-5 API Status
     private(set) var gptAPIStatus: String = "Missing API key"
@@ -56,6 +76,7 @@ final class SettingsViewModel {
             gptAPIStatus = "Missing API key"
             isGPTAPIWorking = false
         }
+        refreshHealthAccessStatus()
     }
 
     func refreshFoundationStatus() {
@@ -63,53 +84,31 @@ final class SettingsViewModel {
         foundationModelsStatus = orchestrator.foundationModelsStatus
     }
 
-    func refreshHealthKitStatus() {
-        if !HKHealthStore.isHealthDataAvailable() {
-            healthKitAuthorizationStatus = "Not available on this device"
+    func refreshHealthAccessStatus() {
+        guard let orchestrator else {
+            healthKitSummary = "Agent unavailable"
             return
         }
-
-        // Check authorization status for HRV (representative type)
-        let healthStore = HKHealthStore()
-        if let hrvType = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) {
-            let status = healthStore.authorizationStatus(for: hrvType)
-            switch status {
-            case .notDetermined:
-                healthKitAuthorizationStatus = "Not requested"
-            case .sharingDenied:
-                healthKitAuthorizationStatus = "Denied - Please enable in Settings"
-            case .sharingAuthorized:
-                healthKitAuthorizationStatus = "Authorized"
-            @unknown default:
-                healthKitAuthorizationStatus = "Unknown"
+        Task { [weak self] in
+            guard let self else { return }
+            let status = await orchestrator.currentHealthAccessStatus()
+            await MainActor.run {
+                self.applyHealthStatus(status)
             }
         }
     }
 
     func requestHealthKitAuthorization() async {
-        guard HKHealthStore.isHealthDataAvailable() else {
-            healthKitError = "Health data is not available on this device"
+        guard let orchestrator else {
+            healthKitError = "Agent unavailable"
             return
         }
-
         isRequestingHealthKitAuthorization = true
         healthKitError = nil
 
         do {
-            let healthStore = HKHealthStore()
-            let readTypes: Set<HKSampleType> = {
-                var types: Set<HKSampleType> = []
-                if let hrv = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) { types.insert(hrv) }
-                if let heartRate = HKObjectType.quantityType(forIdentifier: .heartRate) { types.insert(heartRate) }
-                if let restingHR = HKObjectType.quantityType(forIdentifier: .restingHeartRate) { types.insert(restingHR) }
-                if let respiratoryRate = HKObjectType.quantityType(forIdentifier: .respiratoryRate) { types.insert(respiratoryRate) }
-                if let steps = HKObjectType.quantityType(forIdentifier: .stepCount) { types.insert(steps) }
-                if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(sleep) }
-                return types
-            }()
-
-            try await healthStore.requestAuthorization(toShare: [], read: readTypes)
-            refreshHealthKitStatus()
+            let status = try await orchestrator.requestHealthAccess()
+            applyHealthStatus(status)
         } catch {
             healthKitError = error.localizedDescription
         }
@@ -178,6 +177,75 @@ final class SettingsViewModel {
     func makeScoreBreakdownViewModel() -> ScoreBreakdownViewModel? {
         guard let orchestrator else { return nil }
         return ScoreBreakdownViewModel(orchestrator: orchestrator)
+    }
+
+    private func applyHealthStatus(_ status: HealthAccessStatus) {
+        let previouslyGranted = lastHealthAccessStatus?.isFullyGranted ?? false
+        lastHealthAccessStatus = status
+
+        switch status.availability {
+        case .available:
+            if status.totalRequired > 0 {
+                healthKitSummary = "\(status.grantedCount)/\(status.totalRequired) granted"
+            } else {
+                healthKitSummary = "Ready"
+            }
+            showHealthKitUnavailableBanner = false
+            let missingTitles = status.missingTypes.compactMap { HealthAccessRequirement.descriptor(for: $0)?.title }
+            if missingTitles.isEmpty {
+                missingHealthKitDetail = nil
+            } else {
+                missingHealthKitDetail = "Missing: \(missingTitles.joined(separator: ", "))"
+            }
+        case .unavailable(let reason):
+            healthKitSummary = "Health data unavailable"
+            showHealthKitUnavailableBanner = true
+            missingHealthKitDetail = reason
+        }
+
+        healthAccessRows = HealthAccessRequirement.ordered.map { descriptor in
+            HealthAccessRow(id: descriptor.id,
+                            title: descriptor.title,
+                            detail: descriptor.detail,
+                            iconName: descriptor.iconName,
+                            status: rowStatus(for: descriptor.id, status: status))
+        }
+
+        if status.isFullyGranted && !previouslyGranted {
+            emitHealthKitSuccessToast()
+        } else if !status.isFullyGranted {
+            cancelHealthKitSuccessToast()
+        }
+    }
+
+    private func rowStatus(for identifier: String, status: HealthAccessStatus) -> HealthAccessGrantState {
+        if status.granted.contains(where: { $0.identifier == identifier }) {
+            return .granted
+        }
+        if status.denied.contains(where: { $0.identifier == identifier }) {
+            return .denied
+        }
+        if status.notDetermined.contains(where: { $0.identifier == identifier }) {
+            return .pending
+        }
+        return .pending
+    }
+
+    private func emitHealthKitSuccessToast() {
+        healthKitSuccessMessage = "Health data connected"
+        healthKitSuccessTask?.cancel()
+        healthKitSuccessTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            await MainActor.run {
+                self?.healthKitSuccessMessage = nil
+            }
+        }
+    }
+
+    private func cancelHealthKitSuccessToast() {
+        healthKitSuccessTask?.cancel()
+        healthKitSuccessTask = nil
+        healthKitSuccessMessage = nil
     }
 
 #if DEBUG

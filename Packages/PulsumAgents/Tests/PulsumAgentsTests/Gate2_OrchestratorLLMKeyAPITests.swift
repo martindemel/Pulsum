@@ -67,6 +67,19 @@ private actor DataAgentStub: DataAgentProviding {
                                 sleepQuality: Double) async throws {}
     func scoreBreakdown() async throws -> ScoreBreakdown? { nil }
     func reprocessDay(date: Date) async throws {}
+    func currentHealthAccessStatus() async -> HealthAccessStatus {
+        HealthAccessStatus(required: [],
+                           granted: [],
+                           denied: [],
+                           notDetermined: [],
+                           availability: .available)
+    }
+    func requestHealthAccess() async throws -> HealthAccessStatus {
+        await currentHealthAccessStatus()
+    }
+    func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus {
+        await currentHealthAccessStatus()
+    }
 }
 
 @MainActor

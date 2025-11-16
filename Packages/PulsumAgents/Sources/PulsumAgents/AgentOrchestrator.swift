@@ -20,6 +20,9 @@ protocol DataAgentProviding: AnyObject, Sendable {
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws
     func scoreBreakdown() async throws -> ScoreBreakdown?
     func reprocessDay(date: Date) async throws
+    func currentHealthAccessStatus() async -> HealthAccessStatus
+    func requestHealthAccess() async throws -> HealthAccessStatus
+    func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus
 }
 
 extension DataAgent: DataAgentProviding {}
@@ -188,6 +191,18 @@ public final class AgentOrchestrator {
         }
     }
 
+    public func currentHealthAccessStatus() async -> HealthAccessStatus {
+        await dataAgent.currentHealthAccessStatus()
+    }
+
+    public func requestHealthAccess() async throws -> HealthAccessStatus {
+        try await dataAgent.requestHealthAccess()
+    }
+
+    public func restartHealthDataIngestion() async throws -> HealthAccessStatus {
+        try await dataAgent.restartIngestionAfterPermissionsChange()
+    }
+
     /// Begins voice journal recording and returns immediately after starting audio capture.
     /// Audio levels and speech stream become available synchronously via properties.
     /// The caller should consume `voiceJournalSpeechStream` for real-time transcription.
@@ -213,7 +228,6 @@ public final class AgentOrchestrator {
         let result = try await sentimentAgent.finishVoiceJournal(transcript: transcript)
         let safety = await safetyAgent.evaluate(text: result.transcript)
         try await dataAgent.reprocessDay(date: result.date)
-        postScoresUpdated(for: result.date)
         return JournalCaptureResponse(result: result, safety: safety)
     }
 
@@ -498,12 +512,6 @@ public final class AgentOrchestrator {
                                         object: nil,
                                         userInfo: info)
 #endif
-    }
-
-    private func postScoresUpdated(for date: Date) {
-        NotificationCenter.default.post(name: .pulsumScoresUpdated,
-                                        object: nil,
-                                        userInfo: [AgentNotificationKeys.date: date])
     }
 
     public func logCompletion(momentId: String) async throws -> CheerEvent {

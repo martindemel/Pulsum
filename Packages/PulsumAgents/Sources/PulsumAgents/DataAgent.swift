@@ -4,6 +4,7 @@ import HealthKit
 @preconcurrency import PulsumData
 import PulsumML
 import PulsumServices
+import PulsumTypes
 
 public struct FeatureVectorSnapshot: Sendable {
     public let date: Date
@@ -44,35 +45,133 @@ public struct ScoreBreakdown: Sendable {
 }
 
 actor DataAgent {
-    private let healthKit: HealthKitService
+    private let healthKit: any HealthKitServicing
     private let calendar = Calendar(identifier: .gregorian)
     private var stateEstimator = StateEstimator()
     private let context: NSManagedObjectContext
-    private var observers: [String: HKObserverQuery] = [:]
+    private var observers: [String: HealthKitObservationToken] = [:]
+    private let requiredSampleTypes: [HKSampleType]
+    private let sampleTypesByIdentifier: [String: HKSampleType]
+    private var cachedHealthAccessStatus: HealthAccessStatus?
+    private let notificationCenter: NotificationCenter
 
     private let analysisWindowDays = 30
     private let sleepDebtWindowDays = 7
     private let sedentaryThresholdStepsPerHour: Double = 30
     private let sedentaryMinimumDuration: TimeInterval = 30 * 60
 
-    init(healthKit: HealthKitService = PulsumServices.healthKit,
-         container: NSPersistentContainer = PulsumData.container) {
+    init(healthKit: any HealthKitServicing = PulsumServices.healthKit,
+         container: NSPersistentContainer = PulsumData.container,
+         notificationCenter: NotificationCenter = .default) {
         self.healthKit = healthKit
         self.context = container.newBackgroundContext()
         self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         self.context.name = "Pulsum.DataAgent"
+        self.notificationCenter = notificationCenter
+        self.requiredSampleTypes = HealthKitService.orderedReadSampleTypes
+        var dictionary: [String: HKSampleType] = [:]
+        for type in requiredSampleTypes {
+            dictionary[type.identifier] = type
+        }
+        self.sampleTypesByIdentifier = dictionary
+        self.cachedHealthAccessStatus = nil
     }
 
     // MARK: - Lifecycle
 
     func start() async throws {
+        let initialStatus = await currentHealthAccessStatus()
+        try await configureObservation(for: initialStatus, resetRevokedAnchors: false)
+
+        guard !initialStatus.notDetermined.isEmpty else { return }
+
         try await healthKit.requestAuthorization()
+        _ = try await startIngestionIfAuthorized()
+    }
+
+    @discardableResult
+    func startIngestionIfAuthorized() async throws -> HealthAccessStatus {
+        let status = await currentHealthAccessStatus()
+        try await configureObservation(for: status, resetRevokedAnchors: false)
+        return status
+    }
+
+    @discardableResult
+    func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus {
+        let status = await currentHealthAccessStatus()
+        try await configureObservation(for: status, resetRevokedAnchors: true)
+        return status
+    }
+
+    @discardableResult
+    func requestHealthAccess() async throws -> HealthAccessStatus {
+        try await healthKit.requestAuthorization()
+        return try await restartIngestionAfterPermissionsChange()
+    }
+
+    func currentHealthAccessStatus() async -> HealthAccessStatus {
+        if !healthKit.isHealthDataAvailable {
+            let unavailable = HealthAccessStatus(required: requiredSampleTypes,
+                                                 granted: [],
+                                                 denied: [],
+                                                 notDetermined: [],
+                                                 availability: .unavailable(reason: "Health data is not available on this device."))
+            cachedHealthAccessStatus = unavailable
+            return unavailable
+        }
+
+        var granted: Set<HKSampleType> = []
+        var denied: Set<HKSampleType> = []
+        var pending: Set<HKSampleType> = []
+
+        for type in requiredSampleTypes {
+            switch healthKit.authorizationStatus(for: type) {
+            case .sharingAuthorized:
+                granted.insert(type)
+            case .sharingDenied:
+                denied.insert(type)
+            case .notDetermined:
+                pending.insert(type)
+            @unknown default:
+                pending.insert(type)
+            }
+        }
+
+        let status = HealthAccessStatus(required: requiredSampleTypes,
+                                        granted: granted,
+                                        denied: denied,
+                                        notDetermined: pending,
+                                        availability: .available)
+        cachedHealthAccessStatus = status
+        return status
+    }
+
+    private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
+        let message = (error as NSError).localizedDescription
+        return message.contains("Missing com.apple.developer.healthkit.background-delivery")
+    }
+
+    private func configureObservation(for status: HealthAccessStatus,
+                                      resetRevokedAnchors: Bool) async throws {
+        cachedHealthAccessStatus = status
+        guard case .available = status.availability else {
+            stopAllObservers(resetAnchors: resetRevokedAnchors)
+            return
+        }
+
+        try await enableBackgroundDelivery(for: status.granted)
+        try await startObserversIfNeeded(for: status.granted)
+        stopRevokedObservers(keeping: status.granted, resetAnchors: resetRevokedAnchors)
+    }
+
+    private func enableBackgroundDelivery(for grantedTypes: Set<HKSampleType>) async throws {
+        guard !grantedTypes.isEmpty else { return }
         do {
-            try await healthKit.enableBackgroundDelivery()
+            try await healthKit.enableBackgroundDelivery(for: grantedTypes)
         } catch HealthKitServiceError.backgroundDeliveryFailed(let type, let underlying) {
             if shouldIgnoreBackgroundDeliveryError(underlying) {
 #if DEBUG
-                print("[PulsumData] Background delivery disabled (missing entitlement).")
+                print("[PulsumData] Background delivery disabled (missing entitlement) for \(type.identifier).")
 #endif
             } else {
                 throw HealthKitServiceError.backgroundDeliveryFailed(type: type, underlying: underlying)
@@ -80,14 +179,40 @@ actor DataAgent {
         } catch {
             throw error
         }
-        for type in HealthKitService.readSampleTypes {
+    }
+
+    private func startObserversIfNeeded(for types: Set<HKSampleType>) async throws {
+        guard !types.isEmpty else { return }
+        for type in types {
             try await observe(sampleType: type)
         }
     }
 
-    private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
-        let message = (error as NSError).localizedDescription
-        return message.contains("Missing com.apple.developer.healthkit.background-delivery")
+    private func stopRevokedObservers(keeping granted: Set<HKSampleType>, resetAnchors: Bool) {
+        let grantedIdentifiers = Set(granted.map { $0.identifier })
+        let identifiers = Array(observers.keys)
+        for identifier in identifiers where !grantedIdentifiers.contains(identifier) {
+            if let type = sampleTypesByIdentifier[identifier] {
+                stopObservation(for: type, resetAnchor: resetAnchors)
+            } else {
+                observers.removeValue(forKey: identifier)
+            }
+        }
+    }
+
+    private func stopAllObservers(resetAnchors: Bool) {
+        let identifiers = Array(observers.keys)
+        for identifier in identifiers {
+            if let type = sampleTypesByIdentifier[identifier] {
+                stopObservation(for: type, resetAnchor: resetAnchors)
+            }
+        }
+        observers.removeAll()
+    }
+
+    private func stopObservation(for type: HKSampleType, resetAnchor: Bool) {
+        observers.removeValue(forKey: type.identifier)
+        healthKit.stopObserving(sampleType: type, resetAnchor: resetAnchor)
     }
 
     func latestFeatureVector() async throws -> FeatureVectorSnapshot? {
@@ -241,7 +366,9 @@ actor DataAgent {
     // MARK: - Observation
 
     private func observe(sampleType: HKSampleType) async throws {
-        let query = try healthKit.observeSampleType(sampleType) { result in
+        let identifier = sampleType.identifier
+        guard observers[identifier] == nil else { return }
+        let token = try healthKit.observeSampleType(sampleType, predicate: nil) { result in
             switch result {
             case let .success(update):
                 Task { await self.handle(update: update, sampleType: sampleType) }
@@ -251,21 +378,21 @@ actor DataAgent {
                 #endif
             }
         }
-        observers[sampleType.identifier] = query
+        observers[identifier] = token
     }
 
     private func handle(update: HealthKitService.AnchoredUpdate, sampleType: HKSampleType) async {
         do {
-        switch sampleType {
-        case let quantityType as HKQuantityType:
-            try await processQuantitySamples(update.samples.compactMap { $0 as? HKQuantitySample },
-                                             type: quantityType)
-        case let categoryType as HKCategoryType:
-            try await processCategorySamples(update.samples.compactMap { $0 as? HKCategorySample },
-                                             type: categoryType)
-        default:
-            break
-        }
+            switch sampleType {
+            case let quantityType as HKQuantityType:
+                try await processQuantitySamples(update.samples.compactMap { $0 as? HKQuantitySample },
+                                                 type: quantityType)
+            case let categoryType as HKCategoryType:
+                try await processCategorySamples(update.samples.compactMap { $0 as? HKCategorySample },
+                                                 type: categoryType)
+            default:
+                break
+            }
             try await handleDeletedSamples(update.deletedSamples)
         } catch {
 #if DEBUG
@@ -638,6 +765,18 @@ actor DataAgent {
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return nil }
         return String(data: data, encoding: .utf8)
     }
+
+    private func notifySnapshotUpdate(for date: Date) {
+        notificationCenter.post(name: .pulsumScoresUpdated,
+                                object: nil,
+                                userInfo: [AgentNotificationKeys.date: date])
+    }
+
+#if DEBUG
+    func _testPublishSnapshotUpdate(for date: Date) {
+        notifySnapshotUpdate(for: date)
+    }
+#endif
 
     private static func materializeFeatures(from vector: FeatureVector) -> FeatureBundle {
         var imputed: [String: Bool] = [:]
