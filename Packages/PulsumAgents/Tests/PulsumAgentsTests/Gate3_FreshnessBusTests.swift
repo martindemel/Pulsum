@@ -1,0 +1,42 @@
+@testable import PulsumAgents
+@testable import PulsumData
+import PulsumTypes
+import XCTest
+
+final class Gate3_FreshnessBusTests: XCTestCase {
+    func testReprocessDayPostsSingleNotification() async throws {
+        let stub = HealthKitServiceStub()
+        let center = RecordingNotificationCenter()
+        let agent = DataAgent(healthKit: stub,
+                              container: TestCoreDataStack.makeContainer(),
+                              notificationCenter: center)
+
+        let today = Date()
+        try await agent.reprocessDay(date: today)
+
+        let posts = center.notifications(named: .pulsumScoresUpdated)
+        XCTAssertEqual(posts.count, 1)
+        let expectedDay = Calendar(identifier: .gregorian).startOfDay(for: today)
+        let postedDay = posts.first?.userInfo?[AgentNotificationKeys.date] as? Date
+        XCTAssertEqual(postedDay, expectedDay)
+    }
+}
+
+private struct PostedNotification {
+    let name: Notification.Name
+    let object: Any?
+    let userInfo: [AnyHashable: Any]?
+}
+
+private final class RecordingNotificationCenter: NotificationCenter, @unchecked Sendable {
+    private(set) var postedNotifications: [PostedNotification] = []
+
+    override func post(name aName: Notification.Name, object anObject: Any?, userInfo aUserInfo: [AnyHashable: Any]? = nil) {
+        postedNotifications.append(PostedNotification(name: aName, object: anObject, userInfo: aUserInfo))
+        super.post(name: aName, object: anObject, userInfo: aUserInfo)
+    }
+
+    func notifications(named name: Notification.Name) -> [PostedNotification] {
+        postedNotifications.filter { $0.name == name }
+    }
+}

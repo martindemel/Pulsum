@@ -127,8 +127,16 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 - [ ] **Profile @MainActor agent operations**: Measure UI responsiveness during Foundation Models operations; if >100ms lag detected, refactor ML ranking/embeddings to background actors (conditional optimization)
 - [ ] **Evaluate BGTaskScheduler integration**: Monitor HealthKit background processing reliability in production; implement BGProcessingTask if observer callbacks show timeouts or battery impact (conditional enhancement)
 
+## Gate 3 - HealthKit ingestion & UI freshness (Complete)
+- [x] Add `HealthAccessStatus` caching + `HealthKitServicing.authorizationStatus(for:)` to gate observers per-type and capture denied/notDetermined states.
+- [x] Expose `requestHealthAccess()` / `restartIngestionAfterPermissionsChange()` so Settings/Onboarding can idempotently rebuild observers after the user re-grants data types.
+- [x] Emit a unified `.pulsumScoresUpdated` notification whenever `DataAgent` recomputes a snapshot; bind App/Coach view models so journals, sliders, and HealthKit ingestion refresh the UI immediately.
+- [x] Redesign Settings + Onboarding health sections to show 6/6 status, missing-type copy, toast feedback, and a real “Request Health Access” flow wired to the orchestrator.
+- [x] Extend UITests with deterministic HealthKit seams (`PULSUM_HEALTHKIT_STATUS_OVERRIDE`, `PULSUM_HEALTHKIT_REQUEST_BEHAVIOR`) and add `Gate3_HealthAccessUITests`.
+- [x] Add Gate3_* package tests (authorization gating, restart idempotence, freshness bus seam) under `Packages/PulsumAgents`.
+
 ### Gate 2/3 follow-ups
 - [ ] Expand UITests to cover real cloud consent flows once Settings surfaces runtime key entry and API health (Gate 2).
 - [x] Add journal transcript persistence + Saved toast assertions after BUG-0009 is resolved (Gate 2). (`JournalFlowUITests.testRecordStreamFinish_showsSavedToastAndTranscript`)
 - [x] Wire Gate Gate suites into CI via `scripts/ci/test-harness.sh`, `scripts/ci/integrity.sh`, and `.github/workflows/test-harness.yml` so Gate 0/1/2 (and future gates) run automatically.
-- [ ] Extend Gate discovery to Gate 3/4 test bundles as those suites are added (harness already auto-detects the names).
+- [x] Gate3 package + UI tests now live; harness auto-detects them via the existing regex (`Gate3_*`).

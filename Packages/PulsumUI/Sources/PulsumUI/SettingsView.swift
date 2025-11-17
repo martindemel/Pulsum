@@ -82,10 +82,77 @@ struct SettingsScreen: View {
                                     Text("Health Data Access")
                                         .font(.pulsumHeadline)
                                         .foregroundStyle(Color.pulsumTextPrimary)
-                                    Text(viewModel.healthKitAuthorizationStatus)
+                                    Text(viewModel.healthKitSummary)
                                         .font(.pulsumCallout)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(2)
+                                        .accessibilityIdentifier("HealthAccessSummaryLabel")
+                                }
+                            }
+
+                            if let detail = viewModel.missingHealthKitDetail {
+                                Text(detail)
+                                    .font(.pulsumCaption)
+                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                    .padding(.horizontal, PulsumSpacing.xs)
+                                    .padding(.vertical, PulsumSpacing.xxs)
+                                    .background(Color.pulsumBackgroundCream.opacity(0.6))
+                                    .cornerRadius(PulsumRadius.sm)
+                                    .accessibilityIdentifier("HealthAccessMissingLabel")
+                            }
+
+                            if viewModel.showHealthKitUnavailableBanner {
+                                HStack(spacing: PulsumSpacing.xs) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.pulsumCaption)
+                                        .foregroundStyle(Color.pulsumWarning)
+                                    Text("Health data is unavailable on this device.")
+                                        .font(.pulsumCaption)
+                                        .foregroundStyle(Color.pulsumWarning)
+                                }
+                                .padding(.horizontal, PulsumSpacing.sm)
+                                .padding(.vertical, PulsumSpacing.xs)
+                                .background(Color.pulsumWarning.opacity(0.1))
+                                .cornerRadius(PulsumRadius.sm)
+                            }
+
+                            if let success = viewModel.healthKitSuccessMessage {
+                                HStack {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(Color.pulsumGreenSoft)
+                                    Text(success)
+                                        .font(.pulsumCaption)
+                                        .foregroundStyle(Color.pulsumGreenSoft)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, PulsumSpacing.sm)
+                                .padding(.vertical, PulsumSpacing.xs)
+                                .background(Color.pulsumGreenSoft.opacity(0.12))
+                                .cornerRadius(PulsumRadius.sm)
+                            }
+
+                            Divider()
+                                .padding(.vertical, PulsumSpacing.xs)
+
+                            VStack(spacing: PulsumSpacing.sm) {
+                                ForEach(viewModel.healthAccessRows) { row in
+                                    HStack(spacing: PulsumSpacing.sm) {
+                                        Image(systemName: row.iconName)
+                                            .font(.pulsumTitle3)
+                                            .foregroundStyle(Color.pulsumTextPrimary.opacity(0.7))
+                                        VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                                            Text(row.title)
+                                                .font(.pulsumCallout.weight(.semibold))
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                            Text(row.detail)
+                                                .font(.pulsumFootnote)
+                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                        }
+                                        Spacer()
+                                        statusBadge(for: row.status)
+                                    }
+                                    .padding(.vertical, PulsumSpacing.xs)
+                                    .accessibilityIdentifier("HealthAccessRow-\(row.id)")
                                 }
                             }
 
@@ -103,6 +170,9 @@ struct SettingsScreen: View {
                                 .background(Color.pulsumWarning.opacity(0.1))
                                 .cornerRadius(PulsumRadius.sm)
                             }
+
+                            Divider()
+                                .padding(.vertical, PulsumSpacing.xs)
 
                             Button {
                                 Task {
@@ -128,6 +198,7 @@ struct SettingsScreen: View {
                             }
                             .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
                             .disabled(viewModel.isRequestingHealthKitAuthorization)
+                            .accessibilityIdentifier("HealthAccessRequestButton")
 
                             Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
                                 .font(.pulsumFootnote)
@@ -348,7 +419,7 @@ struct SettingsScreen: View {
 #endif
             .task {
                 viewModel.refreshFoundationStatus()
-                viewModel.refreshHealthKitStatus()
+                viewModel.refreshHealthAccessStatus()
                 await viewModel.checkGPTAPIKey()
             }
         }
@@ -362,6 +433,33 @@ struct SettingsScreen: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    @ViewBuilder
+    private func statusBadge(for status: HealthAccessGrantState) -> some View {
+        let (icon, color, label): (String, Color, String) = {
+            switch status {
+            case .granted:
+                return ("checkmark.circle.fill", Color.pulsumGreenSoft, "Granted")
+            case .denied:
+                return ("xmark.circle.fill", Color.pulsumWarning, "Denied")
+            case .pending:
+                return ("questionmark.circle", Color.pulsumTextSecondary, "Pending")
+            }
+        }()
+
+        HStack(spacing: PulsumSpacing.xxs) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .symbolRenderingMode(.hierarchical)
+            Text(label)
+                .font(.pulsumCaption.weight(.semibold))
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, PulsumSpacing.xs)
+        .padding(.vertical, PulsumSpacing.xxs)
+        .background(color.opacity(0.12))
+        .cornerRadius(PulsumRadius.sm)
     }
 }
 

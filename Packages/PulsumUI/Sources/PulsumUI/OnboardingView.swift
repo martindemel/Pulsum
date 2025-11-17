@@ -1,13 +1,19 @@
 import SwiftUI
 import HealthKit
+import PulsumAgents
 
 struct OnboardingView: View {
     @Binding var isPresented: Bool
     let onComplete: () async -> Void
+    var orchestrator: AgentOrchestrator?
 
     @State private var currentPage = 0
     @State private var isRequestingHealthKit = false
     @State private var healthKitError: String?
+    @State private var healthAccessSummary: String = "Checking..."
+    @State private var healthAccessStatuses: [String: HealthAccessGrantState] = Dictionary(
+        uniqueKeysWithValues: HealthAccessRequirement.ordered.map { ($0.id, .pending) }
+    )
 
     var body: some View {
         ZStack {
@@ -41,6 +47,9 @@ struct OnboardingView: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.pulsumStandard, value: currentPage)
             }
+        }
+        .task {
+            refreshHealthAccessStatus()
         }
     }
 
@@ -112,12 +121,17 @@ struct OnboardingView: View {
                     .lineSpacing(4)
                     .padding(.horizontal, PulsumSpacing.xl)
 
+                Text(healthAccessSummary)
+                    .font(.pulsumCallout)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .multilineTextAlignment(.center)
+
                 // Data types list
                 VStack(alignment: .leading, spacing: PulsumSpacing.sm) {
-                    healthDataRow(icon: "waveform.path.ecg", text: "Heart Rate Variability")
-                    healthDataRow(icon: "heart.fill", text: "Heart Rate & Resting HR")
-                    healthDataRow(icon: "bed.double.fill", text: "Sleep Analysis")
-                    healthDataRow(icon: "figure.walk", text: "Step Count & Activity")
+                    ForEach(HealthAccessRequirement.ordered) { requirement in
+                        onboardingHealthRow(for: requirement,
+                                            status: healthAccessStatuses[requirement.id] ?? .pending)
+                    }
                 }
                 .padding(PulsumSpacing.lg)
                 .background(Color.pulsumCardWhite)
@@ -236,46 +250,65 @@ struct OnboardingView: View {
 
     // MARK: - Helper Views
 
-    private func healthDataRow(icon: String, text: String) -> some View {
+    private func onboardingHealthRow(for requirement: HealthAccessRequirement,
+                                     status: HealthAccessGrantState) -> some View {
         HStack(spacing: PulsumSpacing.sm) {
-            Image(systemName: icon)
-                .font(.pulsumCallout)
-                .foregroundStyle(Color.pulsumGreenSoft)
-                .frame(width: 24)
-            Text(text)
-                .font(.pulsumCallout)
-                .foregroundStyle(Color.pulsumTextPrimary)
+            Image(systemName: requirement.iconName)
+                .font(.pulsumTitle3)
+                .foregroundStyle(Color.pulsumTextPrimary.opacity(0.8))
+            VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                Text(requirement.title)
+                    .font(.pulsumBody.weight(.semibold))
+                    .foregroundStyle(Color.pulsumTextPrimary)
+                Text(requirement.detail)
+                    .font(.pulsumCaption)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+            }
             Spacer()
+            onboardingStatusBadge(for: status)
         }
     }
 
     // MARK: - HealthKit Authorization
 
     private func requestHealthKitAuthorization() async {
-        guard HKHealthStore.isHealthDataAvailable() else {
-            healthKitError = "Health data is not available on this device"
-            return
-        }
-
         isRequestingHealthKit = true
         healthKitError = nil
 
+        if let orchestrator {
+            do {
+                let status = try await orchestrator.requestHealthAccess()
+                applyHealthStatus(status)
+                withAnimation(.pulsumStandard) {
+                    currentPage = 2
+                }
+            } catch {
+                healthKitError = error.localizedDescription
+            }
+            isRequestingHealthKit = false
+            return
+        }
+
+        guard HKHealthStore.isHealthDataAvailable() else {
+            healthKitError = "Health data is not available on this device"
+            isRequestingHealthKit = false
+            return
+        }
+
         do {
             let healthStore = HKHealthStore()
-            let readTypes: Set<HKSampleType> = {
-                var types: Set<HKSampleType> = []
-                if let hrv = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) { types.insert(hrv) }
-                if let heartRate = HKObjectType.quantityType(forIdentifier: .heartRate) { types.insert(heartRate) }
-                if let restingHR = HKObjectType.quantityType(forIdentifier: .restingHeartRate) { types.insert(restingHR) }
-                if let respiratoryRate = HKObjectType.quantityType(forIdentifier: .respiratoryRate) { types.insert(respiratoryRate) }
-                if let steps = HKObjectType.quantityType(forIdentifier: .stepCount) { types.insert(steps) }
-                if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(sleep) }
-                return types
-            }()
+            let readTypes = Set(HealthAccessRequirement.ordered.compactMap { requirement -> HKSampleType? in
+                if let quantity = HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier(rawValue: requirement.id)) {
+                    return quantity
+                }
+                if let category = HKObjectType.categoryType(forIdentifier: HKCategoryTypeIdentifier(rawValue: requirement.id)) {
+                    return category
+                }
+                return nil
+            })
 
             try await healthStore.requestAuthorization(toShare: [], read: readTypes)
-
-            // Move to next page on success
+            refreshHealthAccessStatus()
             withAnimation(.pulsumStandard) {
                 currentPage = 2
             }
@@ -284,5 +317,59 @@ struct OnboardingView: View {
         }
 
         isRequestingHealthKit = false
+    }
+
+    private func refreshHealthAccessStatus() {
+        guard let orchestrator else {
+            healthAccessSummary = "Connect Pulsum to check permissions."
+            return
+        }
+        Task {
+            let status = await orchestrator.currentHealthAccessStatus()
+            await MainActor.run {
+                applyHealthStatus(status)
+            }
+        }
+    }
+
+    private func applyHealthStatus(_ status: HealthAccessStatus) {
+        switch status.availability {
+        case .available:
+            if status.totalRequired > 0 {
+                healthAccessSummary = "\(status.grantedCount)/\(status.totalRequired) granted"
+            } else {
+                healthAccessSummary = "Health data ready"
+            }
+        case .unavailable:
+            healthAccessSummary = "Health data unavailable on this device"
+        }
+
+        var updated = healthAccessStatuses
+        for requirement in HealthAccessRequirement.ordered {
+            let identifier = requirement.id
+            if status.granted.contains(where: { $0.identifier == identifier }) {
+                updated[identifier] = .granted
+            } else if status.denied.contains(where: { $0.identifier == identifier }) {
+                updated[identifier] = .denied
+            } else if status.notDetermined.contains(where: { $0.identifier == identifier }) {
+                updated[identifier] = .pending
+            }
+        }
+        healthAccessStatuses = updated
+    }
+
+    @ViewBuilder
+    private func onboardingStatusBadge(for status: HealthAccessGrantState) -> some View {
+        switch status {
+        case .granted:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color.pulsumGreenSoft)
+        case .denied:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(Color.pulsumWarning)
+        case .pending:
+            Image(systemName: "questionmark.circle")
+                .foregroundStyle(Color.pulsumTextSecondary)
+        }
     }
 }

@@ -9,7 +9,7 @@ Got it — I read **every line** of your `bugs.md` (43 bugs) and the companion `
 | 0 | Security & build blockers | ✅ Complete (2025‑11‑09) | LLM key rotation, privacy manifests, speech auth, AFM stub hardening shipped with Gate-0 tests. |
 | 1 | Deterministic test harness & seams | ✅ Complete (2025‑11‑09) | Shared scheme + UITest seams + Gate0_/Gate1_ package suites enabled locally & in CI. |
 | 2 | Voice journal E2E | ✅ Complete (2025‑11‑11) | Closed BUG‑0005/0007/0009/0015/0016/0032/0034 with mic preflight hardening, session guardrails, waveform perf, and wellbeing refresh. |
-| 3 | HealthKit ingestion & UI freshness | ⏳ Not started | Blocks: BUG‑0024/0037/0040/0043. |
+| 3 | HealthKit ingestion & UI freshness | ✅ Complete (2025‑11‑15) | Closed BUG‑0024/0037/0040/0043 with permission-aware ingestion, restart seam, UI status, and Gate3 tests. |
 | 4 | RAG/LLM wiring & consent UX | ⏳ Not started | Blocks: BUG‑0004/0010/0011/0023/0041. |
 | 5 | Vector index & data I/O integrity | ⏳ Not started | Blocks: BUG‑0012/0013/0017/0022/0036. |
 | 6 | ML correctness & personalization | ⏳ Not started | Blocks: BUG‑0020/0021/0027/0028/0038/0039. |
@@ -119,20 +119,20 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 ## Gate 3 — **HealthKit ingestion & UI freshness**
 
 **G3.1 — Auth checks before queries (BUG‑0024, S1)**
-**Fix**: Check `authorizationStatus(for:)` for each required type before creating queries; if denied, post a structured reason to UI.
-**Tests**: Revoke one type (e.g., sleep) → observers don’t execute and UI shows which type is missing. 
+**Fix**: Added `HealthAccessStatus` + `HealthKitServicing.authorizationStatus(for:)` so `DataAgent.startIngestionIfAuthorized()` only registers queries for granted types and surfaces denied/notDetermined sets to the UI.
+**Tests**: `Gate3_HealthAccessStatusTests` injects sleep denial and asserts no observer is created plus the missing type is reported.
 
 **G3.2 — Restart ingestion after re‑grant (BUG‑0040, S1)**
-**Fix**: After a Settings/Onboarding “Request Health Access”, call back into `AgentOrchestrator` to re‑`start()` the `DataAgent` (idempotent).
-**Tests**: Deny at first run → grant via app → new samples arrive without relaunch. 
+**Fix**: `AgentOrchestrator` now exposes `requestHealthAccess()` / `restartHealthDataIngestion()` which re-evaluate statuses, stop revoked observers, and re-enable background delivery without duplicating queries.
+**Tests**: `Gate3_IngestionIdempotenceTests` proves repeated restarts keep one observer per type and only re-register newly granted types.
 
 **G3.3 — Auto‑refresh wellbeing & coach (BUG‑0037, S1; also BUG‑0015, S1)**
-**Fix**: Expose `AsyncStream<FeatureVectorSnapshot>` or Notification from `DataAgent` and have `CoachViewModel`/main card subscribe and refresh on new snapshots and after slider submit.
-**Tests**: Programmatically emit a snapshot → UI updates on main tab; sliders submit triggers refresh immediately. 
+**Fix**: `DataAgent` emits `.pulsumScoresUpdated` through a single freshness bus; UI (`AppViewModel`/`CoachViewModel`) subscribes once so journals, sliders, and HealthKit ingestion update cards immediately.
+**Tests**: `Gate3_FreshnessBusTests` simulates a snapshot publish via the new debug hook and verifies a single notification fires on the injected center. UITest `Gate3_HealthAccessUITests` covers the end-to-end refresh path after requesting access.
 
 **G3.4 — HealthKit status accuracy (BUG‑0043, S2)**
-**Fix**: Report status across **all** required types (HRV, HR, RHR, sleep, RR, steps); show partial states.
-**Tests**: Deny one → UI shows “5/6 granted” with specific missing types. 
+**Fix**: Settings + Onboarding now render a detailed matrix (6 types, granted/denied/pending counts, missing-type copy, toast after re‑grant). DEBUG seams (`PULSUM_HEALTHKIT_STATUS_OVERRIDE`, `PULSUM_HEALTHKIT_REQUEST_BEHAVIOR`) keep UITests deterministic.
+**Tests**: `Gate3_HealthAccessUITests` boots with one type denied (5/6 granted) and ensures the UI reflects both the summary and specific missing type, then simulates a grant to confirm the success toast + restart wiring.
 
 ---
 
