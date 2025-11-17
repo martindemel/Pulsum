@@ -170,13 +170,21 @@ public final class CoachAgent {
             let title = moment.title.trimmingCharacters(in: .whitespacesAndNewlines)
             let short = moment.shortDescription.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty, !title.isEmpty, !short.isEmpty else { return nil }
-            let detail = moment.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = normalizeOptionalText(moment.detail, limit: 240)
             return CandidateMoment(id: id,
                                    title: title,
                                    shortDescription: String(short.prefix(200)),
-                                   detail: detail?.isEmpty == true ? nil : String(detail!.prefix(240)),
+                                   detail: detail,
                                    evidenceBadge: moment.evidenceBadge)
         }
+    }
+
+    private func normalizeOptionalText(_ text: String?, limit: Int) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return String(trimmed.prefix(limit))
     }
 
     private func buildQuery(from snapshot: FeatureVectorSnapshot) -> String {

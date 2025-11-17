@@ -215,4 +215,33 @@ struct LLMGatewaySchemaTests {
         #expect(!lower.contains("\"heartrate\""))
         #expect(!lower.contains("\"samples\""))
     }
+
+    @Test("Candidate detail omitted when nil")
+    func candidateDetailOmittedWhenNil() throws {
+        let candidates = [
+            CandidateMoment(id: "moment-1",
+                            title: "Breathing reset",
+                            shortDescription: "Take three calm breaths.",
+                            detail: nil,
+                            evidenceBadge: "Strong")
+        ]
+        let context = CoachLLMContext(userToneHints: "Need help relaxing",
+                                      topSignal: "subj_stress:+1.2",
+                                      topMomentId: candidates.first?.id,
+                                      rationale: "stress + low HRV",
+                                      zScoreSummary: "z_hrv:-0.6",
+                                      candidateMoments: candidates)
+        let body = try LLMGateway.makeChatRequestBody(context: context,
+                                                      candidateMoments: candidates,
+                                                      maxOutputTokens: 256)
+        guard let userPayload = (body["input"] as? [[String: Any]])?.last?["content"] as? String,
+              let data = userPayload.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let embedded = json["candidateMoments"] as? [[String: Any]],
+              let first = embedded.first else {
+            Issue.record("Failed to decode minimized payload")
+            return
+        }
+        #expect(first["detail"] == nil)
+    }
 }

@@ -41,6 +41,32 @@ struct Gate4_RoutingTests {
         let fallback = TopicSignalResolver.mapTopicToSignalOrDataDominant(topic: nil, snapshot: snapshot)
         #expect(fallback == "z_hrv")
     }
+
+    @Test("candidateMoments omit detail when source is nil")
+    func candidateMomentsHandleNilDetail() async throws {
+        let container = TestCoreDataStack.makeContainer()
+        let context = container.newBackgroundContext()
+        try context.performAndWait {
+            let moment = MicroMoment(context: context)
+            moment.id = "moment-1"
+            moment.title = "Breathing reset"
+            moment.shortDescription = "Take three calm breaths."
+            moment.detail = nil
+            moment.evidenceBadge = "Strong"
+            try context.save()
+        }
+
+        let stubIndex = RoutingVectorIndexStub(matches: [VectorMatch(id: "moment-1", score: 0.1)])
+        let agent = try await MainActor.run {
+            try CoachAgent(container: container,
+                           vectorIndex: stubIndex,
+                           libraryImporter: LibraryImporter(),
+                           shouldIngestLibrary: false)
+        }
+        let candidates = await agent.candidateMoments(for: "stress", limit: 1)
+        #expect(candidates.count == 1)
+        #expect(candidates.first?.detail == nil)
+    }
 }
 
 private func makeSnapshot(features: [String: Double]) throws -> FeatureVectorSnapshot {
@@ -72,4 +98,23 @@ private func makeSnapshot(features: [String: Double]) throws -> FeatureVectorSna
         throw NSError(domain: "Gate4RoutingTests", code: 0)
     }
     return snapshot
+}
+
+private final class RoutingVectorIndexStub: VectorIndexProviding {
+    private let storedMatches: [VectorMatch]
+
+    init(matches: [VectorMatch]) {
+        self.storedMatches = matches
+    }
+
+    @discardableResult
+    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) throws -> [Float] {
+        []
+    }
+
+    func removeMicroMoment(id: String) throws {}
+
+    func searchMicroMoments(query: String, topK: Int) throws -> [VectorMatch] {
+        storedMatches
+    }
 }
