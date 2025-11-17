@@ -43,6 +43,7 @@ final class SettingsViewModel {
     private(set) var gptAPIStatus: String = "Missing API key"
     private(set) var isGPTAPIWorking: Bool = false
     var gptAPIKeyDraft: String = ""
+    private(set) var isTestingAPIKey: Bool = false
 
     var onConsentChanged: ((Bool) -> Void)?
 
@@ -69,7 +70,7 @@ final class SettingsViewModel {
         if let stored = orchestrator.currentLLMAPIKey() {
             gptAPIKeyDraft = stored
             if !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Task { await checkGPTAPIKey() }
+                Task { await testCurrentAPIKey() }
             } else {
                 gptAPIStatus = "Missing API key"
                 isGPTAPIWorking = false
@@ -132,7 +133,7 @@ final class SettingsViewModel {
     }
 
     @MainActor
-    func saveAPIKeyAndTest(_ key: String) async {
+    func saveAPIKey(_ key: String) async {
         guard let orchestrator else {
             gptAPIStatus = "Agent unavailable"
             isGPTAPIWorking = false
@@ -145,13 +146,11 @@ final class SettingsViewModel {
             return
         }
         gptAPIStatus = "Saving..."
-        isGPTAPIWorking = false
         do {
             try orchestrator.setLLMAPIKey(trimmedKey)
-            gptAPIStatus = "Testing..."
-            let ok = try await orchestrator.testLLMAPIConnection()
-            isGPTAPIWorking = ok
-            gptAPIStatus = ok ? "OpenAI reachable" : "OpenAI ping failed"
+            gptAPIKeyDraft = trimmedKey
+            isGPTAPIWorking = false
+            gptAPIStatus = "API key saved"
         } catch {
             isGPTAPIWorking = false
             gptAPIStatus = "Missing or invalid API key"
@@ -159,12 +158,14 @@ final class SettingsViewModel {
     }
 
     @MainActor
-    func checkGPTAPIKey() async {
+    func testCurrentAPIKey() async {
         guard let orchestrator else {
             gptAPIStatus = "Agent unavailable"
             isGPTAPIWorking = false
             return
         }
+        isTestingAPIKey = true
+        defer { isTestingAPIKey = false }
         gptAPIStatus = "Testing..."
         isGPTAPIWorking = false
         do {

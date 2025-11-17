@@ -11,6 +11,29 @@ info() { printf '\033[36m%s\033[0m\n' "$1"; }
 pass() { printf '\033[32m%s\033[0m\n' "$1"; }
 fail() { printf '\033[31m%s\033[0m\n' "$1"; exit 1; }
 
+build_app_target() {
+  if ! command -v xcodebuild >/dev/null; then
+    info "[gate-ci] xcodebuild not available; skipping Pulsum app build"
+    return
+  fi
+
+  info "[gate-ci] Building Pulsum app target (Debug/iOS Simulator)"
+  local build_cmd=(xcodebuild -scheme Pulsum -configuration Debug -destination "platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0" build)
+  local log_file="$LOG_DIR/pulsum_app_build.log"
+  if command -v xcpretty >/dev/null; then
+    if ! "${build_cmd[@]}" | tee "$log_file" | xcpretty; then
+      tail -n 50 "$log_file" || true
+      fail "[gate-ci] Pulsum app build failed (see $log_file)"
+    fi
+  else
+    if ! "${build_cmd[@]}" >"$log_file" 2>&1; then
+      tail -n 50 "$log_file" || true
+      fail "[gate-ci] Pulsum app build failed (see $log_file)"
+    fi
+  fi
+  pass "[gate-ci] Pulsum app target built successfully"
+}
+
 discover_and_run_spm_gate_tests() {
   local package_dir="$1"
   local package_name
@@ -163,6 +186,8 @@ PACKAGES=(
   "Packages/PulsumML"
   "Packages/PulsumData"
 )
+
+build_app_target
 
 for package in "${PACKAGES[@]}"; do
   discover_and_run_spm_gate_tests "$package"

@@ -307,7 +307,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Wiring
 - **Confidence:** High
-- **Status:** Fixed (Gate 2 — Waveform performance)
+- **Status:** Fixed (Gate 4 — RAG payload)
 - **Symptom/Impact:** Guardrail context is dropped—cloud requests omit candidate micro-moments, so GPT responses are ungrounded and violate retrieval-augmented generation contract.
 - **Where/Scope:** LLMGateway request construction.
 - **Evidence:**
@@ -317,13 +317,14 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Retrieval-augmented generation is central to coaching quality; architecture section 7 describes three-wall guardrail culminating in grounded GPT requests; dropping evidence undermines the entire guardrail stack.
 - **Suggested Diagnostics (no code):** Log outgoing JSON payloads in debug mode; assert candidate titles appear in messages array; compare GPT output specificity pre/post fix; measure coverage score changes.
 - **Related Contract (from architecture.md):** Section 7 ("AgentOrchestrator") describes guardrail flow including retrieval context; section 2 executive summary emphasizes grounded generation.
+- **Fix (2025-11-16 / Gate 4):** `LLMGateway` now builds a `MinimizedCloudRequest` JSON body that includes `candidateMoments[]` (id, title, short, detail, evidenceBadge) plus redacted tone, rationale, and z-score summaries, and rejects unexpected fields before hitting the Responses API (Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:8-247, 363-444, 813-878). `CoachAgent` populates the candidate structs and `CoachLLMContext.topMomentId` so the payload stays grounded (Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent.swift:93-205). Schema tests `LLMGatewaySchemaTests` now assert candidate data is present and PHI terms like `"transcript"`/`"heartrate"` never surface, and new `Gate4_LLMGatewayPingSeams` covers the UITest stub.
 
 ### BUG: Data-dominant routing reads non-existent feature keys, defaulting to energy
 - **ID:** BUG-20251026-0008
 - **Severity:** S1
 - **Area:** Data
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 4 — routing)
 - **Symptom/Impact:** When topic inference fails, fallback routing always reports `subj_energy` as dominant signal because lookup probes keys that FeatureVectorSnapshot never stores.
 - **Where/Scope:** AgentOrchestrator fallback logic; DataAgent feature bundle schema.
 - **Evidence:**
@@ -333,6 +334,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Architecture depends on accurate signal routing for personalized coaching; mismatched keys collapse fallback logic to a single default, losing personalization.
 - **Suggested Diagnostics (no code):** Log fallback key lookups with available snapshot keys; add assertion when keys are missing; instrument topic inference failure rates; compare requested keys vs. exposed keys.
 - **Related Contract (from architecture.md):** Section 7 describes retrieval wiring requiring consistent feature naming between DataAgent and Orchestrator; feature vector construction (section 8) should expose metrics used by routing.
+- **Fix (2025-11-16 / Gate 4):** Added `TopicSignalResolver` so intent mapping and data-dominant fallback look only at real snapshot keys (`z_*`, `subj_*`, `sentiment`) with deterministic ties, and the fallback now chooses the max |z| even when no topic is inferred (Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:407-520). New `Gate4_RoutingTests` verify the resolver logic, and `Gate4_ConsentRoutingTests` exercise real orchestrator routing with stubs so consent OFF stays on-device while consent ON routes to cloud.
 
 ### BUG: Pulse check-ins never trigger recommendation refresh
 - **ID:** BUG-20251026-0015
@@ -456,7 +458,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S2
 - **Area:** UI
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 4 — Settings UX)
 - **Symptom/Impact:** Tapping "Enable Apple Intelligence" button on iOS does nothing; `x-apple.systempreferences` scheme is macOS-only, blocking users from enabling cloud guardrail consent.
 - **Where/Scope:** SettingsView.
 - **Evidence:**
@@ -465,6 +467,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Architecture section 10 relies on users toggling Apple Intelligence for guardrail escalation; the primary CTA for enabling this feature is non-functional on iOS.
 - **Suggested Diagnostics (no code):** Log `UIApplication.canOpenURL` results for the scheme; capture device UX attempting the link; test on iOS 26 device; determine correct iOS Settings URL or remove broken link.
 - **Related Contract (from architecture.md):** Settings section (10) promises actionable guidance to enable Apple Intelligence on-device; SettingsViewModel should provide working deep link.
+- **Fix (2025-11-16 / Gate 4):** The Settings CTA now uses `UIApplication.openSettingsURLString` when available and falls back to Apple’s Apple-Intelligence support article. When UITest flags are set (`UITEST_FORCE_SETTINGS_FALLBACK` + `UITEST_CAPTURE_URLS`), the view logs the attempted URL to a shared defaults suite so automation can assert the fallback path; `Gate4_CloudConsentUITests.test_open_ai_enablement_link_falls_back_to_support_url()` exercises this path.
 
 ### BUG: Spline hero scene missing from main view
 - **ID:** BUG-20251026-0011
@@ -531,7 +534,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** UI
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 4 — consent UX)
 - **Symptom/Impact:** Settings promises “ChatGPT-5 API” status but provides no text field, paste affordance, or button to submit a key. The status light permanently reflects the bundled (and now revoked) key, leaving testers no way to rotate credentials or restore cloud phrasing.
 - **Where/Scope:** SettingsView; SettingsViewModel.
 - **Evidence:**
@@ -542,6 +545,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Runtime key rotation is a documented requirement (architecture.md §4); App Store review will expect user-facing secrets not to be hardcoded. Lack of UI blocks remediation of the critical credential leak.
 - **Suggested Diagnostics (no code):** Try to paste an API key anywhere in Settings—there is no focusable field. Inspect SwiftUI view hierarchy via View Debugger to confirm the absence of input controls.
 - **Related Contract (from docs):** architecture.md:40 & 85 — GPT-5 access “requires a key supplied at runtime” and Settings “tests API keys.”
+- **Fix (2025-11-16 / Gate 4):** `SettingsView` now includes a secure field bound to `gptAPIKeyDraft`, explicit “Save Key” and “Test Connection” buttons, and a status pill that reflects the latest ping result. `SettingsViewModel` exposes an async `saveAPIKey(_:)` and `testCurrentAPIKey()` that call through to orchestrator APIs and toggle a new loading state, so testers can rotate keys without redeploying. UI tests `Gate4_CloudConsentUITests` automate the save/test flow and assert the status pill flips to “OpenAI reachable.”
 
 ### BUG: Chat keyboard remains on-screen when switching tabs
 - **ID:** BUG-20251026-0042
@@ -635,7 +639,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S2
 - **Area:** Wiring
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 4 — Settings ping)
 - **Symptom/Impact:** API key test requests always fail validation due to case mismatch between request body ("PING") and validator ("ping"), breaking Settings connectivity test.
 - **Where/Scope:** LLMGateway ping implementation.
 - **Evidence:**
@@ -651,6 +655,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Why This Is a Problem:** Validation logic contradicts request construction; simple typo breaks feature; users cannot distinguish between bad key and bug.
 - **Suggested Diagnostics (no code):** Test with valid API key; log validation failures; confirm case mismatch; fix either request or validator to match.
 - **Related Contract (from architecture.md):** Section 9 describes LLM gateway with validation; Settings (section 10) promises API key testing.
+- **Fix (2025-11-16 / Gate 4):** `LLMGateway.makePingRequestBody` and `validatePingPayload` now share the same guard (case-insensitive) and the validator is exposed for tests so `"PING"` and `"ping"` both pass. `LLMGateway.testAPIConnection()` rejects unexpected fields before firing the request and short-circuits when the UITest stub flag is set. `Gate4_LLMKeyTests` prove the validator accepts mixed-case payloads and that key storage round-trips through the Keychain stub, while `Gate4_LLMGatewayPingSeams` covers the UITest environment flag.
 
 -### BUG: HealthKit queries lack authorization status checks before execution
 + **ID:** BUG-20251026-0024

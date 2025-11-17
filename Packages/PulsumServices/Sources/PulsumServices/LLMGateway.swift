@@ -5,13 +5,23 @@ import PulsumML
 import PulsumTypes
 
 /// Candidate micro-moment snippet for context (privacy-safe; no PHI)
-public struct CandidateMoment: Codable, Sendable {
+public struct CandidateMoment: Codable, Sendable, Equatable {
+    public let id: String
     public let title: String
-    public let oneLiner: String
+    public let shortDescription: String
+    public let detail: String?
+    public let evidenceBadge: String?
 
-    public init(title: String, oneLiner: String) {
+    public init(id: String,
+                title: String,
+                shortDescription: String,
+                detail: String?,
+                evidenceBadge: String?) {
+        self.id = id
         self.title = title
-        self.oneLiner = oneLiner
+        self.shortDescription = shortDescription
+        self.detail = detail
+        self.evidenceBadge = evidenceBadge
     }
 }
 
@@ -91,17 +101,136 @@ public struct CoachLLMContext: Codable, Sendable {
     public let topMomentId: String?
     public let rationale: String
     public let zScoreSummary: String
+    public let candidateMoments: [CandidateMoment]
 
     public init(userToneHints: String,
                 topSignal: String,
                 topMomentId: String?,
                 rationale: String,
-                zScoreSummary: String) {
+                zScoreSummary: String,
+                candidateMoments: [CandidateMoment] = []) {
         self.userToneHints = userToneHints
         self.topSignal = topSignal
         self.topMomentId = topMomentId
         self.rationale = rationale
         self.zScoreSummary = zScoreSummary
+        self.candidateMoments = candidateMoments
+    }
+}
+
+/// Encodes minimized cloud payloads and enforces schema guardrails.
+struct MinimizedCloudRequest: Codable, Sendable, Equatable {
+    struct MomentContext: Codable, Sendable, Equatable {
+        let id: String
+        let title: String
+        let short: String
+        let detail: String?
+        let evidenceBadge: String?
+    }
+
+    enum GuardError: Error {
+        case encodingFailed
+        case unexpectedRootFields(Set<String>)
+        case unexpectedMomentFields(Set<String>)
+        case forbiddenField(String)
+    }
+
+    private static let allowedRootKeys: Set<String> = [
+        "userToneHints",
+        "topSignal",
+        "topMomentId",
+        "rationale",
+        "zScoreSummary",
+        "candidateMoments"
+    ]
+    private static let allowedMomentKeys: Set<String> = [
+        "id",
+        "title",
+        "short",
+        "detail",
+        "evidenceBadge"
+    ]
+
+    let userToneHints: String
+    let topSignal: String
+    let topMomentId: String?
+    let rationale: String
+    let zScoreSummary: String
+    let candidateMoments: [MomentContext]
+
+    static func build(from context: CoachLLMContext,
+                      candidateMoments: [CandidateMoment]) -> MinimizedCloudRequest {
+        let limitedMoments = Array(candidateMoments.prefix(3))
+        let sanitizedMoments = limitedMoments.map { moment -> MomentContext in
+            let short = sanitize(moment.shortDescription, limit: 180)
+            let detail = sanitize(moment.detail ?? "", limit: 200)
+            let sanitizedDetail = detail.isEmpty ? nil : detail
+            let badge = sanitize(moment.evidenceBadge ?? "", limit: 32)
+            return MomentContext(id: sanitize(moment.id, limit: 80),
+                                 title: sanitize(moment.title, limit: 120),
+                                 short: short,
+                                 detail: sanitizedDetail,
+                                 evidenceBadge: badge.isEmpty ? nil : badge)
+        }
+
+        return MinimizedCloudRequest(
+            userToneHints: sanitize(context.userToneHints, limit: 180),
+            topSignal: sanitize(context.topSignal, limit: 120),
+            topMomentId: context.topMomentId.map { sanitize($0, limit: 80) },
+            rationale: sanitize(context.rationale, limit: 180),
+            zScoreSummary: sanitize(context.zScoreSummary, limit: 220),
+            candidateMoments: sanitizedMoments
+        )
+    }
+
+    func encodedJSONString() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(self)
+        try Self.guardFields(in: data)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw GuardError.encodingFailed
+        }
+        return json
+    }
+
+    private static func guardFields(in data: Data) throws {
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let root = object as? [String: Any] else {
+            throw GuardError.encodingFailed
+        }
+        let rootKeys = Set(root.keys)
+        if !rootKeys.isSubset(of: allowedRootKeys) {
+            throw GuardError.unexpectedRootFields(rootKeys.subtracting(allowedRootKeys))
+        }
+        if let moments = root["candidateMoments"] as? [[String: Any]] {
+            for moment in moments {
+                let keys = Set(moment.keys)
+                if !keys.isSubset(of: allowedMomentKeys) {
+                    throw GuardError.unexpectedMomentFields(keys.subtracting(allowedMomentKeys))
+                }
+            }
+        }
+        guard let jsonString = String(data: data, encoding: .utf8) else {
+            throw GuardError.encodingFailed
+        }
+        let lower = jsonString.lowercased()
+        for forbidden in ["\"transcript\"", "\"heartrate\"", "\"samples\""] {
+            if lower.contains(forbidden) {
+                throw GuardError.forbiddenField(forbidden)
+            }
+        }
+    }
+
+    private static func sanitize(_ text: String, limit: Int) -> String {
+        if text.isEmpty { return "" }
+        let collapsed = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let trimmed = collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= limit { return trimmed }
+        return String(trimmed.prefix(limit))
     }
 }
 
@@ -214,6 +343,11 @@ public final class LLMGateway {
             logger.debug("Responses API: max_output_tokens=\(tokenLogValue, privacy: .public) schemaNamePresent=\(hasName) schemaPresent=\(hasSchema)")
         }
 
+        guard Self.validatePingPayload(body) else {
+            logger.error("Ping payload failed validation guard.")
+            return false
+        }
+
         var request = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -250,7 +384,8 @@ public final class LLMGateway {
                                                topSignal: context.topSignal,
                                                topMomentId: context.topMomentId,
                                                rationale: PIIRedactor.redact(context.rationale),
-                                               zScoreSummary: context.zScoreSummary)
+                                               zScoreSummary: context.zScoreSummary,
+                                               candidateMoments: context.candidateMoments)
         logger.debug("Generating coach response. Consent: \(consentGranted, privacy: .public), input: \(String(sanitizedContext.userToneHints.prefix(80)), privacy: .public), topSignal: \(sanitizedContext.topSignal, privacy: .public)")
         logger.debug("Context rationale: \(String(sanitizedContext.rationale.prefix(200)), privacy: .public), scores: \(String(sanitizedContext.zScoreSummary.prefix(200)), privacy: .public)")
         if consentGranted {
@@ -407,27 +542,29 @@ fileprivate func validateChatPayload(body: [String: Any],
           (input.last? ["role"] as? String) == "user"
     else { return false }
 
-    do {
-        let data = try JSONEncoder().encode(context)
-        guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-        let allowedKeys: Set<String> = ["userToneHints", "topSignal", "rationale", "zScoreSummary"]
-        if !Set(dict.keys).isSubset(of: allowedKeys) { return false }
-    } catch {
+    guard let input = body["input"] as? [[String: Any]],
+          input.count == 2,
+          (input.first?["role"] as? String) == "system",
+          (input.last?["role"] as? String) == "user",
+          let userContent = input.last?["content"] as? String else {
         return false
     }
 
-    if let intentTopic, intentTopic.count > 48 { return false }
-    if candidateMoments.count > 2 { return false }
-    let controls = CharacterSet.controlCharacters
-    for moment in candidateMoments {
-        if moment.title.rangeOfCharacter(from: controls) != nil { return false }
-        if moment.oneLiner.rangeOfCharacter(from: controls) != nil { return false }
+    do {
+        let expected = MinimizedCloudRequest.build(from: context, candidateMoments: candidateMoments)
+        let expectedJSON = try expected.encodedJSONString()
+        if expectedJSON != userContent {
+            return false
+        }
+    } catch {
+        return false
     }
 
     return true
 }
 
-fileprivate func validatePingPayload(_ body: [String: Any]) -> Bool {
+extension LLMGateway {
+    static func validatePingPayload(_ body: [String: Any]) -> Bool {
     guard
         let text = body["text"] as? [String: Any],
         let format = text["format"] as? [String: Any],
@@ -460,11 +597,13 @@ fileprivate func validatePingPayload(_ body: [String: Any]) -> Bool {
     guard let input = body["input"] as? [[String: Any]],
           input.count == 1,
           (input.first? ["role"] as? String) == "user",
-          (input.first? ["content"] as? String) == "ping" else {
+          let content = (input.first? ["content"] as? String)?.lowercased(),
+          content == "ping" else {
         return false
     }
 
     return true
+    }
 }
 
 // MARK: - Cloud Client
@@ -493,8 +632,9 @@ public final class GPT5Client: CloudLLMClient {
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
 
-            let body = LLMGateway.makeChatRequestBody(context: context,
-                                                     maxOutputTokens: requestedTokens ?? 512)
+            let body = try LLMGateway.makeChatRequestBody(context: context,
+                                                          candidateMoments: limitedMoments,
+                                                          maxOutputTokens: requestedTokens ?? 512)
 
             if let text = body["text"] as? [String: Any],
                let format = text["format"] as? [String: Any] {
@@ -693,19 +833,15 @@ extension LLMGateway {
         CoachPhrasingSchema.responsesFormat()
     }
 
-    fileprivate static func makeChatRequestBody(context: CoachLLMContext,
-                                                maxOutputTokens: Int) -> [String: Any] {
-        let tone = String(context.userToneHints.prefix(180))
-        let signal = String(context.topSignal.prefix(120))
-        let scores = String(context.zScoreSummary.prefix(180))
-        let rationale = String(context.rationale.prefix(180))
-        let momentId = String((context.topMomentId ?? "none").prefix(60))
-        let userContent = "User tone: \(tone). Top signal: \(signal). Z-scores: \(scores). Rationale: \(rationale). If any, micro-moment id: \(momentId)."
-        let clipped = String(userContent.prefix(512))
+    static func makeChatRequestBody(context: CoachLLMContext,
+                                    candidateMoments: [CandidateMoment],
+                                    maxOutputTokens: Int) throws -> [String: Any] {
+        let minimized = MinimizedCloudRequest.build(from: context, candidateMoments: candidateMoments)
+        let userPayload = try minimized.encodedJSONString()
 
         let systemMessage =
 """
-You are Pulsum, a supportive wellness coach. You MUST return ONLY JSON that matches the CoachPhrasing schema provided via text.format (no prose, no markdown).
+You are Pulsum, a supportive wellness coach. You MUST return ONLY JSON that matches the CoachPhrasing schema provided via text.format (no prose, no markdown). The user input is a JSON blob with keys: userToneHints, topSignal, topMomentId, rationale, zScoreSummary, candidateMoments[]. Each candidate includes id, title, short, detail, and evidenceBadge. Use ONLY that minimized context (no assumptions, no external data).
 
 Style for coachReply:
 - 1–2 short sentences.
@@ -722,13 +858,13 @@ Field rules:
 Keep JSON compact. Do not echo the schema or input.
 """
 
-        return [
+        let body: [String: Any] = [
             "model": "gpt-5",
             "input": [
                 ["role": "system",
                  "content": systemMessage],
                 ["role": "user",
-                 "content": clipped]
+                 "content": userPayload]
             ],
             "max_output_tokens": clampTokens(maxOutputTokens),
             "text": [
@@ -736,9 +872,11 @@ Keep JSON compact. Do not echo the schema or input.
                 "format": coachFormat()
             ]
         ]
+
+        return body
     }
 
-    private static func makePingRequestBody() -> [String: Any] {
+    static func makePingRequestBody() -> [String: Any] {
         return [
             "model": "gpt-5",
             "input": [

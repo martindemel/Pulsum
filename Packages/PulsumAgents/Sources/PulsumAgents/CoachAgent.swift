@@ -92,16 +92,17 @@ public final class CoachAgent {
 
         let candidateMoments: [CandidateMoment]
         if let topic = intentTopic {
-            candidateMoments = await self.candidateMoments(for: topic, limit: 2)
+            candidateMoments = await self.candidateMoments(for: topic, limit: 3)
         } else {
             candidateMoments = []
         }
 
         let context = CoachLLMContext(userToneHints: String(sanitizedInput.prefix(180)),
                                       topSignal: topSignal,
-                                      topMomentId: nil,
+                                      topMomentId: candidateMoments.first?.id,
                                       rationale: rationale,
-                                      zScoreSummary: summary)
+                                      zScoreSummary: summary,
+                                      candidateMoments: candidateMoments)
         logger.debug("LLM context built. Top signal: \(context.topSignal, privacy: .public), intentTopic: \(intentTopic ?? "none", privacy: .public), rationale: \(context.rationale, privacy: .public), zScores: \(String(context.zScoreSummary.prefix(200)), privacy: .public)")
         return await llmGateway.generateCoachResponse(context: context,
                                                      intentTopic: intentTopic,
@@ -152,7 +153,8 @@ public final class CoachAgent {
     /// Returns privacy-safe title and oneLiner (no PHI)
     public func candidateMoments(for intentTopic: String, limit: Int = 2) async -> [CandidateMoment] {
         let query = "wellbeing \(intentTopic)"
-        guard let matches = try? vectorIndex.searchMicroMoments(query: query, topK: limit) else {
+        guard let matches = try? vectorIndex.searchMicroMoments(query: query, topK: limit),
+              !matches.isEmpty else {
             return []
         }
 
@@ -161,17 +163,19 @@ public final class CoachAgent {
             return []
         }
 
-        return moments.compactMap { moment in
-            let title = moment.title
-            let shortDescription = moment.shortDescription
-            guard !title.isEmpty, !shortDescription.isEmpty else {
-                return nil
-            }
-            // Only return privacy-safe fields (no PHI)
-            return CandidateMoment(
-                title: title,
-                oneLiner: String(shortDescription.prefix(120))
-            )
+        let lookup = Dictionary(uniqueKeysWithValues: moments.map { ($0.id, $0) })
+
+        return ids.compactMap { id in
+            guard let moment = lookup[id] else { return nil }
+            let title = moment.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let short = moment.shortDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty, !title.isEmpty, !short.isEmpty else { return nil }
+            let detail = moment.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return CandidateMoment(id: id,
+                                   title: title,
+                                   shortDescription: String(short.prefix(200)),
+                                   detail: detail?.isEmpty == true ? nil : String(detail!.prefix(240)),
+                                   evidenceBadge: moment.evidenceBadge)
         }
     }
 
@@ -197,7 +201,7 @@ public final class CoachAgent {
                           groundingFloor: Double) async -> CoachReplyPayload {
         await llmGateway.generateCoachResponse(context: context,
                                                intentTopic: intentTopic,
-                                               candidateMoments: [],
+                                               candidateMoments: context.candidateMoments,
                                                consentGranted: consentGranted,
                                                groundingFloor: groundingFloor)
     }

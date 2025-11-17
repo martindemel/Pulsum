@@ -14,6 +14,63 @@ public enum OrchestratorStartupError: Error {
     case healthBackgroundDeliveryMissing(underlying: Error)
 }
 
+// MARK: - Topic routing helpers
+
+struct TopicSignalResolver {
+    static func mapTopicToSignalOrDataDominant(topic: String?,
+                                               snapshot: FeatureVectorSnapshot) -> String {
+        if let topic,
+           let focus = TopicFocus(rawValue: topic) {
+            return focus.signalKey
+        }
+        return dataDominantSignal(from: snapshot)
+    }
+
+    static func dataDominantSignal(from snapshot: FeatureVectorSnapshot) -> String {
+        let prioritizedKeys = snapshot.features.keys
+            .filter { $0.hasPrefix("z_") || $0.hasPrefix("subj_") || $0 == "sentiment" }
+            .sorted()
+
+        var dominantSignal = "subj_energy"
+        var maxAbsZ = 0.0
+
+        for key in prioritizedKeys {
+            guard let value = snapshot.features[key] else { continue }
+            let magnitude = abs(value)
+            if magnitude > maxAbsZ {
+                maxAbsZ = magnitude
+                dominantSignal = key
+            }
+        }
+
+        return dominantSignal
+    }
+
+    private enum TopicFocus: String {
+        case sleep
+        case stress
+        case energy
+        case hrv
+        case mood
+        case movement
+        case mindfulness
+        case goals
+
+        var signalKey: String {
+            switch self {
+            case .sleep: return "subj_sleepQuality"
+            case .stress: return "subj_stress"
+            case .energy: return "subj_energy"
+            case .hrv: return "z_hrv"
+            case .mood: return "sentiment"
+            case .movement: return "z_steps"
+            case .mindfulness: return "z_rr"
+            case .goals: return "subj_energy"
+            }
+        }
+    }
+}
+
 protocol DataAgentProviding: AnyObject, Sendable {
     func start() async throws
     func latestFeatureVector() async throws -> FeatureVectorSnapshot?
@@ -404,7 +461,7 @@ public final class AgentOrchestrator {
                 topic = dominantFromCandidates
             }
 
-            topSignal = mapTopicToSignalOrDataDominant(topic: topic, snapshot: snapshot)
+            topSignal = TopicSignalResolver.mapTopicToSignalOrDataDominant(topic: topic, snapshot: snapshot)
             if let topic {
                 topSignal += " topic=\(topic)"
             }
@@ -538,7 +595,8 @@ public final class AgentOrchestrator {
 
         var topicScores: [String: Int] = [:]
         for candidate in candidates {
-            let text = (candidate.title + " " + candidate.oneLiner).lowercased()
+            let detail = candidate.detail ?? ""
+            let text = (candidate.title + " " + candidate.shortDescription + " " + detail).lowercased()
             for (topic, keywords) in topicKeywords {
                 let matches = keywords.filter { text.contains($0) }.count
                 topicScores[topic, default: 0] += matches
@@ -546,55 +604,6 @@ public final class AgentOrchestrator {
         }
 
         return topicScores.max(by: { $0.value < $1.value })?.key
-    }
-
-    /// Map topic to topSignal deterministically, or fall back to data-dominant signal
-    private func mapTopicToSignalOrDataDominant(topic: String?, snapshot: FeatureVectorSnapshot) -> String {
-        // Deterministic topic → signal mapping
-        let topicToSignal: [String: String] = [
-            "sleep": "subj_sleepQuality",
-            "stress": "subj_stress",
-            "energy": "subj_energy",
-            "hrv": "hrv_rmssd_rolling_30d",
-            "mood": "sentiment_rolling_7d",
-            "movement": "steps_rolling_7d",
-            "mindfulness": "sentiment_rolling_7d",
-            "goals": "subj_energy"
-        ]
-
-        if let topic = topic, let signal = topicToSignal[topic] {
-            return signal
-        }
-
-        // Fallback: data-dominant signal (Step 4)
-        return dataDominantSignal(from: snapshot)
-    }
-
-    /// Data-dominant fallback: choose signal with highest |z-score|
-    private func dataDominantSignal(from snapshot: FeatureVectorSnapshot) -> String {
-        let candidates = [
-            "subj_sleepQuality",
-            "subj_stress",
-            "subj_energy",
-            "hrv_rmssd_rolling_30d",
-            "sentiment_rolling_7d",
-            "steps_rolling_7d"
-        ]
-
-        var maxAbsZ = 0.0
-        var dominantSignal = "subj_energy"  // Default if all z-scores are zero
-
-        for candidate in candidates {
-            if let z = snapshot.features[candidate] {
-                let absZ = abs(z)
-                if absZ > maxAbsZ {
-                    maxAbsZ = absZ
-                    dominantSignal = candidate
-                }
-            }
-        }
-
-        return dominantSignal
     }
 
 }

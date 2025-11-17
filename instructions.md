@@ -212,8 +212,8 @@ SafetyAgent
 CONSENT, TRANSPARENCY & COMPLIANCE
 Recording transparency: While mic is active, show always‑visible indicator + countdown; stop on background/interrupt.
 Cloud consent banner (exact copy):
-"Pulsum can optionally use GPT‑5 to phrase brief coaching text. If you allow cloud processing, Pulsum sends only minimized context (no journals, no raw health data, no identifiers). PII is redacted. You can turn this off anytime in Settings ▸ Cloud Processing."
-Revocation: Settings contains Cloud Processing toggle; when Off, all requests remain on‑device.
+"Pulsum can optionally use GPT-5 to phrase brief coaching text. If you allow cloud processing, Pulsum sends only minimized context (no journals, no raw health data, no identifiers). PII is redacted. You can turn this off anytime in Settings ▸ Cloud Processing."
+Revocation: Settings contains Cloud Processing toggle, a secure field to paste/save the GPT-5 key, and a “Test Connection” button so users can validate connectivity; when the toggle is Off, all requests remain on-device regardless of key state.
 
 Privacy Manifest (iOS 26 - MANDATORY for App Store)
 • Create PrivacyInfo.xcprivacy for main app and all packages (PulsumData, PulsumServices, PulsumML, PulsumAgents)
@@ -239,7 +239,7 @@ HOW TO RUN PRIVACY REPORT & SECRET SCANS
 • Release build gate (TSan off, `OTHER_SWIFT_FLAGS` applied): `scripts/ci/build-release.sh` (disables code signing so CI can run the Release build without provisioning—remove the `CODE_SIGNING_*` overrides when archiving for App Store).
 
 RUN THE TEST HARNESS (GATE 1)
-• Use `scripts/ci/test-harness.sh` to run the end-to-end Gate 1 sweep locally—it chains the secret scan, privacy manifest check, `xcodebuild test -scheme Pulsum -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0'` (auto-falling back to iPhone 15), and `swift test --package-path Packages/Pulsum{Services,Data,ML} --filter 'Gate0_|Gate1_'`.
+• Use `scripts/ci/test-harness.sh` to run the end-to-end Gate 1 sweep locally—it now **first runs** `xcodebuild -scheme Pulsum -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build` so SwiftUI/compiler errors surface before tests, then chains the secret scan, privacy manifest check, `xcodebuild test -scheme Pulsum -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0'` (auto-falling back to iPhone 15), and `swift test --package-path Packages/Pulsum{Services,Data,ML} --filter 'Gate0_|Gate1_'`.
 • Logs land under `/tmp` as `pulsum_xcode_tests.log`, `pulsum_services_gate.log`, etc., so you can inspect failures quickly or attach them to PRs.
 • GitHub Actions (`.github/workflows/test-harness.yml`) invokes the same script on `macos-14` runners with Xcode 16 selected.
 
@@ -251,6 +251,8 @@ UITEST ENVIRONMENT FLAGS
 | `UITEST_AUTOGRANT=1` | When paired with the fake speech backend, skips mic/speech permission prompts for fast simulator runs. | Leave unset when manually verifying the real permission UX. |
 | `PULSUM_HEALTHKIT_STATUS_OVERRIDE` | Comma-separated list of `identifier=state` pairs (`granted`, `denied`, `notDetermined`) to simulate per-type authorization in DEBUG/UITest builds. | Example: `HKCategoryTypeIdentifierSleepAnalysis=denied,HKQuantityTypeIdentifierStepCount=granted`. |
 | `PULSUM_HEALTHKIT_REQUEST_BEHAVIOR` | Controls how `requestHealthKitAuthorization()` behaves in UITests (`grantAll`, unset for normal behavior). | Set to `grantAll` to flip all required types to granted after tapping “Request Health Access”. |
+| `UITEST_CAPTURE_URLS=1` | Records every Settings deep link (Apple Intelligence CTA) into `UserDefaults(suiteName: "ai.pulsum.uiautomation")` under `LastOpenedURL`. | Lets UI tests assert fallback URLs without launching Safari. |
+| `UITEST_FORCE_SETTINGS_FALLBACK=1` | Skips `UIApplication.openSettingsURLString` and forces Settings CTA to open the Apple Intelligence support article while logging it. | Use with `UITEST_CAPTURE_URLS` to exercise fallback behavior deterministically. |
 
 RESOLVING DUPLICATE PRIVACYINFO.XCPRIVACY WARNINGS
 1. Keep a single canonical manifest at `Pulsum/PrivacyInfo.xcprivacy`. Do **not** add package manifests or workspace copies to the app target.

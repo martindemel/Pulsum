@@ -10,7 +10,7 @@ Got it — I read **every line** of your `bugs.md` (43 bugs) and the companion `
 | 1 | Deterministic test harness & seams | ✅ Complete (2025‑11‑09) | Shared scheme + UITest seams + Gate0_/Gate1_ package suites enabled locally & in CI. |
 | 2 | Voice journal E2E | ✅ Complete (2025‑11‑11) | Closed BUG‑0005/0007/0009/0015/0016/0032/0034 with mic preflight hardening, session guardrails, waveform perf, and wellbeing refresh. |
 | 3 | HealthKit ingestion & UI freshness | ✅ Complete (2025‑11‑15) | Closed BUG‑0024/0037/0040/0043 with permission-aware ingestion, restart seam, UI status, and Gate3 tests. |
-| 4 | RAG/LLM wiring & consent UX | ⏳ Not started | Blocks: BUG‑0004/0010/0011/0023/0041. |
+| 4 | RAG/LLM wiring & consent UX | ✅ Complete (2025‑11‑16) | Closed BUG‑0004/0008/0010/0023/0041 with minimized cloud payloads, consent UX, and Settings key entry/tests. |
 | 5 | Vector index & data I/O integrity | ⏳ Not started | Blocks: BUG‑0012/0013/0017/0022/0036. |
 | 6 | ML correctness & personalization | ⏳ Not started | Blocks: BUG‑0020/0021/0027/0028/0038/0039. |
 | 7 | UI polish & spec gaps | ⏳ Not started | Blocks: BUG‑0009/0010/0011/0030/0031/0042. |
@@ -137,6 +137,14 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 ---
 
 ## Gate 4 — **RAG/LLM wiring & consent UX**
+
+| Bug | Fix | Tests |
+| --- | --- | --- |
+| BUG‑0004 — Retrieval context dropped | Added `MinimizedCloudRequest` encoder + candidateMoments payload, schema guard forbidding PHI, and wired CoachAgent to populate topMomentId | `LLMGatewaySchemaTests` (`test_payload_includes_candidateMoments...`, `test_payload_excludes_phi_fields...`), `Gate4_LLMGatewayPingSeams` |
+| BUG‑0008 — Fallback routing probes non-existent keys | Introduced `TopicSignalResolver` and max-|z| fallback using real `z_*`/`subj_*` keys with deterministic ties | `Gate4_RoutingTests` |
+| BUG‑0041 — No runtime GPT key entry/testing | Added secure field + Save/Test buttons in Settings, new view-model methods, and consent status pill | `Gate4_LLMKeyTests`, `Gate4_CloudConsentUITests.test_enter_key_and_test_connection_shows_ok_pill()` |
+| BUG‑0023 — PING validator case mismatch | `LLMGateway.validatePingPayload` now case-insensitive with shared guard, UITest stub short-circuit, and exposed validator for unit tests | `Gate4_LLMKeyTests.testPingAcceptsExpectedVariants`, `Gate4_LLMGatewayPingSeams.testStubPingShortcircuits_whenFlagEnabled()` |
+| BUG‑0010 — Apple Intelligence link macOS-only | Settings CTA now opens app Settings (when possible) or falls back to Apple support URL, with UITest instrumentation | `Gate4_CloudConsentUITests.test_open_ai_enablement_link_falls_back_to_support_url()` |
 
 **G4.1 — Retrieval context in GPT requests (BUG‑0004, S1)**
 **Fix**: Add `candidateMoments[]` (id, title, short/detail, evidenceBadge) to the Responses API payload per your `CoachPhrasingSchema`; keep PHI out as required by the spec.

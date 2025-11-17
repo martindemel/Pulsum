@@ -136,7 +136,7 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 - [x] Add Gate3_* package tests (authorization gating, restart idempotence, freshness bus seam) under `Packages/PulsumAgents`.
 
 ### Gate 2/3 follow-ups
-- [ ] Expand UITests to cover real cloud consent flows once Settings surfaces runtime key entry and API health (Gate 2).
+- [x] Expand UITests to cover real cloud consent flows once Settings surfaces runtime key entry and API health (Gate 4 — `Gate4_CloudConsentUITests` exercises Save/Test + Apple Intelligence fallback).
 - [x] Add journal transcript persistence + Saved toast assertions after BUG-0009 is resolved (Gate 2). (`JournalFlowUITests.testRecordStreamFinish_showsSavedToastAndTranscript`)
 - [x] Wire Gate Gate suites into CI via `scripts/ci/test-harness.sh`, `scripts/ci/integrity.sh`, and `.github/workflows/test-harness.yml` so Gate 0/1/2 (and future gates) run automatically.
 - [x] Gate3 package + UI tests now live; harness auto-detects them via the existing regex (`Gate3_*`).

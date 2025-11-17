@@ -1,8 +1,12 @@
 import SwiftUI
 import Observation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Bindable var viewModel: SettingsViewModel
     let wellbeingScore: Double?
 
@@ -40,7 +44,7 @@ struct SettingsScreen: View {
                                     Text("Use GPT-5 phrasing")
                                         .font(.pulsumBody)
                                         .foregroundStyle(Color.pulsumTextPrimary)
-                                    Text("We only send minimized context without journals or identifiers.")
+                                    Text("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
                                         .font(.pulsumCaption)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(2)
@@ -52,6 +56,66 @@ struct SettingsScreen: View {
                                 Text("Updated \(updated)")
                                     .font(.pulsumFootnote)
                                     .foregroundStyle(Color.pulsumTextTertiary)
+                            }
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: PulsumSpacing.sm) {
+                                VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                    Text("GPT-5 API Key")
+                                        .font(.pulsumCallout.weight(.semibold))
+                                        .foregroundStyle(Color.pulsumTextPrimary)
+                                    SecureField("sk-...", text: $viewModel.gptAPIKeyDraft)
+                                        .textFieldStyle(.roundedBorder)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                        .font(.pulsumBody)
+                                        .foregroundStyle(Color.pulsumTextPrimary)
+                                        .accessibilityIdentifier("CloudAPIKeyField")
+                                }
+
+                                HStack(spacing: PulsumSpacing.sm) {
+                                    Button {
+                                        Task { await viewModel.saveAPIKey(viewModel.gptAPIKeyDraft) }
+                                    } label: {
+                                        Text("Save Key")
+                                            .font(.pulsumCallout.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.6)).interactive())
+                                    .accessibilityIdentifier("CloudAPISaveButton")
+                                    .disabled(viewModel.gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTestingAPIKey)
+
+                                    Button {
+                                        Task { await viewModel.testCurrentAPIKey() }
+                                    } label: {
+                                        if viewModel.isTestingAPIKey {
+                                            ProgressView()
+                                                .progressViewStyle(.circular)
+                                                .tint(Color.pulsumTextPrimary)
+                                                .frame(maxWidth: .infinity)
+                                        } else {
+                                            Text("Test Connection")
+                                                .font(.pulsumCallout.weight(.semibold))
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                    }
+                                    .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                    .disabled(viewModel.isTestingAPIKey)
+                                    .accessibilityIdentifier("CloudAPITestButton")
+                                }
+
+                                HStack(spacing: PulsumSpacing.sm) {
+                                    gptStatusBadge(isWorking: viewModel.isGPTAPIWorking,
+                                                   status: viewModel.gptAPIStatus)
+                                    Text(viewModel.gptAPIStatus)
+                                        .font(.pulsumFootnote)
+                                        .foregroundStyle(Color.pulsumTextSecondary)
+                                        .lineSpacing(2)
+                                        .accessibilityIdentifier("CloudAPIStatusText")
+                                }
                             }
                         }
                         .padding(PulsumSpacing.lg)
@@ -241,36 +305,20 @@ struct SettingsScreen: View {
                             }
 
                             if needsEnableLink(status: viewModel.foundationModelsStatus) {
+#if os(macOS)
                                 Link(destination: URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings")!) {
-                                    Text("Enable Apple Intelligence in Settings")
-                                        .font(.pulsumCallout)
-                                        .foregroundStyle(Color.pulsumBlueSoft)
+                                    appleIntelligenceLinkContent()
                                 }
+#else
+                                Button {
+                                    openAppleIntelligenceSettings()
+                                } label: {
+                                    appleIntelligenceLinkContent()
+                                }
+                                .accessibilityIdentifier("AppleIntelligenceLinkButton")
+#endif
                             }
 
-                            Divider()
-                                .padding(.vertical, PulsumSpacing.xs)
-
-                            // ChatGPT-5 API
-                            HStack(alignment: .top, spacing: PulsumSpacing.sm) {
-                                Image(systemName: "cpu")
-                                    .font(.pulsumTitle3)
-                                    .foregroundStyle(Color.pulsumGreenSoft)
-                                VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                                    HStack(spacing: PulsumSpacing.xs) {
-                                        Text("ChatGPT-5 API")
-                                            .font(.pulsumHeadline)
-                                            .foregroundStyle(Color.pulsumTextPrimary)
-                                        Circle()
-                                            .fill(viewModel.isGPTAPIWorking ? Color.green : Color.red)
-                                            .frame(width: 8, height: 8)
-                                    }
-                                    Text(viewModel.gptAPIStatus)
-                                        .font(.pulsumCallout)
-                                        .foregroundStyle(Color.pulsumTextSecondary)
-                                        .lineSpacing(2)
-                                }
-                            }
                         }
                         .padding(PulsumSpacing.lg)
                         .background(Color.pulsumCardWhite)
@@ -420,7 +468,10 @@ struct SettingsScreen: View {
             .task {
                 viewModel.refreshFoundationStatus()
                 viewModel.refreshHealthAccessStatus()
-                await viewModel.checkGPTAPIKey()
+                await viewModel.testCurrentAPIKey()
+            }
+            .onEscapeDismiss {
+                dismiss()
             }
         }
     }
@@ -433,6 +484,25 @@ struct SettingsScreen: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    @ViewBuilder
+    private func appleIntelligenceLinkContent() -> some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+            HStack(spacing: PulsumSpacing.xs) {
+                Text("Enable Apple Intelligence in Settings")
+                    .font(.pulsumCallout)
+                    .foregroundStyle(Color.pulsumBlueSoft)
+                Image(systemName: "arrow.up.right")
+                    .font(.pulsumCaption)
+                    .foregroundStyle(Color.pulsumBlueSoft)
+            }
+            Text("Opens system Settings so you can turn on Apple Intelligence for GPT-5 routing.")
+                .font(.pulsumFootnote)
+                .foregroundStyle(Color.pulsumTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -460,6 +530,73 @@ struct SettingsScreen: View {
         .padding(.vertical, PulsumSpacing.xxs)
         .background(color.opacity(0.12))
         .cornerRadius(PulsumRadius.sm)
+        .accessibilityIdentifier("CloudAPIStatusBadge")
+    }
+
+    private func gptStatusBadge(isWorking: Bool, status: String) -> some View {
+        let (label, color): (String, Color) = {
+            if isWorking {
+                return ("OK", Color.pulsumGreenSoft)
+            }
+            if status.localizedCaseInsensitiveContains("missing") {
+                return ("Missing", Color.pulsumTextSecondary)
+            }
+            return ("Check", Color.pulsumWarning)
+        }()
+        return HStack(spacing: PulsumSpacing.xxs) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.pulsumCaption.weight(.semibold))
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, PulsumSpacing.xs)
+        .padding(.vertical, PulsumSpacing.xxs)
+        .background(color.opacity(0.12))
+        .cornerRadius(PulsumRadius.sm)
+    }
+
+    private func openAppleIntelligenceSettings() {
+        let forceFallback = ProcessInfo.processInfo.environment["UITEST_FORCE_SETTINGS_FALLBACK"] == "1"
+#if canImport(UIKit)
+        if !forceFallback,
+           let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(settingsURL, options: [:]) { success in
+                if success {
+                    logOpenedURL(settingsURL)
+                } else {
+                    openSupportArticle()
+                }
+            }
+            return
+        }
+#endif
+        openSupportArticle()
+    }
+
+    private func logOpenedURL(_ url: URL) {
+        guard ProcessInfo.processInfo.environment["UITEST_CAPTURE_URLS"] == "1" else { return }
+        let defaults = UserDefaults(suiteName: "ai.pulsum.uiautomation")
+        defaults?.set(url.absoluteString, forKey: "LastOpenedURL")
+    }
+
+    private func openSupportArticle() {
+        guard let supportURL = URL(string: "https://support.apple.com/en-us/HT213969") else { return }
+        logOpenedURL(supportURL)
+        _ = openURL(supportURL)
+    }
+}
+
+private extension View {
+    func onEscapeDismiss(_ action: @escaping () -> Void) -> some View {
+        if #available(iOS 17.0, macOS 14.0, *) {
+            return self.onKeyPress(.escape) {
+                action()
+                return .handled
+            }
+        }
+        return self
     }
 }
 
