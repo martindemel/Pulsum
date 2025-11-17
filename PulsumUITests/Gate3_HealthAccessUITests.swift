@@ -60,4 +60,26 @@ final class Gate3_HealthAccessUITests: PulsumUITestCase {
 
         dismissSettingsSheet()
     }
+
+    func testNoToastOnInitialFullyGranted() throws {
+        let allGranted = [
+            "HKQuantityTypeIdentifierHeartRateVariabilitySDNN=authorized",
+            "HKQuantityTypeIdentifierHeartRate=authorized",
+            "HKQuantityTypeIdentifierRestingHeartRate=authorized",
+            "HKQuantityTypeIdentifierRespiratoryRate=authorized",
+            "HKQuantityTypeIdentifierStepCount=authorized",
+            "HKCategoryTypeIdentifierSleepAnalysis=authorized"
+        ].joined(separator: ",")
+
+        launchPulsum(additionalEnvironment: [
+            "PULSUM_HEALTHKIT_STATUS_OVERRIDE": allGranted
+        ])
+
+        try openSettingsSheetOrSkip()
+
+        let successToast = app.staticTexts["Health data connected"]
+        XCTAssertFalse(successToast.exists, "Toast must not appear on initial fully granted state.")
+
+        dismissSettingsSheet()
+    }
 }

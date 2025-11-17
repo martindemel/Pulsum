@@ -36,6 +36,8 @@ final class SettingsViewModel {
     private(set) var healthKitSuccessMessage: String?
     @ObservationIgnored private var healthKitSuccessTask: Task<Void, Never>?
     private var lastHealthAccessStatus: HealthAccessStatus?
+    private var awaitingToastAfterRequest: Bool = false
+    private var didApplyInitialStatus: Bool = false
 
     // GPT-5 API Status
     private(set) var gptAPIStatus: String = "Missing API key"
@@ -104,6 +106,7 @@ final class SettingsViewModel {
             return
         }
         isRequestingHealthKitAuthorization = true
+        awaitingToastAfterRequest = true
         healthKitError = nil
 
         do {
@@ -180,7 +183,7 @@ final class SettingsViewModel {
     }
 
     private func applyHealthStatus(_ status: HealthAccessStatus) {
-        let previouslyGranted = lastHealthAccessStatus?.isFullyGranted ?? false
+        let wasFullyGrantedOptional = lastHealthAccessStatus?.isFullyGranted
         lastHealthAccessStatus = status
 
         switch status.availability {
@@ -211,10 +214,16 @@ final class SettingsViewModel {
                             status: rowStatus(for: descriptor.id, status: status))
         }
 
-        if status.isFullyGranted && !previouslyGranted {
+        let transitionedToFull = (wasFullyGrantedOptional == false) && status.isFullyGranted
+        if status.isFullyGranted && (transitionedToFull || awaitingToastAfterRequest) && didApplyInitialStatus {
+            awaitingToastAfterRequest = false
             emitHealthKitSuccessToast()
         } else if !status.isFullyGranted {
             cancelHealthKitSuccessToast()
+        }
+
+        if !didApplyInitialStatus {
+            didApplyInitialStatus = true
         }
     }
 
