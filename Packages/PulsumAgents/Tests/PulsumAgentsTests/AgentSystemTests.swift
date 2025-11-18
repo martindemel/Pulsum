@@ -18,7 +18,13 @@ final class AgentSystemTests: XCTestCase {
         XCTAssertFalse(message.isEmpty)
     }
     
-    func testSafetyAgentFlagsCrisis() async {
+    func testSafetyAgentFlagsCrisis() async throws {
+#if !os(iOS)
+        throw XCTSkip("Safety agent FM classification validated on iOS 26+ only")
+#else
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("Safety agent FM classification validated on iOS 26+ only")
+        }
         let safety = SafetyAgent()
         let decision = await safety.evaluate(text: "I might hurt myself tonight")
         switch decision.classification {
@@ -27,6 +33,7 @@ final class AgentSystemTests: XCTestCase {
         default:
             XCTFail("Expected crisis classification")
         }
+#endif
     }
 
     func testAgentOrchestrationFlow() async throws {
@@ -70,8 +77,6 @@ final class AgentSystemTests: XCTestCase {
         return container
     }
 }
-
-
 
 
 

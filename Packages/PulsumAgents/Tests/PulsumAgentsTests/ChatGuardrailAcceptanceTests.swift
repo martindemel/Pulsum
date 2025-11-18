@@ -62,7 +62,7 @@ struct ChatGuardrailAcceptanceTests {
 // MARK: - Harness
 
 @MainActor
-private final class ChatHarness {
+final class ChatHarness {
     let orchestrator: AgentOrchestrator
     let snapshot: FeatureVectorSnapshot
     let cloudClient: AcceptanceCloudClient
@@ -88,7 +88,7 @@ private final class ChatHarness {
         let sentimentAgent = SentimentAgent()
         let safetyAgent = SafetyAgent()
         let cheerAgent = CheerAgent()
-        let topicGate = EmbeddingTopicGateProvider()
+        let topicGate = AcceptanceTopicGate()
 
         self.orchestrator = AgentOrchestrator(dataAgent: dataAgent,
                                               sentimentAgent: sentimentAgent,
@@ -161,7 +161,7 @@ private actor StubDataAgent: DataAgentProviding {
     func reset() {}
 }
 
-private final class StubVectorIndex: VectorIndexProviding {
+final class StubVectorIndex: VectorIndexProviding {
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) throws -> [Float] { [] }
     func removeMicroMoment(id: String) throws {}
 
@@ -171,6 +171,8 @@ private final class StubVectorIndex: VectorIndexProviding {
             return Self.matches(similarities: [0.75, 0.68, 0.61])
         case let text where text.contains("motivated"):
             return Self.matches(similarities: [0.74, 0.66, 0.60])
+        case let text where text.contains("stress"):
+            return Self.matches(similarities: [0.72, 0.65, 0.58])
         default:
             return []
         }
@@ -184,7 +186,7 @@ private final class StubVectorIndex: VectorIndexProviding {
     }
 }
 
-private final class AcceptanceCloudClient: CloudLLMClient {
+final class AcceptanceCloudClient: CloudLLMClient {
     private(set) var callCount = 0
     var cannedReply: String = "Cloud response"
 
@@ -206,7 +208,7 @@ private final class AcceptanceCloudClient: CloudLLMClient {
     }
 }
 
-private final class AcceptanceLocalGenerator: OnDeviceCoachGenerator {
+final class AcceptanceLocalGenerator: OnDeviceCoachGenerator {
     private(set) var callCount = 0
 
     func generate(context: CoachLLMContext) async -> CoachReplyPayload {
@@ -219,3 +221,26 @@ private final class AcceptanceLocalGenerator: OnDeviceCoachGenerator {
     }
 }
 #endif
+final class AcceptanceTopicGate: TopicGateProviding {
+    func classify(_ text: String) async throws -> GateDecision {
+        let lower = text.lowercased()
+        let topic: String?
+        if lower.contains("sleep") {
+            topic = "sleep"
+        } else if lower.contains("stress") {
+            topic = "stress"
+        } else if lower.contains("energy") || lower.contains("motivation") {
+            topic = "energy"
+        } else if lower.contains("walk") || lower.contains("steps") {
+            topic = "movement"
+        } else if lower.contains("hrv") {
+            topic = "hrv"
+        } else {
+            topic = nil
+        }
+        return GateDecision(isOnTopic: topic != nil,
+                            reason: "stub",
+                            confidence: 0.95,
+                            topic: topic)
+    }
+}

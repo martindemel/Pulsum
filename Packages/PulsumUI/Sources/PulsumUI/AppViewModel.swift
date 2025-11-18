@@ -199,6 +199,9 @@ private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
 struct ConsentStore {
     private let context = PulsumData.viewContext
     private static let recordID = "default"
+    private let consentVersion: String = {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    }()
 
     func loadConsent() -> Bool {
         let request = UserPrefs.fetchRequest()
@@ -224,9 +227,36 @@ struct ConsentStore {
         prefs.consentCloud = granted
         prefs.updatedAt = Date()
         do {
+            persistConsentHistory(granted: granted)
             try context.save()
         } catch {
             context.rollback()
+        }
+    }
+
+    private func persistConsentHistory(granted: Bool) {
+        let request = ConsentState.fetchRequest()
+        request.fetchLimit = 1
+        request.predicate = NSPredicate(format: "version == %@", consentVersion)
+
+        let record: ConsentState
+        if let existing = try? context.fetch(request).first {
+            record = existing
+        } else {
+            record = ConsentState(context: context)
+            record.id = UUID()
+            record.version = consentVersion
+        }
+
+        let timestamp = Date()
+        if granted {
+            record.grantedAt = timestamp
+            record.revokedAt = nil
+        } else {
+            if record.grantedAt == nil {
+                record.grantedAt = timestamp
+            }
+            record.revokedAt = timestamp
         }
     }
 }

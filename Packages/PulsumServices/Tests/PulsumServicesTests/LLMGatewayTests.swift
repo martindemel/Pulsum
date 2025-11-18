@@ -6,32 +6,6 @@ import Glibc
 #endif
 @testable import PulsumServices
 
-private func makeChatBody(context: CoachLLMContext,
-                          maxOutputTokens: Int) -> [String: Any] {
-    let tone = String(context.userToneHints.prefix(180))
-    let signal = String(context.topSignal.prefix(120))
-    let scores = String(context.zScoreSummary.prefix(180))
-    let rationale = String(context.rationale.prefix(180))
-    let momentId = String((context.topMomentId ?? "none").prefix(60))
-    let userContent = "User tone: \(tone). Top signal: \(signal). Z-scores: \(scores). Rationale: \(rationale). If any, micro-moment id: \(momentId)."
-    let clipped = String(userContent.prefix(512))
-
-    return [
-        "model": "gpt-5",
-        "input": [
-            ["role": "system",
-             "content": "You are a supportive wellness coach. Reply in <=2 sentences. Output MUST match the CoachPhrasing schema."],
-            ["role": "user",
-             "content": clipped]
-        ],
-        "max_output_tokens": max(128, min(1024, maxOutputTokens)),
-        "text": [
-            "verbosity": "low",
-            "format": CoachPhrasingSchema.responsesFormat()
-        ]
-    ]
-}
-
 final class MockCloudClient: CloudLLMClient {
     var shouldFail = false
     var groundingScore: Double = 0.65
@@ -115,12 +89,22 @@ final class LLMGatewayTests: XCTestCase {
     }
 
     func testCloudRequestBodyFormatUsesUnifiedSchema() throws {
+        let candidates = [
+            CandidateMoment(id: "a",
+                            title: "Quick reset",
+                            shortDescription: "Deep breathing reset.",
+                            detail: "A concise prompt to slow breathing.",
+                            evidenceBadge: "Strong")
+        ]
         let context = CoachLLMContext(userToneHints: String(repeating: "a", count: 400),
                                       topSignal: "topic=sleep",
-                                      topMomentId: nil,
+                                      topMomentId: candidates.first?.id,
                                       rationale: String(repeating: "b", count: 250),
-                                      zScoreSummary: String(repeating: "c", count: 210))
-        let body = makeChatBody(context: context, maxOutputTokens: 512)
+                                      zScoreSummary: String(repeating: "c", count: 210),
+                                      candidateMoments: candidates)
+        let body = try LLMGateway.makeChatRequestBody(context: context,
+                                                      candidateMoments: candidates,
+                                                      maxOutputTokens: 512)
 
         XCTAssertEqual(body["model"] as? String, "gpt-5")
         let tokens = body["max_output_tokens"] as? Int
@@ -152,8 +136,9 @@ final class LLMGatewayTests: XCTestCase {
         }
 
         XCTAssertEqual(systemRole, "system")
-        XCTAssertEqual(userRole, "user")
-        XCTAssertTrue(userContent.contains("User tone:"))
+       XCTAssertEqual(userRole, "user")
+        XCTAssertTrue(userContent.contains("\"userToneHints\""))
+        XCTAssertTrue(userContent.contains("\"candidateMoments\""))
     }
 
     func testSchemaErrorFallsBackToLocalGenerator() async {

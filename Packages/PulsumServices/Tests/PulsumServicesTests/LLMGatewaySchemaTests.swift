@@ -2,32 +2,6 @@ import Testing
 import Foundation
 @testable import PulsumServices
 
-private func makeChatBody(context: CoachLLMContext,
-                          maxOutputTokens: Int) -> [String: Any] {
-    let tone = String(context.userToneHints.prefix(180))
-    let signal = String(context.topSignal.prefix(120))
-    let scores = String(context.zScoreSummary.prefix(180))
-    let rationale = String(context.rationale.prefix(180))
-    let momentId = String((context.topMomentId ?? "none").prefix(60))
-    let userContent = "User tone: \(tone). Top signal: \(signal). Z-scores: \(scores). Rationale: \(rationale). If any, micro-moment id: \(momentId)."
-    let clipped = String(userContent.prefix(512))
-
-    return [
-        "model": "gpt-5",
-        "input": [
-            ["role": "system",
-             "content": "You are a supportive wellness coach. Reply in <=2 sentences. Output MUST match the CoachPhrasing schema."],
-            ["role": "user",
-             "content": clipped]
-        ],
-        "max_output_tokens": max(128, min(1024, maxOutputTokens)),
-        "text": [
-            "verbosity": "low",
-            "format": CoachPhrasingSchema.responsesFormat()
-        ]
-    ]
-}
-
 /// Tests for LLMGateway structured output schema validation (Wall 2)
 struct LLMGatewaySchemaTests {
 
@@ -142,16 +116,18 @@ struct LLMGatewaySchemaTests {
     }
 
     @Test("Max output tokens clamped to window")
-    func maxOutputTokensClamped() {
+    func maxOutputTokensClamped() throws {
         let context = CoachLLMContext(userToneHints: "hi",
                                       topSignal: "topic=sleep",
                                       topMomentId: nil,
                                       rationale: "steady",
                                       zScoreSummary: "z_hrv:-1.2")
-        let low = makeChatBody(context: context,
-                                maxOutputTokens: 32)
-        let high = makeChatBody(context: context,
-                                 maxOutputTokens: 2000)
+        let low = try LLMGateway.makeChatRequestBody(context: context,
+                                                     candidateMoments: [],
+                                                     maxOutputTokens: 32)
+        let high = try LLMGateway.makeChatRequestBody(context: context,
+                                                      candidateMoments: [],
+                                                      maxOutputTokens: 2000)
 
         #expect(low["max_output_tokens"] as? Int == 128)
         #expect(high["max_output_tokens"] as? Int == 1024)
@@ -177,5 +153,95 @@ struct LLMGatewaySchemaTests {
                 Issue.record("Property \(key) missing in schema")
             }
         }
+    }
+
+    @Test("Payload includes candidate moments and minimized context only")
+    func payloadIncludesCandidateMoments() throws {
+        let candidates = [
+            CandidateMoment(id: "moment-1",
+                            title: "Wind-down ritual",
+                            shortDescription: "Dim the lights and breathe slowly for two minutes.",
+                            detail: "This short practice taps the parasympathetic response on low HRV days.",
+                            evidenceBadge: "Strong"),
+            CandidateMoment(id: "moment-2",
+                            title: "Micro walk",
+                            shortDescription: "A five-minute outdoor walk lifts mood quickly.",
+                            detail: nil,
+                            evidenceBadge: "Medium")
+        ]
+        let context = CoachLLMContext(userToneHints: "Need an evening routine",
+                                      topSignal: "subj_sleepQuality:-0.8",
+                                      topMomentId: candidates.first?.id,
+                                      rationale: "sleep debt + subjective fatigue",
+                                      zScoreSummary: "z_sleepDebt:1.2,z_hrv:-0.7",
+                                      candidateMoments: candidates)
+        let body = try LLMGateway.makeChatRequestBody(context: context,
+                                                      candidateMoments: candidates,
+                                                      maxOutputTokens: 400)
+
+        guard let userPayload = (body["input"] as? [[String: Any]])?.last?["content"] as? String,
+              let payloadData = userPayload.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
+            Issue.record("Failed to decode minimized payload")
+            return
+        }
+        #expect(Set(json.keys) == ["userToneHints", "topSignal", "topMomentId", "rationale", "zScoreSummary", "candidateMoments"])
+        guard let embeddedMoments = json["candidateMoments"] as? [[String: Any]],
+              let first = embeddedMoments.first else {
+            Issue.record("Missing embedded candidate moments")
+            return
+        }
+        #expect(Set(first.keys).isSubset(of: ["id", "title", "short", "detail", "evidenceBadge"]))
+        #expect((first["id"] as? String) == "moment-1")
+        #expect(((first["short"] as? String) ?? "").contains("Dim the lights"))
+    }
+
+    @Test("Payload excludes PHI and forbidden fields like transcript/heartrate/samples")
+    func payloadExcludesForbiddenFields() throws {
+        let context = CoachLLMContext(userToneHints: "Focus on sleep without sharing transcript",
+                                      topSignal: "subj_sleepQuality:-0.8",
+                                      topMomentId: nil,
+                                      rationale: "sleep debt + low HRV",
+                                      zScoreSummary: "z_sleepDebt:1.2,z_hrv:-0.7")
+        let body = try LLMGateway.makeChatRequestBody(context: context,
+                                                      candidateMoments: [],
+                                                      maxOutputTokens: 256)
+        guard let userPayload = (body["input"] as? [[String: Any]])?.last?["content"] as? String else {
+            Issue.record("Missing minimized payload")
+            return
+        }
+        let lower = userPayload.lowercased()
+        #expect(!lower.contains("\"transcript\""))
+        #expect(!lower.contains("\"heartrate\""))
+        #expect(!lower.contains("\"samples\""))
+    }
+
+    @Test("Candidate detail omitted when nil")
+    func candidateDetailOmittedWhenNil() throws {
+        let candidates = [
+            CandidateMoment(id: "moment-1",
+                            title: "Breathing reset",
+                            shortDescription: "Take three calm breaths.",
+                            detail: nil,
+                            evidenceBadge: "Strong")
+        ]
+        let context = CoachLLMContext(userToneHints: "Need help relaxing",
+                                      topSignal: "subj_stress:+1.2",
+                                      topMomentId: candidates.first?.id,
+                                      rationale: "stress + low HRV",
+                                      zScoreSummary: "z_hrv:-0.6",
+                                      candidateMoments: candidates)
+        let body = try LLMGateway.makeChatRequestBody(context: context,
+                                                      candidateMoments: candidates,
+                                                      maxOutputTokens: 256)
+        guard let userPayload = (body["input"] as? [[String: Any]])?.last?["content"] as? String,
+              let data = userPayload.data(using: .utf8),
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let embedded = json["candidateMoments"] as? [[String: Any]],
+              let first = embedded.first else {
+            Issue.record("Failed to decode minimized payload")
+            return
+        }
+        #expect(first["detail"] == nil)
     }
 }

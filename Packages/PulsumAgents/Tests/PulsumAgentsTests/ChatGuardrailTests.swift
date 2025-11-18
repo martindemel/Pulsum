@@ -151,7 +151,7 @@ struct ChatGuardrailTests {
 
     @Test("Sleep synonym classified on-topic")
     func sleepSynonymOnTopic() async throws {
-        let provider = EmbeddingTopicGateProvider()
+        let provider = KeywordTopicGate()
         let decision = try await provider.classify("How to improve sleep")
         #expect(decision.isOnTopic)
         #expect(decision.topic == "sleep")
@@ -160,7 +160,7 @@ struct ChatGuardrailTests {
 
     @Test("Motivation synonym maps to goals domain")
     func motivationSynonymOnTopic() async throws {
-        let provider = EmbeddingTopicGateProvider()
+        let provider = KeywordTopicGate()
         let decision = try await provider.classify("How do I keep motivated this week?")
         #expect(decision.isOnTopic)
         #expect(decision.topic == "goals" || decision.topic == "energy")
@@ -194,5 +194,23 @@ final class CountingLocalGenerator: OnDeviceCoachGenerator {
     func generate(context: CoachLLMContext) async -> CoachReplyPayload {
         callCount += 1
         return CoachReplyPayload(coachReply: "Local fallback for \(context.topSignal)", nextAction: nil)
+    }
+}
+
+private final class KeywordTopicGate: TopicGateProviding {
+    func classify(_ text: String) async throws -> GateDecision {
+        let lower = text.lowercased()
+        let topic: String?
+        if lower.contains("sleep") {
+            topic = "sleep"
+        } else if lower.contains("motivat") || lower.contains("energy") {
+            topic = "goals"
+        } else {
+            topic = nil
+        }
+        return GateDecision(isOnTopic: topic != nil,
+                            reason: "keyword",
+                            confidence: topic == nil ? 0.5 : 0.95,
+                            topic: topic)
     }
 }

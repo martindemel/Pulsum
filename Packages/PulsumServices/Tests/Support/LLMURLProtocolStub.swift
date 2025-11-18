@@ -48,7 +48,7 @@ final class LLMURLProtocolStub: URLProtocol {
         guard let body = bodyJSON(from: request),
               let input = body["input"] as? [[String: Any]],
               let user = input.last,
-              let content = user["content"] as? String else {
+              let content = (user["content"] as? String)?.lowercased() else {
             return false
         }
         return content == "ping"
