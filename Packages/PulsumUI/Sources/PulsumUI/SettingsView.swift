@@ -590,13 +590,16 @@ struct SettingsScreen: View {
 
 private extension View {
     func onEscapeDismiss(_ action: @escaping () -> Void) -> some View {
-        if #available(iOS 17.0, macOS 14.0, *) {
-            return self.onKeyPress(.escape) {
-                action()
-                return .handled
+        Group {
+            if #available(iOS 17.0, macOS 14.0, *) {
+                self.onKeyPress(.escape) {
+                    action()
+                    return .handled
+                }
+            } else {
+                self
             }
         }
-        return self
     }
 }
 
