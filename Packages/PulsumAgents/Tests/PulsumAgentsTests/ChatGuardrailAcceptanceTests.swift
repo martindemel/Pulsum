@@ -81,7 +81,7 @@ final class ChatHarness {
         let coachAgent: CoachAgent = try CoachAgent(container: container,
                                                     vectorIndex: StubVectorIndex(),
                                                     libraryImporter: LibraryImporter(configuration: LibraryImporterConfiguration(),
-                                                                                    vectorIndexManager: VectorIndexManager.shared),
+                                                                                    vectorIndex: VectorIndexManager.shared),
                                                     llmGateway: gateway,
                                                     shouldIngestLibrary: false)
 
