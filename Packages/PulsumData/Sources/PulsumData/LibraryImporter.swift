@@ -42,12 +42,7 @@ public final class LibraryImporter {
     }
 
     public func ingestIfNeeded() async throws {
-        var urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
-                                             subdirectory: configuration.subdirectory) ?? []
-        if urls.isEmpty, configuration.subdirectory != nil {
-            urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
-                                             subdirectory: nil) ?? []
-        }
+        let urls = discoverLibraryURLs()
         guard !urls.isEmpty else {
             #if DEBUG
             print("[PulsumData] Recommendation library resources not found. Skipping ingestion.")
@@ -55,7 +50,7 @@ public final class LibraryImporter {
             return
         }
 
-        let resources = try loadResources(from: urls)
+        let resources = try await Self.loadResourcesAsync(from: urls)
         guard !resources.isEmpty else { return }
 
         let context = PulsumData.newBackgroundContext(name: "Pulsum.LibraryImporter")
@@ -205,7 +200,23 @@ public final class LibraryImporter {
         return detailComponents.joined(separator: "\n\n")
     }
 
-    private func loadResources(from urls: [URL]) throws -> [LibraryResourcePayload] {
+    private func discoverLibraryURLs() -> [URL] {
+        var urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
+                                             subdirectory: configuration.subdirectory) ?? []
+        if urls.isEmpty, configuration.subdirectory != nil {
+            urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
+                                             subdirectory: nil) ?? []
+        }
+        return urls
+    }
+
+    private static func loadResourcesAsync(from urls: [URL]) async throws -> [LibraryResourcePayload] {
+        try await Task.detached(priority: .userInitiated) {
+            try loadResources(from: urls)
+        }.value
+    }
+
+    private static func loadResources(from urls: [URL]) throws -> [LibraryResourcePayload] {
         guard !urls.isEmpty else { return [] }
         let decoder = JSONDecoder()
         return try urls.map { url in
@@ -237,7 +248,7 @@ public final class LibraryImporter {
         }
     }
 
-    private func sha256Hex(for data: Data) -> String {
+    private static func sha256Hex(for data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
