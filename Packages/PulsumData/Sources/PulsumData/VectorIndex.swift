@@ -1,7 +1,27 @@
 import Foundation
 import os.log
 
-public struct VectorMatch: Equatable {
+protocol VectorIndexFileHandle: AnyObject {
+    func seekToEnd() throws -> UInt64
+    func seek(toOffset offset: UInt64) throws
+    func read(upToCount count: Int) throws -> Data?
+    func write(_ data: Data)
+    func close() throws
+}
+
+extension FileHandle: VectorIndexFileHandle {}
+
+protocol VectorIndexFileHandleFactory {
+    func updatingHandle(for url: URL) throws -> VectorIndexFileHandle
+}
+
+struct SystemVectorIndexFileHandleFactory: VectorIndexFileHandleFactory {
+    func updatingHandle(for url: URL) throws -> VectorIndexFileHandle {
+        try FileHandle(forUpdating: url)
+    }
+}
+
+public struct VectorMatch: Equatable, Sendable {
     public let id: String
     public let score: Float
 }
@@ -62,11 +82,18 @@ private final class VectorIndexShard {
     private let metadataURL: URL
     private let dimension: Int
     private let fileManager: FileManager
+    private let fileHandleFactory: VectorIndexFileHandleFactory
     private let queue = DispatchQueue(label: "ai.pulsum.vectorindex.shard", attributes: .concurrent)
 
-    init(baseDirectory: URL, name: String, shardIdentifier: String, dimension: Int, fileManager: FileManager = .default) throws {
+    init(baseDirectory: URL,
+         name: String,
+         shardIdentifier: String,
+         dimension: Int,
+         fileManager: FileManager = .default,
+         fileHandleFactory: VectorIndexFileHandleFactory = SystemVectorIndexFileHandleFactory()) throws {
         self.dimension = dimension
         self.fileManager = fileManager
+        self.fileHandleFactory = fileHandleFactory
         let shardDirectory = baseDirectory.appendingPathComponent(name, isDirectory: true)
         if !fileManager.fileExists(atPath: shardDirectory.path) {
             #if os(iOS)
@@ -101,29 +128,22 @@ private final class VectorIndexShard {
         }
 
         try queue.sync(flags: .barrier) {
-            let handle = try FileHandle(forUpdating: shardURL)
-            defer {
-                do {
-                    try handle.close()
-                } catch {
-                    os_log("VectorIndex: close() failed: %@", type: .error, String(describing: error))
+            try self.withHandle { handle in
+                var metadataChanged = false
+
+                if let existingOffset = metadata[id] {
+                    try markRecordDeleted(at: existingOffset, handle: handle)
+                    metadataChanged = true
                 }
-            }
 
-            var metadataChanged = false
-
-            if let existingOffset = metadata[id] {
-                try markRecordDeleted(at: existingOffset, handle: handle)
+                let offset = try appendRecord(id: id, vector: vector, handle: handle)
+                metadata[id] = offset
                 metadataChanged = true
-            }
 
-            let offset = try appendRecord(id: id, vector: vector, handle: handle)
-            metadata[id] = offset
-            metadataChanged = true
-
-            if metadataChanged {
-                try persistMetadata()
-                try updateRecordCount(handle: handle)
+                if metadataChanged {
+                    try persistMetadata()
+                    try updateRecordCount(handle: handle)
+                }
             }
         }
     }
@@ -131,17 +151,11 @@ private final class VectorIndexShard {
     func remove(id: String) throws {
         try queue.sync(flags: .barrier) {
             guard let offset = metadata.removeValue(forKey: id) else { return }
-            let handle = try FileHandle(forUpdating: shardURL)
-            defer {
-                do {
-                    try handle.close()
-                } catch {
-                    os_log("VectorIndex: close() failed: %@", type: .error, String(describing: error))
-                }
+            try self.withHandle { handle in
+                try markRecordDeleted(at: offset, handle: handle)
+                try persistMetadata()
+                try updateRecordCount(handle: handle)
             }
-            try markRecordDeleted(at: offset, handle: handle)
-            try persistMetadata()
-            try updateRecordCount(handle: handle)
         }
     }
 
@@ -188,7 +202,7 @@ private final class VectorIndexShard {
         return try result.get()
     }
 
-    private func appendRecord(id: String, vector: [Float], handle: FileHandle) throws -> UInt64 {
+    private func appendRecord(id: String, vector: [Float], handle: VectorIndexFileHandle) throws -> UInt64 {
         guard let idData = id.data(using: .utf8) else {
             throw VectorIndexError.ioFailure("Unable to encode identifier \(id)")
         }
@@ -202,7 +216,7 @@ private final class VectorIndexShard {
         return offset
     }
 
-    private func markRecordDeleted(at offset: UInt64, handle: FileHandle) throws {
+    private func markRecordDeleted(at offset: UInt64, handle: VectorIndexFileHandle) throws {
         try handle.seek(toOffset: offset)
         guard let headerData = try handle.read(upToCount: VectorRecordHeader.byteSize), headerData.count == VectorRecordHeader.byteSize else {
             throw VectorIndexError.corruptShard(shardURL.lastPathComponent)
@@ -217,14 +231,46 @@ private final class VectorIndexShard {
     private func persistMetadata() throws {
         let data = try JSONEncoder().encode(metadata)
         try data.write(to: metadataURL, options: .atomic)
+        #if os(iOS)
         try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: metadataURL.path)
+        #endif
     }
 
-    private func updateRecordCount(handle: FileHandle) throws {
+    private func updateRecordCount(handle: VectorIndexFileHandle) throws {
         let count = UInt64(metadata.count)
         let header = VectorIndexHeader(dimension: UInt16(dimension), recordCount: count)
         try handle.seek(toOffset: 0)
         handle.write(header.data())
+    }
+
+    private func withHandle<T>(_ work: (VectorIndexFileHandle) throws -> T) throws -> T {
+        let handle = try fileHandleFactory.updatingHandle(for: shardURL)
+        var operationResult: Result<T, Error> = .failure(VectorIndexError.ioFailure("Uninitialized handle state"))
+        do {
+            let value = try work(handle)
+            operationResult = .success(value)
+        } catch {
+            operationResult = .failure(error)
+        }
+
+        var closeError: Error?
+        do {
+            try handle.close()
+        } catch {
+            closeError = error
+            os_log("VectorIndex: close() failed for %@: %@", type: .error, shardURL.lastPathComponent, String(describing: error))
+        }
+
+        if let closeError {
+            switch operationResult {
+            case let .failure(opError):
+                throw VectorIndexError.ioFailure("FileHandle.close() failed for \(shardURL.lastPathComponent) after operation error: \(opError.localizedDescription); close: \(closeError.localizedDescription)")
+            case .success:
+                throw VectorIndexError.ioFailure("FileHandle.close() failed for \(shardURL.lastPathComponent): \(closeError.localizedDescription)")
+            }
+        }
+
+        return try operationResult.get()
     }
 
     private func validateHeader() throws {
@@ -278,19 +324,25 @@ private final class VectorIndexShard {
     }
 }
 
-final class VectorIndex {
+actor VectorIndex {
     private let name: String
     private let dimension: Int
     private let shardCount: Int
     private let directory: URL
-    private let queue = DispatchQueue(label: "ai.pulsum.vectorindex", attributes: .concurrent)
+    private let fileHandleFactory: VectorIndexFileHandleFactory
     private var shards: [Int: VectorIndexShard] = [:]
+    private let shardLock = NSLock()
 
-    init(name: String, dimension: Int = 384, directory: URL = PulsumData.vectorIndexDirectory, shardCount: Int = 16) {
+    init(name: String,
+         dimension: Int = 384,
+         directory: URL = PulsumData.vectorIndexDirectory,
+         shardCount: Int = 16,
+         fileHandleFactory: VectorIndexFileHandleFactory = SystemVectorIndexFileHandleFactory()) {
         self.name = name
         self.dimension = dimension
         self.directory = directory
         self.shardCount = shardCount
+        self.fileHandleFactory = fileHandleFactory
     }
 
     func upsert(id: String, vector: [Float]) throws {
@@ -323,27 +375,20 @@ final class VectorIndex {
     }
 
     private func shard(forShardIndex index: Int) throws -> VectorIndexShard {
-        var result: Result<VectorIndexShard, Error>?
-        queue.sync(flags: .barrier) {
-            do {
-                if let existing = shards[index] {
-                    result = .success(existing)
-                    return
-                }
-                let shard = try VectorIndexShard(baseDirectory: directory,
-                                                 name: name,
-                                                 shardIdentifier: "shard_\(index)",
-                                                 dimension: dimension)
-                shards[index] = shard
-                result = .success(shard)
-            } catch {
-                result = .failure(error)
-            }
+        shardLock.lock()
+        defer { shardLock.unlock() }
+
+        if let existing = shards[index] {
+            return existing
         }
-        guard let resolved = result else {
-            throw VectorIndexError.ioFailure("Unable to initialize shard \(index)")
-        }
-        return try resolved.get()
+
+        let shard = try VectorIndexShard(baseDirectory: directory,
+                                         name: name,
+                                         shardIdentifier: "shard_\(index)",
+                                         dimension: dimension,
+                                         fileHandleFactory: fileHandleFactory)
+        shards[index] = shard
+        return shard
     }
 }
 

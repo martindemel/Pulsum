@@ -8,6 +8,81 @@ pass() { printf "\033[32m%s\033[0m\n" "$1"; }
 fail() { printf "\033[31m%s\033[0m\n" "$1"; exit 1; }
 info() { printf "\033[36m%s\033[0m\n" "$1"; }
 
+select_simulator_destination() {
+  local desired_os="${PULSUM_SIM_OS:-26.0.1}"
+  if ! command -v xcrun >/dev/null || ! command -v python3 >/dev/null; then
+    printf "platform=iOS Simulator,name=iPhone SE (3rd generation),OS=%s" "$desired_os"
+    return
+  fi
+
+  python3 - <<'PY'
+import json, os, re, subprocess, sys
+preferred = [
+    "iPhone 16 Pro",
+    "iPhone 16",
+    "iPhone 16 Plus",
+    "iPhone 15 Pro",
+    "iPhone 15",
+    "iPhone SE (3rd generation)"
+]
+desired = os.environ.get("PULSUM_SIM_OS", "26.0.1")
+major = desired.split(".", 1)[0]
+try:
+    raw = subprocess.check_output(
+        ["xcrun", "simctl", "list", "-j", "devices", "available"],
+        text=True
+    )
+    data = json.loads(raw)
+except (subprocess.CalledProcessError, json.JSONDecodeError):
+    data = {}
+
+entries = []
+for runtime, devices in (data.get("devices") or {}).items():
+    match = re.search(r"iOS[-\.](\d+)-(\d+)(?:-(\d+))?", runtime or "")
+    if not match:
+        continue
+    parts = [match.group(1), match.group(2)]
+    if match.group(3):
+        parts.append(match.group(3))
+    version = ".".join(parts)
+    for device in devices or []:
+        if device.get("isAvailable") and device.get("udid"):
+            entries.append((device.get("name") or "", version, device["udid"]))
+
+def pick_by_name(prefix):
+    for name in preferred:
+        for entry in entries:
+            if entry[0] == name and entry[1].startswith(prefix):
+                return entry
+    return None
+
+def pick_by_prefix(prefix):
+    for entry in entries:
+        if entry[1].startswith(prefix):
+            return entry
+    return None
+
+selection = None
+for prefix in (desired, major, "26", "18"):
+    selection = pick_by_name(prefix) or pick_by_prefix(prefix)
+    if selection:
+        break
+
+if not selection and entries:
+    selection = entries[0]
+
+if not selection:
+    print(f"platform=iOS Simulator,name=iPhone SE (3rd generation),OS={desired}")
+    sys.exit()
+
+name, version, udid = selection
+if udid:
+    print(f"id={udid}")
+else:
+    print(f"platform=iOS Simulator,name={name},OS={version}")
+PY
+}
+
 info "Pulsum integrity sweep"
 
 info "Git sync"
@@ -28,20 +103,67 @@ fi
 
 info "Git integrity"
 git fsck --no-reflogs >/dev/null 2>&1 || fail "git fsck failed"
-DIRTY_COUNT="$(git status --porcelain=v1 | wc -l | tr -d ' ')"
-[ "$DIRTY_COUNT" -eq 0 ] || fail "working tree has uncommitted changes"
-pass "working tree clean"
+if [ "${CI_ALLOW_DIRTY:-0}" = "1" ]; then
+  info "CI_ALLOW_DIRTY=1 → skipping clean working tree enforcement"
+else
+  DIRTY_COUNT="$(git status --porcelain=v1 | wc -l | tr -d ' ')"
+  [ "$DIRTY_COUNT" -eq 0 ] || fail "working tree has uncommitted changes"
+  pass "working tree clean"
+fi
 
 info "Ignore hygiene"
 TRACKED_BUILD="$(git ls-files Build | wc -l | tr -d ' ')"
 [ "$TRACKED_BUILD" -eq 0 ] || fail "tracked files exist under Build/"
 pass "no tracked files under Build/"
 
+info "Project backup audit"
+BACKUPS="$(git ls-files '*.pbxproj.backup' 2>/dev/null || true)"
+if [ -n "$BACKUPS" ]; then
+  printf '%s\n' "$BACKUPS"
+  fail "found tracked *.pbxproj.backup files"
+fi
+pass "no *.pbxproj.backup files tracked"
+
 info "PBX manifest uniqueness"
-FR=$(grep -n 'PBXFileReference .*PrivacyInfo\.xcprivacy' Pulsum.xcodeproj/project.pbxproj | wc -l | tr -d ' ')
-BR=$(grep -n 'PBXBuildFile .*PrivacyInfo\.xcprivacy in Resources' Pulsum.xcodeproj/project.pbxproj | wc -l | tr -d ' ')
+PBX_COUNTS="$(python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path("Pulsum.xcodeproj/project.pbxproj").read_text()
+fr = len(re.findall(r'PBXFileReference[^\n]*PrivacyInfo\.xcprivacy', text))
+br = len(re.findall(r'PBXBuildFile[^\n]*PrivacyInfo\.xcprivacy', text))
+print(fr, br)
+PY
+)"
+FR="${PBX_COUNTS% *}"
+BR="${PBX_COUNTS#* }"
 [ "$FR" -eq 1 ] && [ "$BR" -eq 1 ] || fail "expected FR=1 BR=1 for PrivacyInfo.xcprivacy, got FR=$FR BR=$BR"
 pass "PrivacyInfo.xcprivacy counts FR=1 BR=1"
+
+info "Dataset canonicality"
+python3 - <<'PY' || fail "dataset hash check failed"
+import hashlib, json, subprocess, sys
+try:
+    raw = subprocess.check_output([
+        "git", "ls-files", "-z",
+        "podcastrecommendations*.json", "json database/podcastrecommendations*.json"
+    ], text=True)
+except subprocess.CalledProcessError:
+    raw = ""
+paths = [p for p in raw.split("\x00") if p]
+if not paths:
+    print("no podcast dataset JSON found")
+    sys.exit(1)
+hashes = {}
+for path in paths:
+    with open(path, "rb") as fh:
+        digest = hashlib.sha256(fh.read()).hexdigest()
+    hashes.setdefault(digest, []).append(path)
+print("dataset_hashes:", json.dumps(hashes, indent=2))
+if len(hashes) != 1:
+    print(f"expected single canonical dataset hash, found {len(hashes)}")
+    sys.exit(1)
+PY
+pass "podcast dataset hash unique"
 
 info "Secret scan (repo)"
 if [ -x scripts/ci/scan-secrets.sh ]; then
@@ -76,18 +198,17 @@ else
 fi
 
 info "Release build (signing disabled)"
-DEST1="platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0"
-DEST2="platform=iOS Simulator,name=iPhone 15,OS=26.0"
-scripts/ci/build-release.sh -destination "$DEST1" -derivedDataPath Build >/tmp/pulsum_xcbuild.log 2>&1 || \
-scripts/ci/build-release.sh -destination "$DEST2" -derivedDataPath Build >/tmp/pulsum_xcbuild.log 2>&1 || \
+DESTINATION="$(select_simulator_destination)"
+info "Using simulator destination: $DESTINATION"
+scripts/ci/build-release.sh -destination "$DESTINATION" -derivedDataPath Build >/tmp/pulsum_xcbuild.log 2>&1 || \
 fail "xcodebuild Release failed; see /tmp/pulsum_xcbuild.log"
 pass "Release build ok"
 
 info "Gate-0 tests"
 SVC_OK=0; DATA_OK=0; ML_OK=0
-swift test --package-path Packages/PulsumServices --filter Gate0_  >/tmp/pulsum_services_tests.log 2>&1 && SVC_OK=1 || true
-swift test --package-path Packages/PulsumData     --filter Gate0_  >/tmp/pulsum_data_tests.log     2>&1 && DATA_OK=1 || true
-swift test --package-path Packages/PulsumML       --filter Gate0_  >/tmp/pulsum_ml_tests.log       2>&1 && ML_OK=1 || true
+swift test --package-path Packages/PulsumServices -Xswiftc -strict-concurrency=complete --filter Gate0_  >/tmp/pulsum_services_tests.log 2>&1 && SVC_OK=1 || true
+swift test --package-path Packages/PulsumData     -Xswiftc -strict-concurrency=complete --filter Gate0_  >/tmp/pulsum_data_tests.log     2>&1 && DATA_OK=1 || true
+swift test --package-path Packages/PulsumML       -Xswiftc -strict-concurrency=complete --filter Gate0_  >/tmp/pulsum_ml_tests.log       2>&1 && ML_OK=1 || true
 [ "$SVC_OK"  -eq 1 ] || { tail -n +1 /tmp/pulsum_services_tests.log; fail "PulsumServices Gate0_ tests failed"; }
 [ "$DATA_OK" -eq 1 ] || { tail -n +1 /tmp/pulsum_data_tests.log;     fail "PulsumData Gate0_ tests failed"; }
 [ "$ML_OK"   -eq 1 ] || { tail -n +1 /tmp/pulsum_ml_tests.log;       fail "PulsumML Gate0_ tests failed"; }

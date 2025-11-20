@@ -36,14 +36,6 @@
       "reason": "Image asset"
     },
     {
-      "path": "podcastrecommendations.json",
-      "size": 52726,
-      "mtime": 1759809611.3402984,
-      "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c",
-      "read_intent": "read",
-      "reason": "JSON resource"
-    },
-    {
       "path": "a-practical-guide-to-building-agents.pdf",
       "size": 7335065,
       "mtime": 1759809611.2647758,
@@ -122,14 +114,6 @@
       "sha256": "2b9e9954ae9bc6745f489cb2b13ca1107537986573244cfe11118addd2cd6975",
       "read_intent": "summarize_only",
       "reason": "Image asset"
-    },
-    {
-      "path": "json database/podcastrecommendations.json",
-      "size": 52726,
-      "mtime": 1759809611.3374264,
-      "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c",
-      "read_intent": "read",
-      "reason": "JSON resource"
     },
     {
       "path": "ios support files/glow.swift",
@@ -1188,7 +1172,7 @@
       "reason": "JSON resource"
     },
     {
-      "path": "Pulsum/Pulsum.xcdatamodeld/.xccurrentversion",
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/.xccurrentversion",
       "size": 259,
       "mtime": 1759103615.7772732,
       "sha256": "1139771d43c6b86db70dc760278d2b75b4e9593fdbce6deb0375024356b68f9d",
@@ -1196,7 +1180,7 @@
       "reason": "Core Data current version marker"
     },
     {
-      "path": "Pulsum/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents",
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents",
       "size": 7741,
       "mtime": 1759809611.2473207,
       "sha256": "170131f2cff09976cc8d085ecb8da51f9e8484805fefa0c615b4460e55bbbe15",

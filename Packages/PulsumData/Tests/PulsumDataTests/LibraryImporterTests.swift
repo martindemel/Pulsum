@@ -9,26 +9,28 @@ final class LibraryImporterTests: XCTestCase {
         try await importer.ingestIfNeeded()
 
         let viewContext = PulsumData.viewContext
-        var fetchedMoments: [MicroMoment] = []
-        viewContext.performAndWait {
+        let snapshot = await viewContext.perform { () -> (id: String, title: String, badge: String?)? in
             do {
                 let request = MicroMoment.fetchRequest()
-                request.fetchLimit = 5
-                fetchedMoments = try viewContext.fetch(request)
+                request.fetchLimit = 1
+                if let moment = try viewContext.fetch(request).first {
+                    return (moment.id, moment.title, moment.evidenceBadge)
+                }
             } catch {
                 XCTFail("Fetch failed: \(error)")
             }
+            return nil
         }
 
-        guard let moment = fetchedMoments.first else {
+        guard let momentSnapshot = snapshot else {
             XCTFail("MicroMoment not ingested")
             return
         }
 
-        XCTAssertEqual(moment.title, "Practice diaphragmatic breathing")
-        XCTAssertEqual(moment.evidenceBadge, EvidenceBadge.strong.rawValue)
+        XCTAssertEqual(momentSnapshot.title, "Practice diaphragmatic breathing")
+        XCTAssertEqual(momentSnapshot.badge, EvidenceBadge.strong.rawValue)
 
-        let matches = try VectorIndexManager.shared.searchMicroMoments(query: "diaphragmatic breathing", topK: 1)
-        XCTAssertEqual(matches.first?.id, moment.id)
+        let matches = try await VectorIndexManager.shared.searchMicroMoments(query: "diaphragmatic breathing", topK: 1)
+        XCTAssertEqual(matches.first?.id, momentSnapshot.id)
     }
 }

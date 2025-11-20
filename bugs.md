@@ -341,7 +341,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Wiring
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 5)
 - **Symptom/Impact:** After submitting sliders or journals, wellbeing score and coach recommendation cards stay stale until user manually restarts the orchestrator or reopens the app.
 - **Where/Scope:** PulseViewModel; AppViewModel; CoachViewModel.
 - **Evidence:**
@@ -366,7 +366,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S2
 - **Area:** Data
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 5)
 - **Symptom/Impact:** The same dataset ships three times (`json database/podcastrecommendations.json`, `podcastrecommendations.json`, `podcastrecommendations 2.json`), risking divergence and bloating bundle size by 150KB.
 - **Where/Scope:** Repository root; app resources.
 - **Evidence:**
@@ -374,6 +374,8 @@ Packs group related findings so you can triage by domain. Open the referenced ca
   - Pulsum.xcodeproj/project.pbxproj:286  [sig8:9a3b8c2d] — Only `podcastrecommendations 2.json` is in Resources build phase
 - **Upstream/Downstream:** LibraryImporter can ingest different copies over time; future updates may mutate one file and miss others; developers won't know canonical source.
 - **Why This Is a Problem:** Duplication invites hard-to-detect drift; wastes space on device downloads; violates single-source-of-truth principle.
+- **Fix (Gate 5):** Deleted the stray `podcastrecommendations.json` copies and kept the canonical `podcastrecommendations 2.json` referenced by the Xcode project; updated docs to point at the single source. (podcastrecommendations.json; json database/podcastrecommendations.json; architecture.md)
+- **Tests:** `scripts/ci/test-harness.sh` now aborts if any duplicate `podcastrecommendations*.json` hashes appear; `scripts/ci/integrity.sh` re-checks for the guard.
 - **Suggested Diagnostics (no code):** Audit `Bundle.main` contents at runtime; decide canonical path; consolidate import references; remove duplicates from repo; verify LibraryImporter points to single file.
 - **Related Contract (from architecture.md):** Repository map (section 10) calls out deduplication of recommendation corpus as necessary hygiene; section 17 lists this as risk #4.
 
@@ -382,14 +384,15 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Data
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 5)
 - **Symptom/Impact:** Vector index upsert/remove operations suppress FileHandle.close() errors with `try?`, leaking file descriptors and potentially causing "Too many open files" crashes.
 - **Where/Scope:** VectorIndexShard.
 - **Evidence:**
   - Packages/PulsumData/Sources/PulsumData/VectorIndex.swift:104  [sig8:7c8e9d2f] — `defer { try? handle.close() }` in `upsert()`
   - Packages/PulsumData/Sources/PulsumData/VectorIndex.swift:128  [sig8:8a9b1c3e] — `defer { try? handle.close() }` in `remove()`
 - **Upstream/Downstream:** Accumulating file descriptor leaks → iOS "Too many open files" error after ~200 operations; database corruption if writes don't flush properly; especially dangerous on iOS when device locks/unlocks (FileProtectionType.complete files may be unavailable).
-- **Why This Is a Problem:** iOS has strict per-process file descriptor limits (~256); recommendation indexing can exceed this; close failures indicate serious I/O issues that should be surfaced, not hidden.
+- **Fix (Gate 5):** Added `VectorIndexFileHandleFactory` and a `withHandle` helper so shard operations always close handles exactly once and convert close failures into surfaced `VectorIndexError.ioFailure` errors. (Packages/PulsumData/Sources/PulsumData/VectorIndex.swift)
+- **Tests:** `Gate5_VectorIndexFileHandleTests` inject a handle whose `close()` throws and assert the error bubbles out without leaking the descriptor.
 - **Suggested Diagnostics (no code):** Monitor file descriptor count during vector operations; test with device lock/unlock cycles; instrument close failures; check for descriptor leaks with `lsof -p <pid>`.
 - **Related Contract (from architecture.md):** Section 12 describes file protection and secure storage; silently ignoring I/O errors violates data integrity guarantees.
 
@@ -398,7 +401,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S2
 - **Area:** Data
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 5)
 - **Symptom/Impact:** LibraryImporter reads potentially large JSON files inside `context.perform` closure, blocking the Core Data queue and freezing UI operations.
 - **Where/Scope:** LibraryImporter.
 - **Evidence:**
@@ -412,7 +415,8 @@ Packs group related findings so you can triage by domain. Open the referenced ca
     }
     ```
 - **Upstream/Downstream:** UI freezes during library import if using view context; database operations blocked while reading ~50KB JSON files; poor performance on large recommendation libraries.
-- **Why This Is a Problem:** Core Data best practices require I/O outside perform blocks; only database operations should happen inside; blocking the database thread affects all Core Data operations app-wide.
+- **Fix (Gate 5):** `LibraryImporter` now loads & decodes JSON files before entering `context.perform` and only passes DTO payloads to Core Data, moving vector index updates outside the Core Data queue. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift)
+- **Tests:** `Gate5_LibraryImporterPerfTests` import the sample corpus while timing a concurrent Core Data fetch to ensure reads stay below the latency budget.
 - **Suggested Diagnostics (no code):** Profile library import with Instruments Time Profiler; measure UI frame drops during import; test with larger JSON files; monitor Core Data queue wait times.
 - **Related Contract (from architecture.md):** Section 7 describes LibraryImporter as non-blocking background operation; section 13 emphasizes async/await and non-blocking patterns.
 
@@ -423,7 +427,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S0
 - **Area:** Concurrency
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 5)
 - **Symptom/Impact:** Concurrent searches can race shard initialization; unsynchronized reads outside barrier queue risk partially initialized shards, crashes, or data corruption.
 - **Where/Scope:** VectorIndex shard retrieval.
 - **Evidence:**
@@ -431,7 +435,8 @@ Packs group related findings so you can triage by domain. Open the referenced ca
   - Packages/PulsumData/Sources/PulsumData/VectorIndex.swift:317  [sig8:9b8d7e6f] — Second check inside barrier: `if let shard = shards[index] { ... }`
   - Packages/PulsumData/Sources/PulsumData/VectorIndex.swift:326  [sig8:1a2b3c4d] — Write inside barrier: `shards[index] = shard`
 - **Upstream/Downstream:** Recommendation searches may return duplicate or corrupted shards under concurrent load; crashes from Swift dictionary data races; similarity scores become unreliable.
-- **Why This Is a Problem:** Classic double-checked locking anti-pattern in Swift; Swift dictionaries are NOT thread-safe; concurrent reads (line 313) while writes happen (line 326) = undefined behavior per Swift concurrency model.
+- **Fix (Gate 5):** Converted `VectorIndex` into an actor, removed the double-checked read, funneled shard creation through the actor with thread-safe file-handle helpers, and promoted `VectorIndexProviding`/`VectorIndexManager` to actors so CoachAgent can hold the reference without `Sendable` warnings. (Packages/PulsumData/Sources/PulsumData/VectorIndex.swift; Packages/PulsumData/Sources/PulsumData/VectorIndexManager.swift)
+- **Tests:** `Gate5_VectorIndexConcurrencyTests` hammer the actor with concurrent upserts/searches/removals and assert deterministic search results without TSan warnings.
 - **Suggested Diagnostics (no code):** Stress test with concurrent vector searches under Thread Sanitizer; inspect shard instance counts; simulate race conditions; test on multi-core device under load.
 - **Related Contract (from architecture.md):** Section 13 states vector index is safe under concurrent load; section 7 describes concurrent searches as core feature; current implementation violates thread-safety contract.
 
@@ -440,14 +445,15 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S3
 - **Area:** Build/Project
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 5)
 - **Symptom/Impact:** `Pulsum.xcodeproj/project.pbxproj.backup` remains checked in with now-deleted SplineRuntime linkage and a removed dSYM shell script. Opening the backup in Xcode or resolving merge conflicts against it can accidentally re-add the dependency and script that were intentionally removed.
 - **Where/Scope:** `Pulsum.xcodeproj/project.pbxproj.backup`.
 - **Evidence:**
   - Pulsum.xcodeproj/project.pbxproj.backup:10-52 — Frameworks phase still lists `SplineRuntime` even though the active project removed it.
   - Pulsum.xcodeproj/project.pbxproj.backup:300-335 — Contains the deleted shell script that regenerates SplineRuntime dSYM files each build.
 - **Upstream/Downstream:** Teammates can open/edit the wrong project file (Xcode prompts to pick one), reintroducing SplineRuntime wiring and scripts that were purposefully deleted, causing inconsistent builds and potential App Store rejections for unused dependencies.
-- **Why This Is a Problem:** Repository hygiene guidelines call for a single source of truth; lingering backups make configuration drift likely and waste reviewer time disentangling duplicate project files.
+- **Fix (Gate 5):** Enforced a repo-wide guard that fails CI if any `*.pbxproj.backup` files appear and documented the canonical project file; the stale backup was purged. (scripts/ci/integrity.sh)
+- **Tests:** `scripts/ci/integrity.sh` now includes the guard so Gate runs break if a backup resurfaces.
 - **Suggested Diagnostics (no code):** Remove or move the backup outside the repo; enforce lint (pre-commit) to block `.pbxproj.backup` files; verify Xcode shows only one project file after cleanup.
 - **Related Contract (from architecture.md):** Milestone hygiene tasks (todolist.md) require removing dead scaffolding and duplicate docs; same rationale applies to stray project backups.
 
