@@ -21,7 +21,7 @@
 - `Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift` — non‑blocking import flow and DTO handoff.
 - `Packages/PulsumData/Sources/PulsumData/DataStack.swift` — shared Core Data stack loading `Pulsum.momd` from the package bundle.
 - `scripts/ci/integrity.sh`, `scripts/ci/test-harness.sh` — dataset/pbxproj guards, strict concurrency builds, simulator selection, Gate suite orchestration.
-- Documentation updates: `architecture.md` (data layer + model location) and `bugs.md` note the Gate 5 bug closures/status.
+- Documentation updates: `architecture.md`, `bugs.md`, `instructions.md`, and `todolist.md` now reflect Gate 5 status, data integrity changes, and canonical model/dataset locations.
 
 ## Tests & Harness
 - **PulsumData:** `Gate5_VectorIndexConcurrencyTests` stress concurrent upsert/search/remove across multiple shards; `Gate5_VectorIndexFileHandleTests` inject failing handles to ensure `close()` errors propagate; `Gate5_VectorIndexManagerActorTests` verify actor usage from background contexts; `Gate5_LibraryImporterPerfTests` time concurrent reads during imports; `Gate5_LibraryImporterAtomicityTests` ensure checksum persistence is atomic with successful indexing and retries remain idempotent. (`Packages/PulsumData/Tests/PulsumDataTests/…`)
