@@ -88,6 +88,14 @@
 - [x] **Validation**: All package tests pass (PulsumML: 14 tests, PulsumServices: 14 tests, PulsumAgents: 7 tests), app builds successfully
 - Notes: Chat system now produces smart, intent-aware coaching with fail-closed Two-Wall guardrails and ML-only outputs (no rule engines). Ready for Milestone 5 privacy compliance.
 
+## Gate 5 - Vector index & data I/O integrity (✅ COMPLETE - November 20, 2025)
+- [x] Actorized `VectorIndex`/`VectorIndexManager`, guarded shard cache with a single critical section, and removed `@unchecked Sendable` cruft.
+- [x] Wrapped shard file-handle work in `withHandle` to close exactly once and surface `VectorIndexError.ioFailure` on close failures.
+- [x] Refactored `LibraryImporter.ingestIfNeeded()` to discover URLs, load/decode JSON off the main actor via detached task, run Core Data upserts on a background context, index outside Core Data with injected `VectorIndexProviding`, and persist checksum only after successful indexing.
+- [x] Relocated canonical `Pulsum.xcdatamodeld` under `Packages/PulsumData/Sources/PulsumData/Resources/` and load via `Bundle.pulsumDataResources`.
+- [x] Deduplicated podcast dataset to the single canonical `podcastrecommendations 2.json`; enforced hash uniqueness and banned `*.pbxproj.backup` in `scripts/ci/integrity.sh` and `scripts/ci/test-harness.sh`.
+- [x] Added Gate5 suites (concurrency, file-handle failure, manager actor, importer perf/atomicity) and run package build/tests with `-Xswiftc -strict-concurrency=complete`.
+
 ## Gate 0 - Security & Build Blockers (✅ COMPLETE - November 9, 2025)
 - [x] Remove Info.plist/OpenAI key paths, harden `LLMGateway` to Keychain/environment only, and add repo/binary secret scans (`scripts/ci/scan-secrets.sh`, LLMGateway precedence tests) — fixes BUG-20251026-0001.
 - [x] Add PrivacyInfo manifests for app + all packages (XML plist format) and enforce them via `scripts/ci/check-privacy-manifests.sh` with optional `RUN_PRIVACY_REPORT=1` — fixes BUG-20251026-0002.

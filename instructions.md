@@ -77,6 +77,12 @@ PulsumML/
 – RecRanker (pairwise logistic scorer)
 – SafetyLocal (keywords + small on‑device classifier)
 
+Gate 5 data integrity (current state)
+• Vector index stack is actorized: `VectorIndexProviding` is `Sendable`, `VectorIndexManager` is an actor with DI init + `shared`, and shard cache creation happens inside a single critical section.
+• File handles in the vector index are wrapped in `withHandle` so they close exactly once; close errors propagate as `VectorIndexError.ioFailure`.
+• `LibraryImporter.ingestIfNeeded()` discovers URLs, loads/decodes JSON off the main actor via detached task, performs Core Data upserts on a background context, indexes via injected `VectorIndexProviding` outside Core Data, and persists checksum only after successful indexing.
+• Canonical `Pulsum.xcdatamodeld` lives at `Packages/PulsumData/Sources/PulsumData/Resources/` and loads via `Bundle.pulsumDataResources`; dataset deduped to `podcastrecommendations 2.json` with CI hash guard/backup ban in `scripts/ci/integrity.sh` and `scripts/ci/test-harness.sh`.
+
 ⸻
 
 UI & NAVIGATION (fixed)

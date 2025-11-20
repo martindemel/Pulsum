@@ -16,17 +16,17 @@
 - BUG-20251026-0009 — Pulse transcript hides after analysis completes. UI clears the text once flags drop, so users think nothing saved. (S2 UI)
 - BUG-20251026-0010 — Apple Intelligence link uses macOS-only URI. The enablement button no-ops on iOS, blocking cloud guardrail consent. (S2 UI)
 - BUG-20251026-0011 — Liquid Glass Spline hero missing. Home view renders only a gradient, missing the promised flagship visual. (S2 UI)
-- BUG-20251026-0012 — Vector index shard cache races initialization. Double-checked locking can expose half-built shards during search. (S0 Concurrency)
-- BUG-20251026-0013 — Podcast dataset duplicated three times. Three copies inflate the bundle and invite divergent edits. (S2 Data)
+- BUG-20251026-0012 — Vector index shard cache races initialization. Double-checked locking can expose half-built shards during search. (S0 Concurrency) **[Fixed Gate 5]**
+- BUG-20251026-0013 — Podcast dataset duplicated three times. Three copies inflate the bundle and invite divergent edits. (S2 Data) **[Fixed Gate 5]**
 - BUG-20251026-0014 — Shared scheme skips SwiftPM test targets. Product ▸ Test runs only empty bundles, hiding regressions. (S1 Test) **[Fixed Gate 1]**
 - BUG-20251026-0015 — Pulse check-ins never refresh recommendations. Sliders finish quietly without kicking off a new wellbeing fetch. (S1 Wiring)
 - BUG-20251026-0016 — Voice journal session allows duplicate starts. No guard against concurrent beginVoiceJournal calls, leaking resources. (S1 Wiring)
-- BUG-20251026-0017 — FileHandle close errors silently swallowed. Vector index upsert/remove suppress close failures, leaking descriptors. (S1 Data)
+- BUG-20251026-0017 — FileHandle close errors silently swallowed. Vector index upsert/remove suppress close failures, leaking descriptors. (S1 Data) **[Fixed Gate 5]**
 - BUG-20251026-0018 — Backup exclusion failures ignored. PHI data can leak to iCloud if setResourceValues silently fails. (S0 Privacy/Security) **[Fixed Gate 0]**
 - BUG-20251026-0019 — Foundation Models stub has wrong response type. Expects structured SentimentAnalysis but returns string, causing runtime crash. (S0 Dependency) **[Fixed Gate 0]**
 - BUG-20251026-0020 — AFM contextual embeddings permanently disabled. Primary embedding path falls back to legacy word vectors with TODO. (S1 Dependency)
 - BUG-20251026-0021 — Embedding zero-vector fallback masks failures. All provider failures return [0,0,...], corrupting similarity search. (S1 ML)
-- BUG-20251026-0022 — Core Data blocking I/O on database thread. LibraryImporter reads JSON inside context.perform, freezing UI. (S2 Data)
+- BUG-20251026-0022 — Core Data blocking I/O on database thread. LibraryImporter reads JSON inside context.perform, freezing UI. (S2 Data) **[Fixed Gate 5]**
 - BUG-20251026-0023 — LLM PING validation has case mismatch. Request sends "PING" but validator expects "ping", always failing. (S2 Wiring)
 - BUG-20251026-0024 — HealthKit queries lack authorization checks. Observer queries execute without verifying user permission status. (S1 Wiring)
 - BUG-20251026-0025 — Test targets contain only empty scaffolds. PulsumTests and PulsumUITests have no actual assertions. (S1 Test) **[Fixed Gate 1]**
@@ -66,7 +66,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 | ML | 0 | 3 |
 | Build | 0 | 1 |
 
-**Critical Blockers:** BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0008, BUG-20251026-0012, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0017, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031, BUG-20251026-0034, BUG-20251026-0037, BUG-20251026-0038, BUG-20251026-0039, BUG-20251026-0040, BUG-20251026-0041
+**Critical Blockers:** BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0008, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031, BUG-20251026-0034, BUG-20251026-0037, BUG-20251026-0038, BUG-20251026-0039, BUG-20251026-0040, BUG-20251026-0041
 
 ## Pack Privacy & Compliance
 
@@ -901,8 +901,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **FIXED (Gate 0 — logic & tests; signing follow-up noted)** — Speech capture requires entitlement + microphone permission wiring (BUG-20251026-0003, BUG-20251026-0006, BUG-20251026-0026)
 - **FIXED (Gate 0)** — Privacy manifests for protected APIs (BUG-20251026-0002)
 - **MISSING** — Liquid Glass hero delivered via Spline (BUG-20251026-0011)
-- **MISSING** — Vector index safe for concurrent access (BUG-20251026-0012)
-- **MISSING** — File I/O errors must be surfaced, not silently swallowed (BUG-20251026-0017, BUG-20251026-0018)
+- **MISSING** — File I/O errors must be surfaced, not silently swallowed (BUG-20251026-0018)
 - **FIXED (Gate 0)** — Foundation Models stub must match real API types (BUG-20251026-0019)
 - **HOOK READY** — Modern speech backend guard/flag in place awaiting Apple APIs (BUG-20251026-0007)
 - **FIXED (Gate 2)** — Session lifecycle management prevents duplicate starts (BUG-20251026-0016)
@@ -925,7 +924,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - ✅ Privacy manifests exist for app + packages and the privacyreport lane guards coverage (BUG-20251026-0002).
 - ✅ Speech entitlement + mic prompts are wired and unit-tested; provisioning alignment for `com.apple.developer.speech` remains a follow-up (BUG-20251026-0003/BUG-20251026-0006/BUG-20251026-0026).
 - ✅ Backup exclusion failures now block startup and are tested via xattr checks (BUG-20251026-0018).
-- File descriptor leaks (BUG-20251026-0017) and concurrency issues (BUG-20251026-0012, BUG-20251026-0016) still pose stability risks.
+- Gate 5 resolved vector index races/leaks (BUG-20251026-0012/0017); remaining concurrency risk: duplicate voice journal sessions (BUG-20251026-0016).
 - Core Data model has no attribute-level validation, relying on caller validation.
 - UITest-only seams now exist for LLM (`UITEST_USE_STUB_LLM`) and speech capture (`UITEST_FAKE_SPEECH`, `UITEST_AUTOGRANT`); they keep PHI on-device while enabling deterministic harness runs.
 
