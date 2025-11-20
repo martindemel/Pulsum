@@ -416,7 +416,8 @@ Packs group related findings so you can triage by domain. Open the referenced ca
     ```
 - **Upstream/Downstream:** UI freezes during library import if using view context; database operations blocked while reading ~50KB JSON files; poor performance on large recommendation libraries.
 - **Fix (Gate 5):** `LibraryImporter` now loads & decodes JSON files before entering `context.perform` and only passes DTO payloads to Core Data, moving vector index updates outside the Core Data queue. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift)
-- **Tests:** `Gate5_LibraryImporterPerfTests` import the sample corpus while timing a concurrent Core Data fetch to ensure reads stay below the latency budget.
+- **Fix (Gate 5, 2025-11-19):** `LibraryImporter` persists `LibraryIngest.checksum` only after all vector index upserts succeed, wrapping transient index failures in `LibraryImporterError.indexingFailed` so retries re-run indexing without duplicating Core Data entities. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift)
+- **Tests:** `Gate5_LibraryImporterPerfTests` import the sample corpus while timing a concurrent Core Data fetch, and `Gate5_LibraryImporterAtomicityTests` cover checksum persistence, retry idempotency, and checksum short-circuit behavior.
 - **Suggested Diagnostics (no code):** Profile library import with Instruments Time Profiler; measure UI frame drops during import; test with larger JSON files; monitor Core Data queue wait times.
 - **Related Contract (from architecture.md):** Section 7 describes LibraryImporter as non-blocking background operation; section 13 emphasizes async/await and non-blocking patterns.
 

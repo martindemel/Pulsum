@@ -17,6 +17,7 @@ public struct LibraryImporterConfiguration {
 public enum LibraryImporterError: LocalizedError {
     case missingResources
     case decodingFailed(underlying: Error)
+    case indexingFailed(underlying: Error)
 
     public var errorDescription: String? {
         switch self {
@@ -24,18 +25,20 @@ public enum LibraryImporterError: LocalizedError {
             return "No recommendation library resources were found in the application bundle."
         case let .decodingFailed(underlying):
             return "Unable to parse recommendation library: \(underlying.localizedDescription)"
+        case let .indexingFailed(underlying):
+            return "Unable to index recommendation library: \(underlying.localizedDescription)"
         }
     }
 }
 
 public final class LibraryImporter {
     private let configuration: LibraryImporterConfiguration
-    private let vectorIndexManager: VectorIndexManager
+    private let vectorIndex: VectorIndexProviding
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
-                vectorIndexManager: VectorIndexManager = .shared) {
+                vectorIndex: VectorIndexProviding = VectorIndexManager.shared) {
         self.configuration = configuration
-        self.vectorIndexManager = vectorIndexManager
+        self.vectorIndex = vectorIndex
     }
 
     public func ingestIfNeeded() async throws {
@@ -58,32 +61,65 @@ public final class LibraryImporter {
         let context = PulsumData.newBackgroundContext(name: "Pulsum.LibraryImporter")
         context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
-        let indexPayloads = try await context.perform {
+        let result = try await context.perform {
             var payloads: [MicroMomentIndexPayload] = []
+            var updates: [LibraryIngestUpdate] = []
             for resource in resources {
-                let additions = try self.process(resource: resource, context: context)
-                payloads.append(contentsOf: additions)
+                let outcome = try self.process(resource: resource, context: context)
+                payloads.append(contentsOf: outcome.payloads)
+                if let update = outcome.ingestUpdate {
+                    updates.append(update)
+                }
             }
 
             if context.hasChanges {
                 try context.save()
             }
-            return payloads
+            return (payloads, updates)
         }
 
-        if !indexPayloads.isEmpty {
-            try await upsertIndexEntries(indexPayloads)
+        if !result.0.isEmpty {
+            do {
+                try await upsertIndexEntries(result.0)
+            } catch {
+                throw LibraryImporterError.indexingFailed(underlying: error)
+            }
+        }
+
+        if !result.1.isEmpty {
+            try await context.perform {
+                for update in result.1 {
+                    let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
+                    fetchRequest.predicate = NSPredicate(format: "source == %@", update.source)
+                    fetchRequest.fetchLimit = 1
+                    let ingest: LibraryIngest
+                    if let existing = try context.fetch(fetchRequest).first {
+                        ingest = existing
+                    } else {
+                        let newIngest = LibraryIngest(context: context)
+                        newIngest.id = UUID()
+                        ingest = newIngest
+                    }
+                    ingest.source = update.source
+                    ingest.checksum = update.checksum
+                    ingest.version = "1"
+                    ingest.ingestedAt = Date()
+                }
+                if context.hasChanges {
+                    try context.save()
+                }
+            }
         }
     }
 
-    private func process(resource: LibraryResourcePayload, context: NSManagedObjectContext) throws -> [MicroMomentIndexPayload] {
+    private func process(resource: LibraryResourcePayload, context: NSManagedObjectContext) throws -> LibraryProcessOutcome {
         let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "source == %@", resource.filename)
         fetchRequest.fetchLimit = 1
 
         let existing = try context.fetch(fetchRequest).first
         if let existing, existing.checksum == resource.checksum {
-            return []
+            return LibraryProcessOutcome(payloads: [], ingestUpdate: nil)
         }
 
         var payloads: [MicroMomentIndexPayload] = []
@@ -96,13 +132,9 @@ public final class LibraryImporter {
             }
         }
 
-        let ingest = existing ?? LibraryIngest(context: context)
-        ingest.id = existing?.id ?? UUID()
-        ingest.source = resource.filename
-        ingest.checksum = resource.checksum
-        ingest.version = "1"
-        ingest.ingestedAt = Date()
-        return payloads
+        return LibraryProcessOutcome(payloads: payloads,
+                                     ingestUpdate: LibraryIngestUpdate(source: resource.filename,
+                                                                        checksum: resource.checksum))
     }
 
     private func upsertMicroMoment(episode: PodcastEpisode,
@@ -192,11 +224,16 @@ public final class LibraryImporter {
     }
 
     private func upsertIndexEntries(_ payloads: [MicroMomentIndexPayload]) async throws {
-        for payload in payloads {
-            _ = try await vectorIndexManager.upsertMicroMoment(id: payload.id,
-                                                               title: payload.title,
-                                                               detail: payload.detail,
-                                                               tags: payload.tags)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for payload in payloads {
+                group.addTask { [vectorIndex] in
+                    _ = try await vectorIndex.upsertMicroMoment(id: payload.id,
+                                                                title: payload.title,
+                                                                detail: payload.detail,
+                                                                tags: payload.tags)
+                }
+            }
+            try await group.waitForAll()
         }
     }
 
@@ -218,6 +255,16 @@ private struct MicroMomentIndexPayload: Sendable {
     let title: String
     let detail: String?
     let tags: [String]?
+}
+
+private struct LibraryIngestUpdate: Sendable {
+    let source: String
+    let checksum: String
+}
+
+private struct LibraryProcessOutcome: Sendable {
+    let payloads: [MicroMomentIndexPayload]
+    let ingestUpdate: LibraryIngestUpdate?
 }
 
 private struct PodcastEpisode: Decodable {

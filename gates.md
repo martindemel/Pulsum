@@ -181,8 +181,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 **Automated**: `Gate5_VectorIndexFileHandleTests` inject a handle that throws from `close()` and verify the error surfaces without descriptor leaks. 
 
 **G5.3 — LibraryImporter blocking I/O (BUG‑0022, S2)**
-**Fix**: Preload JSON/DTO payloads outside of `context.perform`, return `MicroMomentIndexPayload`s, and redact vector-index writes outside Core Data. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift)
-**Automated**: `Gate5_LibraryImporterPerfTests` measure a concurrent fetch completing within the latency budget while an import runs. 
+**Fix**: Preload JSON/DTO payloads outside of `context.perform`, return `MicroMomentIndexPayload`s, redact vector-index writes outside Core Data, and persist `LibraryIngest.checksum` only after indexing succeeds so transient failures can retry safely. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift)
+**Automated**: `Gate5_LibraryImporterPerfTests` measure a concurrent fetch completing within the latency budget while an import runs; `Gate5_LibraryImporterAtomicityTests` cover checksum persistence, retry idempotency, and checksum short-circuit behavior. 
 
 **G5.4 — Dataset duplication (BUG‑0013, S2) & stray pbxproj backup (BUG‑0036, S3)**
 **Fix**: Removed the duplicate `podcastrecommendations*.json` copies, documented the canonical `podcastrecommendations 2.json`, and added CI guards that fail when duplicate datasets or `*.pbxproj.backup` files appear. (podcastrecommendations.json; json database/podcastrecommendations.json; scripts/ci/integrity.sh; scripts/ci/test-harness.sh)
