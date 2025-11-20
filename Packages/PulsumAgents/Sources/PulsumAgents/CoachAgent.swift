@@ -47,7 +47,7 @@ public final class CoachAgent {
     public func recommendationCards(for snapshot: FeatureVectorSnapshot,
                                     consentGranted: Bool) async throws -> [RecommendationCard] {
         let query = buildQuery(from: snapshot)
-        let matches = try vectorIndex.searchMicroMoments(query: query, topK: 20)
+        let matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
         guard !matches.isEmpty else { return [] }
 
         let scoreLookup = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0.score) })
@@ -153,7 +153,7 @@ public final class CoachAgent {
     /// Returns privacy-safe title and oneLiner (no PHI)
     public func candidateMoments(for intentTopic: String, limit: Int = 2) async -> [CandidateMoment] {
         let query = "wellbeing \(intentTopic)"
-        guard let matches = try? vectorIndex.searchMicroMoments(query: query, topK: limit),
+        guard let matches = try? await vectorIndex.searchMicroMoments(query: query, topK: limit),
               !matches.isEmpty else {
             return []
         }
@@ -217,7 +217,7 @@ public final class CoachAgent {
     func coverageDecision(for query: String,
                           canonicalTopic: String?,
                           snapshot: FeatureVectorSnapshot?) async throws -> (matches: [VectorMatch], decision: CoverageDecision) {
-        var matches = try vectorIndex.searchMicroMoments(query: query, topK: 20)
+        var matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
         var decision = decideCoverage(CoverageInputs(l2Matches: matches,
                                                      canonicalTopic: canonicalTopic,
                                                      snapshot: snapshot))
@@ -225,7 +225,7 @@ public final class CoachAgent {
         if case .fail = decision.kind, let topic = canonicalTopic {
             let backfill = try await keywordBackfillMoments(for: topic, limit: 8)
             for moment in backfill {
-                let backfillMatches = try vectorIndex.searchMicroMoments(query: moment.title, topK: 1)
+                let backfillMatches = try await vectorIndex.searchMicroMoments(query: moment.title, topK: 1)
                 for match in backfillMatches where !matches.contains(where: { $0.id == match.id }) {
                     matches.append(match)
                 }

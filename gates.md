@@ -118,6 +118,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 
 ## Gate 3 — **HealthKit ingestion & UI freshness**
 
+**Status (2025‑11‑15):** ✅ `HealthAccessStatus` drives per-type authorization checks, `.pulsumScoresUpdated` re-syncs wellbeing after sliders/journals/HealthKit events, and Settings renders the 6-type status matrix with deterministic success toasts plus a real request flow via `AgentOrchestrator.requestHealthAccess()`. Debug seams keep Gate3 UITests deterministic.
+
 **G3.1 — Auth checks before queries (BUG‑0024, S1)**
 **Fix**: Added `HealthAccessStatus` + `HealthKitServicing.authorizationStatus(for:)` so `DataAgent.startIngestionIfAuthorized()` only registers queries for granted types and surfaces denied/notDetermined sets to the UI.
 **Tests**: `Gate3_HealthAccessStatusTests` injects sleep denial and asserts no observer is created plus the missing type is reported.
@@ -137,6 +139,8 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 ---
 
 ## Gate 4 — **RAG/LLM wiring & consent UX**
+
+**Status (2025‑11‑16):** ✅ `TopicSignalResolver` + `MinimizedCloudRequest` keep GPT-5 payloads grounded with candidate moments, Settings gained Save/Test GPT key flows and the Apple Intelligence CTA, and consent routing now deterministically chooses cloud vs on-device paths. Gate 4 suites cover routing, key storage, schema guards, ping seams, and the new UI behavior.
 
 | Bug | Fix | Tests |
 | --- | --- | --- |
@@ -166,21 +170,27 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 
 ## Gate 5 — **Vector index & data I/O integrity**
 
-**G5.1 — Thread‑safe shard cache (BUG‑0012, S0)**
-**Fix**: Make **all** access to `shards` go through a barrier queue (or wrap the whole `VectorIndex` in an `actor`). Remove the double‑checked read outside the lock.
-**Automated**: TSan stress tests that concurrently call search/upsert without data races or crashes. 
+**Status:** ✅ Complete — actor-backed vector index with deterministic shard cache, structured file-handle closing, non-blocking importer, single-source dataset, and CI hygiene landing.
+
+**G5.1 — Thread-safe shard cache (BUG‑0012, S0)**
+**Fix**: Converted `VectorIndex` into an `actor` with a `VectorIndexFileHandleFactory` helper so shard creation/mutation is serialized and deterministic. (Packages/PulsumData/Sources/PulsumData/VectorIndex.swift)
+**Automated**: Added `Gate5_VectorIndexConcurrencyTests` to hammer concurrent upsert/search/remove calls under TSan. 
 
 **G5.2 — FileHandle close safety (BUG‑0017, S1)**
-**Fix**: Replace `try? handle.close()` with `do/catch` and bubble errors; ensure `defer` closes even on throws.
-**Automated**: Inject close failures; assert proper error propagation and no fd leaks. 
+**Fix**: Wrapped shard writes in a `withHandle` helper that always attempts `close()` once and rethrows failures as `VectorIndexError.ioFailure`. (Packages/PulsumData/Sources/PulsumData/VectorIndex.swift)
+**Automated**: `Gate5_VectorIndexFileHandleTests` inject a handle that throws from `close()` and verify the error surfaces without descriptor leaks. 
 
 **G5.3 — LibraryImporter blocking I/O (BUG‑0022, S2)**
-**Fix**: Read JSON **outside** `context.perform`, then pass decoded structs into the perform block.
-**Automated**: Time budget test shows import no longer blocks Core Data queue. 
+**Fix**: Preload JSON/DTO payloads outside of `context.perform`, return `MicroMomentIndexPayload`s, redact vector-index writes outside Core Data, and persist `LibraryIngest.checksum` only after indexing succeeds so transient failures can retry safely. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift)
+**Automated**: `Gate5_LibraryImporterPerfTests` measure a concurrent fetch completing within the latency budget while an import runs; `Gate5_LibraryImporterAtomicityTests` cover checksum persistence, retry idempotency, and checksum short-circuit behavior. 
 
 **G5.4 — Dataset duplication (BUG‑0013, S2) & stray pbxproj backup (BUG‑0036, S3)**
-**Fix**: Keep a single canonical JSON file; remove duplicates and the checked‑in project backup; add a pre‑commit lint to block future `.backup` files.
-**Automated**: Repo hygiene test scans for duplicate hashes and backup project files. 
+**Fix**: Removed the duplicate `podcastrecommendations*.json` copies, documented the canonical `podcastrecommendations 2.json`, and added CI guards that fail when duplicate datasets or `*.pbxproj.backup` files appear. (podcastrecommendations.json; json database/podcastrecommendations.json; scripts/ci/integrity.sh; scripts/ci/test-harness.sh)
+**Automated**: `scripts/ci/test-harness.sh` now hashes `podcastrecommendations*.json` to ensure a single copy, and `scripts/ci/integrity.sh` fails the run if any `.pbxproj.backup` file is tracked. 
+
+**G5.5 — Actor-safe manager boundary & Core Data model availability**
+**Fix**: Promoted `VectorIndexProviding` to `Sendable`, converted `VectorIndexManager` into an actor with a test-only injection initializer, and moved the canonical `Pulsum.xcdatamodeld` into PulsumData’s resources so both the app and SwiftPM tests share the same `.momd`. (Packages/PulsumData/Sources/PulsumData/{VectorIndexManager.swift,Resources/Pulsum.xcdatamodeld,DataStack.swift}; Packages/PulsumData/Package.swift)
+**Automated**: Added `Gate5_VectorIndexManagerActorTests` plus strict-concurrency builds in CI, and `swift test` no longer fails with “Failed to load model named Pulsum.” 
 
 ---
 

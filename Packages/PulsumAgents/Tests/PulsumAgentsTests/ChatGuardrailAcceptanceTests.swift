@@ -81,7 +81,7 @@ final class ChatHarness {
         let coachAgent: CoachAgent = try CoachAgent(container: container,
                                                     vectorIndex: StubVectorIndex(),
                                                     libraryImporter: LibraryImporter(configuration: LibraryImporterConfiguration(),
-                                                                                    vectorIndexManager: VectorIndexManager.shared),
+                                                                                    vectorIndex: VectorIndexManager.shared),
                                                     llmGateway: gateway,
                                                     shouldIngestLibrary: false)
 
@@ -161,11 +161,11 @@ private actor StubDataAgent: DataAgentProviding {
     func reset() {}
 }
 
-final class StubVectorIndex: VectorIndexProviding {
-    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) throws -> [Float] { [] }
-    func removeMicroMoment(id: String) throws {}
+actor StubVectorIndex: VectorIndexProviding {
+    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] { [] }
+    func removeMicroMoment(id: String) async throws {}
 
-    func searchMicroMoments(query: String, topK: Int) throws -> [VectorMatch] {
+    func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
         switch query.lowercased() {
         case let text where text.contains("sleep"):
             return Self.matches(similarities: [0.75, 0.68, 0.61])

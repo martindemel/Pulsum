@@ -76,7 +76,8 @@ public final class DataStack {
             fatalError("Pulsum data directories could not be created: \(error)")
         }
 
-        container = NSPersistentContainer(name: "Pulsum")
+        let managedObjectModel = DataStack.loadManagedObjectModel()
+        container = NSPersistentContainer(name: "Pulsum", managedObjectModel: managedObjectModel)
         let description = NSPersistentStoreDescription(url: storagePaths.sqliteStoreURL)
         description.type = NSSQLiteStoreType
 #if os(iOS)
@@ -163,6 +164,36 @@ public final class DataStack {
         applyBackupExclusion(to: urls)
     }
 #endif
+
+    private static func loadManagedObjectModel() -> NSManagedObjectModel {
+        if let url = Bundle.pulsumDataResources.url(forResource: "Pulsum", withExtension: "momd"),
+           let model = NSManagedObjectModel(contentsOf: url) {
+            return model
+        }
+        if let url = Bundle.pulsumDataResources.url(forResource: "PulsumCompiled", withExtension: "momd"),
+           let model = NSManagedObjectModel(contentsOf: url) {
+            return model
+        }
+        if let url = Bundle.main.url(forResource: "Pulsum", withExtension: "momd"),
+           let model = NSManagedObjectModel(contentsOf: url) {
+            return model
+        }
+        if let url = Bundle.main.url(forResource: "PulsumCompiled", withExtension: "momd"),
+           let model = NSManagedObjectModel(contentsOf: url) {
+            return model
+        }
+        for bundle in Bundle.allBundles + Bundle.allFrameworks {
+            if let url = bundle.url(forResource: "Pulsum", withExtension: "momd"),
+               let model = NSManagedObjectModel(contentsOf: url) {
+                return model
+            }
+            if let url = bundle.url(forResource: "PulsumCompiled", withExtension: "momd"),
+               let model = NSManagedObjectModel(contentsOf: url) {
+                return model
+            }
+        }
+        fatalError("PulsumData: NSManagedObjectModel 'Pulsum' not found in bundle resources")
+    }
 }
 
 extension DataStack: @unchecked Sendable {}

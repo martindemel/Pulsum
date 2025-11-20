@@ -8,15 +8,15 @@
 - Health metrics and journals flow through a `DataAgent` actor that merges HealthKit streams, subjective sliders, and sentiment embeddings to drive a wellbeing score and metric breakdown surfaced in UI dashboards. (Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:46-216; Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownViewModel.swift:7-56)
 
 ## 3. Repository Map
-- `Pulsum/` – App entry point, entitlements, and Core Data model bundle. (Pulsum/PulsumApp.swift:11-16; Pulsum/Pulsum.entitlements:5-8; Pulsum/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents:3-80)
+- `Pulsum/` – App entry point and entitlements; the Core Data model now lives with PulsumData resources so both the app and package tests load the same `.momd`. (Pulsum/PulsumApp.swift:11-16; Pulsum/Pulsum.entitlements:5-8; Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents:3-80)
 - `Packages/PulsumUI/` – SwiftUI presentation layer with tab shell, voice journal sheet, coach chat UI, settings, and design system. (Packages/PulsumUI/Package.swift:5-36; Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift:5-274)
 - `Packages/PulsumTypes/` – Shared Swift types (e.g., `SpeechSegment`, notification identifiers) consumed by Services, Agents, and UI so cross-layer contracts compile/link without introducing UI→Services coupling. (Packages/PulsumTypes/Package.swift:1-18; Packages/PulsumTypes/Sources/PulsumTypes/{SpeechTypes.swift,Notifications.swift})
 - `Packages/PulsumAgents/` – Domain orchestrators, data ingestion, coaching logic, safety, and sentiment agents. (Packages/PulsumAgents/Package.swift:5-41; Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:65-404)
 - `Packages/PulsumServices/` – Platform services: HealthKit wrapper, LLM gateway, speech capture, keychain, and diagnostics notifications. (Packages/PulsumServices/Package.swift:5-37; Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:136-304)
-- `Packages/PulsumData/` – Core Data stack, vector index implementation, and library importer that seeds recommendation content. (Packages/PulsumData/Package.swift:5-36; Packages/PulsumData/Sources/PulsumData/DataStack.swift:18-137; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168)
+- `Packages/PulsumData/` – Core Data stack, vector index implementation, and library importer that seeds recommendation content; the canonical `Pulsum.xcdatamodeld` now lives under `Sources/PulsumData/Resources/` so both the app bundle and package tests load the identical model via `Bundle.module`. (Packages/PulsumData/Package.swift:5-36; Packages/PulsumData/Sources/PulsumData/DataStack.swift:18-187; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-203)
 - `Packages/PulsumML/` – On-device ML utilities for embeddings, sentiment, topic gating, safety heuristics, and state estimation. (Packages/PulsumML/Package.swift:5-40; Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingService.swift:4-74; Packages/PulsumML/Sources/PulsumML/TopicGate/EmbeddingTopicGateProvider.swift:4-168)
 - `PulsumTests/` & `PulsumUITests/` – Unit/UI scaffolding; agents and services also ship dedicated test targets under their packages. (PulsumTests/PulsumTests.swift:11-15; Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailAcceptanceTests.swift:12-183; Packages/PulsumServices/Tests/PulsumServicesTests/LLMGatewayTests.swift:64-215)
-- `json database/` – Offline podcast recommendation corpus imported into Core Data and the vector index. (json database/podcastrecommendations.json:1-20; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-127)
+- `podcastrecommendations 2.json` – Offline podcast recommendation corpus imported into Core Data and the vector index. (podcastrecommendations 2.json:1-20; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168)
 
 ```json
 {
@@ -26,7 +26,7 @@
   "sample": [
     {"path": "Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift", "sha256": "145611068796e6bdcb5879c650a0a440817221ff485c18283e622bdbef2df387", "intent": "read"},
     {"path": "Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift", "sha256": "b9ea933fbb566b2e2868844047c47ec5808345b9366c9f7af25991bff9efe545", "intent": "read"},
-    {"path": "json database/podcastrecommendations.json", "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c", "intent": "read"}
+    {"path": "podcastrecommendations 2.json", "sha256": "50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c", "intent": "read"}
   ]
 }
 ```
@@ -61,7 +61,7 @@
 - **Data layer (PulsumData)**: Core Data stack, storage paths, and vector index.
   - `DataStack` provisions application-support directories, file protection attributes, and background contexts. (Packages/PulsumData/Sources/PulsumData/DataStack.swift:18-137)
   - `VectorIndex` persists float embeddings in sharded binary files; `VectorIndexManager` couples embeddings from `EmbeddingService`. (Packages/PulsumData/Sources/PulsumData/VectorIndex.swift:268-337; Packages/PulsumData/Sources/PulsumData/VectorIndexManager.swift:11-36)
-  - `LibraryImporter` ingests JSON podcast recommendations into Core Data entities and vector index entries, deduplicated by checksum. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168; json database/podcastrecommendations.json:1-20)
+- `LibraryImporter` ingests JSON podcast recommendations into Core Data entities and vector index entries, deduplicated by checksum. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168; podcastrecommendations 2.json:1-20)
 - **ML utilities (PulsumML)**: On-device embeddings, sentiment, safety, and ranking.
   - `EmbeddingService` selects AFM or Core ML fallback providers while ensuring 384-dim vectors. (Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingService.swift:4-74)
   - `EmbeddingTopicGateProvider` scores on-topic vs. out-of-domain using prototype embeddings and confidence margins. (Packages/PulsumML/Sources/PulsumML/TopicGate/EmbeddingTopicGateProvider.swift:4-168)
@@ -69,10 +69,10 @@
   - `SafetyLocal`, `StateEstimator`, and `RecRanker` provide local guardrails, wellbeing estimation, and recommendation ranking heuristics. (Packages/PulsumML/Sources/PulsumML/SafetyLocal.swift:31-172; Packages/PulsumML/Sources/PulsumML/StateEstimator.swift:3-82; Packages/PulsumML/Sources/PulsumML/RecRanker.swift:3-160)
 
 ## 8. Data & Domain
-- Core Data model defines journal entries, daily metrics, baselines, feature vectors, micro moments, recommendation events, ingest metadata, user consent, and consent state. (Pulsum/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents:3-80)
+- Core Data model defines journal entries, daily metrics, baselines, feature vectors, micro moments, recommendation events, ingest metadata, user consent, and consent state. (Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents:3-80)
 - `DataAgent` constructs `FeatureVectorSnapshot` aggregates, persists subjective sliders, and materializes `ScoreBreakdown` metrics with baseline comparisons and imputation notes. (Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:8-44; Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:117-216)
 - Journal embeddings are persisted as protected `.vec` files alongside Core Data entries to feed similarity search. (Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift:128-179)
-- Recommendation content originates from bundled JSON (podcast recommendations) and is imported via `LibraryImporter`, which assigns evidence badges and populates the vector index. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-127; json database/podcastrecommendations.json:1-20)
+- Recommendation content originates from the bundled `podcastrecommendations 2.json` and is imported via `LibraryImporter`, which assigns evidence badges and populates the vector index. (Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168; podcastrecommendations 2.json:1-20)
 
 ## 9. Networking
 - All external networking is funneled through `LLMGateway`, which posts JSON-schema-bound requests to `https://api.openai.com/v1/responses` with strict max token clamping and error handling. (Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:184-304; Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:606-675)
@@ -116,7 +116,7 @@
 ## 15. Internationalization & Resources
 - UI copy is hard-coded English within SwiftUI views; no localized `.strings` catalogs are configured. (Packages/PulsumUI/Sources/PulsumUI/CoachView.swift:15-386; Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift:28-526)
 - Asset catalogs provide light branding images and accent colors; design tokens codify typography and spacing for consistency. (Pulsum/Assets.xcassets/Contents.json:1-6; Packages/PulsumUI/Sources/PulsumUI/PulsumDesignSystem.swift:6-172)
-- Recommendation content ships as JSON resources bundled with the app and imported on first launch. (json database/podcastrecommendations.json:1-20; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-127)
+- Recommendation content ships as a single JSON resource (`podcastrecommendations 2.json`) bundled with the app and imported on first launch. (podcastrecommendations 2.json:1-20; Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift:41-168)
 
 ## 16. CI/CD & Release
 - No Fastlane scripts or platform-specific CI workflows are present in the scanned inventory; builds rely on Xcode schemes and manually provisioned API keys. (inventory.json:1-20; Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:136-210)
@@ -126,7 +126,7 @@
 1. **API key exposure** – Keep `Config.xcconfig.template` free of secrets and rely on Keychain/env injection plus the Gate‑0 secret scanner to prevent regressions. (Config.xcconfig.template; scripts/ci/scan-secrets.sh)
 2. **Simulator limitations** – HealthKit background delivery requires entitlements; simulator starts log recoverable failures that should surface to the user for clarity. (Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:119-133)
 3. **UI tests incomplete** – UITest targets are placeholders; expand coverage for voice journal, chat, and settings flows. (PulsumUITests/PulsumUITests.swift:12-39)
-4. **Large bundled dataset** – The full recommendation corpus (>50 KB) is duplicated at the repo root; dedupe to single canonical source to avoid drift. (json database/podcastrecommendations.json:1-20; podcastrecommendations.json:1-20)
+4. **Large bundled dataset** – Canonicalized to `podcastrecommendations 2.json`; importer still falls back to legacy directories when older builds bundle them, but the repo now carries a single source of truth. (podcastrecommendations 2.json:1-20)
 5. **On-device fallback quality** – Legacy coach generator returns a static message when Foundation Models are unavailable, potentially degrading UX; consider richer on-device templates. (Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift:590-603)
 
 ## 18. Coverage Report
@@ -264,8 +264,8 @@
 | Pulsum/Assets.xcassets/AppIcon.appiconset/logo2_with_white_bg.png | 1324789f541cec13a666285b3b48dfc9eabe94c04aaeb4c0c01b8ff642616356 | summarize_only | Image asset |
 | Pulsum/Assets.xcassets/Contents.json | 0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b | read | JSON resource |
 | Pulsum/Pulsum.entitlements | 3a0fe663304785c4f157a6a2dd599ff9c1abbd87138e73bb313b5141f3e27618 | read | Entitlements |
-| Pulsum/Pulsum.xcdatamodeld/.xccurrentversion | 1139771d43c6b86db70dc760278d2b75b4e9593fdbce6deb0375024356b68f9d | read | Core Data current version marker |
-| Pulsum/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents | 170131f2cff09976cc8d085ecb8da51f9e8484805fefa0c615b4460e55bbbe15 | read | Core Data model contents |
+| Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/.xccurrentversion | 1139771d43c6b86db70dc760278d2b75b4e9593fdbce6deb0375024356b68f9d | read | Core Data current version marker |
+| Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents | 170131f2cff09976cc8d085ecb8da51f9e8484805fefa0c615b4460e55bbbe15 | read | Core Data model contents |
 | Pulsum/PulsumApp.swift | 029c3b42c425daa6b1a71b38cc55b64ff7b85ac93c97b64c89118d3cafcf29e4 | read | Swift source |
 | PulsumTests/PulsumTests.swift | ff425d00e00d0177eb9adf347bb47c5f3e51fea00ab0c81e6b824b98d4c18ec9 | read | Swift source |
 | PulsumUITests/PulsumUITests.swift | ec2c04a16c2160a40da089eedb1555b9b7f8c9b8c4b30650d6ccc76b08d2fb66 | read | Swift source |
@@ -275,12 +275,10 @@
 | inventory.json | 65710ef7d90de6b9b747288abc0ae48759761b690c9a2909a85ecc64fd98ee12 | read | JSON resource |
 | ios app mockup.png | a0d118c867dba9ef8f52097419c608d7912946fcd85e7584df81b189a38094ff | summarize_only | Image asset |
 | ios support files/glow.swift | 59923efcc4ec5f2dabbd2dfd67bb10d0e73247d0334975d171ffa84fb5bd1535 | read | Swift source |
-| json database/podcastrecommendations.json | 50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c | read | JSON resource |
 | logo.jpg | 49ecea236ea825afed3f4dbe6f374299cbbb87aadbaaf5ce029c8c7c1ca34de2 | summarize_only | Image asset |
 | logo2.png | 0cb9ec37668a50f75151942e2d993608f7a9507c805fabac700cae47805bfe46 | summarize_only | Image asset |
 | mainanimation.usdz | 9dd79ebe7c92c39a772b39316f8dbf3c4c459721363aaee27215453374e9a0e3 | summarize_only | 3D asset |
 | podcastrecommendations 2.json | 50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c | read | JSON resource |
-| podcastrecommendations.json | 50464a3a1673f4845622281d00ecf5099e62bd72d99099fe1ea7d218b0a1f35c | read | JSON resource |
 | streak_low_poly_copy.splineswift | 60b540c0a7857b24f6406627dd3f64b7760d08037d4384aaaf4e99b66a7fd9b9 | summarize_only | Spline design asset |
 
 ## 19. Confidence & Open Questions

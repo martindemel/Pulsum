@@ -9,6 +9,8 @@ on:
 jobs:
   gate-tests:
     runs-on: macos-15
+    env:
+      PULSUM_SIM_OS: "26.0.1"
     steps:
       - uses: actions/checkout@v4
 

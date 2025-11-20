@@ -100,7 +100,7 @@ private func makeSnapshot(features: [String: Double]) throws -> FeatureVectorSna
     return snapshot
 }
 
-private final class RoutingVectorIndexStub: VectorIndexProviding {
+private actor RoutingVectorIndexStub: VectorIndexProviding {
     private let storedMatches: [VectorMatch]
 
     init(matches: [VectorMatch]) {
@@ -108,13 +108,13 @@ private final class RoutingVectorIndexStub: VectorIndexProviding {
     }
 
     @discardableResult
-    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) throws -> [Float] {
+    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] {
         []
     }
 
-    func removeMicroMoment(id: String) throws {}
+    func removeMicroMoment(id: String) async throws {}
 
-    func searchMicroMoments(query: String, topK: Int) throws -> [VectorMatch] {
+    func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
         storedMatches
     }
 }

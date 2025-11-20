@@ -17,6 +17,7 @@ public struct LibraryImporterConfiguration {
 public enum LibraryImporterError: LocalizedError {
     case missingResources
     case decodingFailed(underlying: Error)
+    case indexingFailed(underlying: Error)
 
     public var errorDescription: String? {
         switch self {
@@ -24,27 +25,24 @@ public enum LibraryImporterError: LocalizedError {
             return "No recommendation library resources were found in the application bundle."
         case let .decodingFailed(underlying):
             return "Unable to parse recommendation library: \(underlying.localizedDescription)"
+        case let .indexingFailed(underlying):
+            return "Unable to index recommendation library: \(underlying.localizedDescription)"
         }
     }
 }
 
 public final class LibraryImporter {
     private let configuration: LibraryImporterConfiguration
-    private let vectorIndexManager: VectorIndexManager
+    private let vectorIndex: VectorIndexProviding
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
-                vectorIndexManager: VectorIndexManager = .shared) {
+                vectorIndex: VectorIndexProviding = VectorIndexManager.shared) {
         self.configuration = configuration
-        self.vectorIndexManager = vectorIndexManager
+        self.vectorIndex = vectorIndex
     }
 
     public func ingestIfNeeded() async throws {
-        var urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
-                                             subdirectory: configuration.subdirectory) ?? []
-        if urls.isEmpty, configuration.subdirectory != nil {
-            urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
-                                             subdirectory: nil) ?? []
-        }
+        let urls = discoverLibraryURLs()
         guard !urls.isEmpty else {
             #if DEBUG
             print("[PulsumData] Recommendation library resources not found. Skipping ingestion.")
@@ -52,56 +50,91 @@ public final class LibraryImporter {
             return
         }
 
+        let resources = try await Self.loadResourcesAsync(from: urls)
+        guard !resources.isEmpty else { return }
+
         let context = PulsumData.newBackgroundContext(name: "Pulsum.LibraryImporter")
         context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
-        let urlsCopy = urls
-        try await context.perform {
-            for url in urlsCopy {
-                let data = try Data(contentsOf: url)
-                try self.processFile(data: data, filename: url.lastPathComponent, context: context)
+        let result = try await context.perform {
+            var payloads: [MicroMomentIndexPayload] = []
+            var updates: [LibraryIngestUpdate] = []
+            for resource in resources {
+                let outcome = try self.process(resource: resource, context: context)
+                payloads.append(contentsOf: outcome.payloads)
+                if let update = outcome.ingestUpdate {
+                    updates.append(update)
+                }
             }
 
             if context.hasChanges {
                 try context.save()
             }
-        }
-    }
-
-    private func processFile(data: Data, filename: String, context: NSManagedObjectContext) throws {
-        let checksum = SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
-        let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "source == %@", filename)
-        fetchRequest.fetchLimit = 1
-
-        let existing = try context.fetch(fetchRequest).first
-        if let existing, existing.checksum == checksum {
-            return
+            return (payloads, updates)
         }
 
-        let decoder = JSONDecoder()
-        let library: [PodcastEpisode]
-        do {
-            library = try decoder.decode([PodcastEpisode].self, from: data)
-        } catch {
-            throw LibraryImporterError.decodingFailed(underlying: error)
-        }
-
-        for episode in library {
-            for recommendation in episode.recommendations {
-                try upsertMicroMoment(episode: episode, recommendation: recommendation, context: context)
+        if !result.0.isEmpty {
+            do {
+                try await upsertIndexEntries(result.0)
+            } catch {
+                throw LibraryImporterError.indexingFailed(underlying: error)
             }
         }
 
-        let ingest = existing ?? LibraryIngest(context: context)
-        ingest.id = existing?.id ?? UUID()
-        ingest.source = filename
-        ingest.checksum = checksum
-        ingest.version = "1"
-        ingest.ingestedAt = Date()
+        if !result.1.isEmpty {
+            try await context.perform {
+                for update in result.1 {
+                    let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
+                    fetchRequest.predicate = NSPredicate(format: "source == %@", update.source)
+                    fetchRequest.fetchLimit = 1
+                    let ingest: LibraryIngest
+                    if let existing = try context.fetch(fetchRequest).first {
+                        ingest = existing
+                    } else {
+                        let newIngest = LibraryIngest(context: context)
+                        newIngest.id = UUID()
+                        ingest = newIngest
+                    }
+                    ingest.source = update.source
+                    ingest.checksum = update.checksum
+                    ingest.version = "1"
+                    ingest.ingestedAt = Date()
+                }
+                if context.hasChanges {
+                    try context.save()
+                }
+            }
+        }
     }
 
-    private func upsertMicroMoment(episode: PodcastEpisode, recommendation: PodcastRecommendation, context: NSManagedObjectContext) throws {
+    private func process(resource: LibraryResourcePayload, context: NSManagedObjectContext) throws -> LibraryProcessOutcome {
+        let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "source == %@", resource.filename)
+        fetchRequest.fetchLimit = 1
+
+        let existing = try context.fetch(fetchRequest).first
+        if let existing, existing.checksum == resource.checksum {
+            return LibraryProcessOutcome(payloads: [], ingestUpdate: nil)
+        }
+
+        var payloads: [MicroMomentIndexPayload] = []
+        for episode in resource.episodes {
+            for recommendation in episode.recommendations {
+                let payload = try upsertMicroMoment(episode: episode,
+                                                    recommendation: recommendation,
+                                                    context: context)
+                payloads.append(payload)
+            }
+        }
+
+        return LibraryProcessOutcome(payloads: payloads,
+                                     ingestUpdate: LibraryIngestUpdate(source: resource.filename,
+                                                                        checksum: resource.checksum))
+    }
+
+    private func upsertMicroMoment(episode: PodcastEpisode,
+                                   recommendation: PodcastRecommendation,
+                                   context: NSManagedObjectContext) throws -> MicroMomentIndexPayload {
         let identifier = recommendationIdentifier(episode: episode, recommendation: recommendation)
         let fetch: NSFetchRequest<MicroMoment> = MicroMoment.fetchRequest()
         fetch.predicate = NSPredicate(format: "id == %@", identifier)
@@ -119,11 +152,11 @@ public final class LibraryImporter {
         microMoment.evidenceBadge = EvidenceScorer.badge(for: recommendation.researchLink).rawValue
         microMoment.estimatedTimeSec = NSNumber(value: parseTimeInterval(from: recommendation.timeToComplete))
         microMoment.cooldownSec = recommendation.cooldownSec.map { NSNumber(value: $0) }
-
-        _ = try vectorIndexManager.upsertMicroMoment(id: identifier,
-                                                     title: microMoment.title,
-                                                     detail: microMoment.detail,
-                                                     tags: microMoment.tags)
+        let title = microMoment.title
+        return MicroMomentIndexPayload(id: identifier,
+                                       title: title,
+                                       detail: microMoment.detail,
+                                       tags: microMoment.tags)
     }
 
     private func recommendationIdentifier(episode: PodcastEpisode, recommendation: PodcastRecommendation) -> String {
@@ -166,9 +199,84 @@ public final class LibraryImporter {
         }
         return detailComponents.joined(separator: "\n\n")
     }
+
+    private func discoverLibraryURLs() -> [URL] {
+        var urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
+                                             subdirectory: configuration.subdirectory) ?? []
+        if urls.isEmpty, configuration.subdirectory != nil {
+            urls = configuration.bundle.urls(forResourcesWithExtension: configuration.fileExtension,
+                                             subdirectory: nil) ?? []
+        }
+        return urls
+    }
+
+    private static func loadResourcesAsync(from urls: [URL]) async throws -> [LibraryResourcePayload] {
+        try await Task.detached(priority: .userInitiated) {
+            try loadResources(from: urls)
+        }.value
+    }
+
+    private static func loadResources(from urls: [URL]) throws -> [LibraryResourcePayload] {
+        guard !urls.isEmpty else { return [] }
+        let decoder = JSONDecoder()
+        return try urls.map { url in
+            let data = try Data(contentsOf: url)
+            let checksum = sha256Hex(for: data)
+            let episodes: [PodcastEpisode]
+            do {
+                episodes = try decoder.decode([PodcastEpisode].self, from: data)
+            } catch {
+                throw LibraryImporterError.decodingFailed(underlying: error)
+            }
+            return LibraryResourcePayload(filename: url.lastPathComponent,
+                                          checksum: checksum,
+                                          episodes: episodes)
+        }
+    }
+
+    private func upsertIndexEntries(_ payloads: [MicroMomentIndexPayload]) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for payload in payloads {
+                group.addTask { [vectorIndex] in
+                    _ = try await vectorIndex.upsertMicroMoment(id: payload.id,
+                                                                title: payload.title,
+                                                                detail: payload.detail,
+                                                                tags: payload.tags)
+                }
+            }
+            try await group.waitForAll()
+        }
+    }
+
+    private static func sha256Hex(for data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 // MARK: - Codable structures
+
+private struct LibraryResourcePayload: Sendable {
+    let filename: String
+    let checksum: String
+    let episodes: [PodcastEpisode]
+}
+
+private struct MicroMomentIndexPayload: Sendable {
+    let id: String
+    let title: String
+    let detail: String?
+    let tags: [String]?
+}
+
+private struct LibraryIngestUpdate: Sendable {
+    let source: String
+    let checksum: String
+}
+
+private struct LibraryProcessOutcome: Sendable {
+    let payloads: [MicroMomentIndexPayload]
+    let ingestUpdate: LibraryIngestUpdate?
+}
 
 private struct PodcastEpisode: Decodable {
     let episodeNumber: String
