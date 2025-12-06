@@ -229,6 +229,9 @@ private struct MetricCard: View {
                 if let zScoreLine = zScoreLine {
                     InfoRow(systemName: "chart.line.uptrend.xyaxis", text: zScoreLine)
                 }
+                if let coverageLine = coverageLine {
+                    InfoRow(systemName: "stethoscope", text: coverageLine)
+                }
                 if let baselineLine = baselineLine {
                     InfoRow(systemName: "calendar", text: baselineLine)
                 }
@@ -260,6 +263,13 @@ private struct MetricCard: View {
         guard let zScore = detail.zScore else { return nil }
         let formatted = formatSigned(value: zScore, decimals: 2)
         return "Z-score vs baseline: \(formatted)"
+    }
+
+    private var coverageLine: String? {
+        guard let coverage = detail.coverage else { return nil }
+        let daysLabel = coverage.daysWithSamples == 1 ? "day" : "days"
+        let sampleLabel = coverage.sampleCount == 1 ? "data point" : "data points"
+        return "Health data: \(coverage.daysWithSamples) \(daysLabel), \(coverage.sampleCount) \(sampleLabel)"
     }
 
     private var baselineLine: String? {

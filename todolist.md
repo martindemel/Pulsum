@@ -119,6 +119,11 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 ## Milestone 6 - QA, Testing, and Release Prep (In Progress)
 - [x] Ensure PulsumAgents/PulsumServices/PulsumData/PulsumML test bundles are added to the shared Xcode scheme so Product ▸ Test + CI exercise package suites.
 - [x] Replace placeholder UITests with real end-to-end coverage (onboarding permissions, journaling begin/stream/finish, consent toggles, coach chat, score refresh).
+- [x] Gate 6 stabilization: embedding availability probe (AFM opportunistic, CoreML fallback) powers chat coverage and insights banners without false “generator unavailable”; zero-vector ban enforced.
+- [x] Wellbeing score state machine (loading/ready/no data/error) plus HealthKit request wiring so “Calculating…” no longer spins when data/permissions are missing; Settings/Main show actionable messaging.
+- [x] HealthKit request/status refresh uses the shared service and updates Settings/Main after authorization; request button disables when HealthKit is unavailable.
+- [x] Embedding availability self-heals after cooldown/AFM readiness; journals persist with `embeddingPending` when embeddings fail; RecRanker state now persists across launches.
+- [x] Restore 30-day HealthKit coverage with phased backfill: 2-day bootstrap for first score, then 7-day warm-start + persisted background batches to 30 days without blocking UI; debounced snapshot notifications. Added `BackfillStateStore` + `Gate6_WellbeingBackfillPhasingTests` to lock behavior.
 - [ ] Expand automated tests: unit coverage for agents/services/ML math, UI snapshot tests, end-to-end smoke tests with mocks
 - [ ] **Add Foundation Models-specific tests**: guided generation validation, @Generable struct parsing, temperature behavior, guardrail handling
 - [ ] **Validate Swift 6 concurrency compliance**: Verify zero warnings in all packages, proper @Sendable usage, actor isolation correctness

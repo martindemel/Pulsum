@@ -6,14 +6,34 @@ final class PackageEmbedTests: XCTestCase {
         XCTAssertFalse(PulsumML.version.isEmpty)
     }
 
-    func testEmbeddingDimensionIs384() {
-        let vector = PulsumML.embedding(for: "Calm breathing exercise and gentle walk")
+    func testEmbeddingDimensionIs384() throws {
+        let provider = ConstantEmbeddingProvider(vector: Array(repeating: Float(0.5), count: 384))
+        let service = EmbeddingService.debugInstance(primary: provider, fallback: nil, dimension: 384)
+        let vector = try service.embedding(for: "Calm breathing exercise and gentle walk")
         XCTAssertEqual(vector.count, 384)
     }
 
-    func testSegmentEmbeddingAveragesVectors() {
-        let vector = PulsumML.embedding(forSegments: ["sleep hygiene", "low HRV"])
+    func testSegmentEmbeddingAveragesVectors() throws {
+        let provider = ConstantEmbeddingProvider(vector: Array(repeating: Float(1), count: 384))
+        let service = EmbeddingService.debugInstance(primary: provider, fallback: nil, dimension: 384)
+        let vector = try service.embedding(forSegments: ["sleep hygiene", "low HRV"])
         XCTAssertEqual(vector.count, 384)
+    }
+
+    func testCoreMLFallbackModelIsBundled() throws {
+        // Ensures the packaged Core ML embedding exists and yields a non-zero vector.
+        if #available(iOS 17.0, macOS 13.0, *) {
+            do {
+                let provider = CoreMLEmbeddingFallbackProvider()
+                let vector = try provider.embedding(for: "pulsum bundle availability")
+                XCTAssertEqual(vector.count, 384)
+                XCTAssertFalse(vector.allSatisfy { $0 == 0 })
+            } catch EmbeddingError.generatorUnavailable {
+                throw XCTSkip("Core ML fallback embedding unavailable in this environment.")
+            }
+        } else {
+            throw XCTSkip("Core ML fallback requires at least iOS 17 / macOS 13.")
+        }
     }
 
     func testRobustStatsMedianAndZScore() {
@@ -66,5 +86,29 @@ final class PackageEmbedTests: XCTestCase {
         default:
             XCTFail("Expected crisis classification")
         }
+    }
+
+    func testAvailabilityModeReportsUnavailableWhenProvidersFail() {
+        let provider = FailingEmbeddingProvider()
+        let service = EmbeddingService.debugInstance(primary: provider,
+                                                     fallback: nil,
+                                                     dimension: 384,
+                                                     reprobeInterval: 0,
+                                                     dateProvider: Date.init)
+        XCTAssertEqual(service.availabilityMode(), .unavailable)
+    }
+}
+
+private struct ConstantEmbeddingProvider: TextEmbeddingProviding {
+    let vector: [Float]
+
+    func embedding(for text: String) throws -> [Float] {
+        vector
+    }
+}
+
+private struct FailingEmbeddingProvider: TextEmbeddingProviding {
+    func embedding(for text: String) throws -> [Float] {
+        throw EmbeddingError.generatorUnavailable
     }
 }

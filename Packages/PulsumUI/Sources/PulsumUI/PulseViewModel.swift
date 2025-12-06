@@ -188,7 +188,11 @@ final class PulseViewModel {
         lastCapturedAt = Date()
         onSafetyDecision?(response.safety)
         analysisError = nil
-        savedToastMessage = "Saved to Journal"
+        if response.result.embeddingPending {
+            savedToastMessage = "Saved. We'll analyze this entry when the on-device model is available."
+        } else {
+            savedToastMessage = "Saved to Journal"
+        }
         toastTask?.cancel()
         toastTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 3_000_000_000)

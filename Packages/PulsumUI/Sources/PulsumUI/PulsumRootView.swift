@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import Foundation
+import PulsumAgents
 
 public struct PulsumRootView: View {
     @State private var viewModel = AppViewModel()
@@ -130,7 +131,7 @@ struct MainContainerView: View {
         .sheet(isPresented: $viewModel.isPresentingSettings) {
             SettingsScreen(
                 viewModel: viewModel.settingsViewModel,
-                wellbeingScore: viewModel.coachViewModel.wellbeingScore
+                wellbeingState: viewModel.coachViewModel.wellbeingState
             )
         }
         .overlay {
@@ -169,25 +170,39 @@ struct MainContainerView: View {
     }
 
     @ViewBuilder
+    private var wellbeingCard: some View {
+        switch viewModel.coachViewModel.wellbeingState {
+        case let .ready(score, _):
+            if let detailViewModel = viewModel.settingsViewModel.makeScoreBreakdownViewModel() {
+                NavigationLink {
+                    ScoreBreakdownScreen(viewModel: detailViewModel)
+                } label: {
+                    WellbeingScoreCard(score: score)
+                }
+                .buttonStyle(.plain)
+            } else {
+                WellbeingScoreCard(score: score)
+            }
+        case .loading:
+            WellbeingScoreLoadingCard()
+        case let .noData(reason):
+            WellbeingNoDataCard(reason: reason) {
+                Task { await viewModel.settingsViewModel.requestHealthKitAuthorization() }
+            }
+        case let .error(message):
+            WellbeingErrorCard(message: message) {
+                viewModel.coachViewModel.reloadIfNeeded()
+            }
+        }
+    }
+
+    @ViewBuilder
     private var mainTab: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: PulsumSpacing.xl) {
                     // Wellbeing Score Card
-                    if let score = viewModel.coachViewModel.wellbeingScore {
-                        if let detailViewModel = viewModel.settingsViewModel.makeScoreBreakdownViewModel() {
-                            NavigationLink {
-                                ScoreBreakdownScreen(viewModel: detailViewModel)
-                            } label: {
-                                WellbeingScoreCard(score: score)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            WellbeingScoreCard(score: score)
-                        }
-                    } else {
-                        WellbeingScoreLoadingCard()
-                    }
+                    wellbeingCard
                 }
                 .frame(maxWidth: 520)
                 .padding(.horizontal, PulsumSpacing.lg)

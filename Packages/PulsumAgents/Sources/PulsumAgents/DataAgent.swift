@@ -23,6 +23,11 @@ public struct ScoreBreakdown: Sendable {
             case sentiment
         }
 
+        public struct Coverage: Sendable {
+            public let daysWithSamples: Int
+            public let sampleCount: Int
+        }
+
         public let id: String
         public let name: String
         public let kind: Kind
@@ -36,6 +41,7 @@ public struct ScoreBreakdown: Sendable {
         public let rollingWindowDays: Int?
         public let explanation: String
         public let notes: [String]
+        public let coverage: Coverage?
     }
 
     public let date: Date
@@ -47,23 +53,36 @@ public struct ScoreBreakdown: Sendable {
 actor DataAgent {
     private let healthKit: any HealthKitServicing
     private let calendar = Calendar(identifier: .gregorian)
-    private var stateEstimator = StateEstimator()
+    private let estimatorStore: EstimatorStateStoring
+    private var stateEstimator: StateEstimator
     private let context: NSManagedObjectContext
     private var observers: [String: HealthKitObservationToken] = [:]
     private let requiredSampleTypes: [HKSampleType]
     private let sampleTypesByIdentifier: [String: HKSampleType]
-    private var cachedHealthAccessStatus: HealthAccessStatus?
     private let notificationCenter: NotificationCenter
+    private let backfillStore: BackfillStateStoring
+    private var backfillProgress: BackfillProgress
+    private var pendingSnapshotUpdate: Task<Void, Never>?
+    private var backgroundBackfillTask: Task<Void, Never>?
 
-    private let analysisWindowDays = 30
+    // Phase 1: small foreground window for fast first score; Phase 2: full context restored in background.
+    private let warmStartWindowDays = 7
+    private let fullAnalysisWindowDays = 30
+    private let bootstrapWindowDays = 2
     private let sleepDebtWindowDays = 7
+    private let backgroundBackfillBatchDays = 5
     private let sedentaryThresholdStepsPerHour: Double = 30
     private let sedentaryMinimumDuration: TimeInterval = 30 * 60
 
     init(healthKit: any HealthKitServicing = PulsumServices.healthKit,
          container: NSPersistentContainer = PulsumData.container,
-         notificationCenter: NotificationCenter = .default) {
+         notificationCenter: NotificationCenter = .default,
+         estimatorStore: EstimatorStateStoring = EstimatorStateStore(),
+         backfillStore: BackfillStateStoring = BackfillStateStore()) {
         self.healthKit = healthKit
+        self.estimatorStore = estimatorStore
+        self.backfillStore = backfillStore
+        self.stateEstimator = StateEstimator()
         self.context = container.newBackgroundContext()
         self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         self.context.name = "Pulsum.DataAgent"
@@ -74,39 +93,70 @@ actor DataAgent {
             dictionary[type.identifier] = type
         }
         self.sampleTypesByIdentifier = dictionary
-        self.cachedHealthAccessStatus = nil
+
+        if let persistedBackfill = backfillStore.loadState() {
+            self.backfillProgress = persistedBackfill
+        } else {
+            self.backfillProgress = BackfillProgress()
+        }
+
+        if let persisted = estimatorStore.loadState() {
+            self.stateEstimator = StateEstimator(state: persisted)
+        }
     }
 
     // MARK: - Lifecycle
 
     func start() async throws {
+        await DebugLogBuffer.shared.append("DataAgent.start invoked")
         let initialStatus = await currentHealthAccessStatus()
+        await DebugLogBuffer.shared.append("Initial HealthKit status: \(statusSummary(initialStatus))")
         try await configureObservation(for: initialStatus, resetRevokedAnchors: false)
 
-        guard !initialStatus.notDetermined.isEmpty else { return }
+        // Always re-request to refresh HealthKit's internal state; authorized paths return immediately.
+        do {
+            try await healthKit.requestAuthorization()
+            await DebugLogBuffer.shared.append("HealthKit requestAuthorization succeeded")
+        } catch {
+            await DebugLogBuffer.shared.append("HealthKit requestAuthorization failed: \(error.localizedDescription)")
+            throw error
+        }
 
-        try await healthKit.requestAuthorization()
-        _ = try await startIngestionIfAuthorized()
+        let refreshedStatus = await currentHealthAccessStatus()
+        await DebugLogBuffer.shared.append("Refreshed HealthKit status: \(statusSummary(refreshedStatus))")
+        try await configureObservation(for: refreshedStatus, resetRevokedAnchors: true)
+        await bootstrapFirstScore(for: refreshedStatus)
+        scheduleBackfill(for: refreshedStatus)
     }
 
     @discardableResult
     func startIngestionIfAuthorized() async throws -> HealthAccessStatus {
         let status = await currentHealthAccessStatus()
+        await DebugLogBuffer.shared.append("startIngestionIfAuthorized status: \(statusSummary(status))")
         try await configureObservation(for: status, resetRevokedAnchors: false)
+        scheduleBackfill(for: status)
         return status
     }
 
     @discardableResult
     func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus {
         let status = await currentHealthAccessStatus()
+        await DebugLogBuffer.shared.append("restartIngestionAfterPermissionsChange status: \(statusSummary(status))")
         try await configureObservation(for: status, resetRevokedAnchors: true)
+        await bootstrapFirstScore(for: status)
+        scheduleBackfill(for: status)
         return status
     }
 
     @discardableResult
     func requestHealthAccess() async throws -> HealthAccessStatus {
         try await healthKit.requestAuthorization()
-        return try await restartIngestionAfterPermissionsChange()
+        let status = await currentHealthAccessStatus()
+        await DebugLogBuffer.shared.append("requestHealthAccess refreshed status: \(statusSummary(status))")
+        try await configureObservation(for: status, resetRevokedAnchors: true)
+        await bootstrapFirstScore(for: status)
+        scheduleBackfill(for: status)
+        return status
     }
 
     func currentHealthAccessStatus() async -> HealthAccessStatus {
@@ -116,7 +166,6 @@ actor DataAgent {
                                                  denied: [],
                                                  notDetermined: [],
                                                  availability: .unavailable(reason: "Health data is not available on this device."))
-            cachedHealthAccessStatus = unavailable
             return unavailable
         }
 
@@ -124,12 +173,18 @@ actor DataAgent {
         var denied: Set<HKSampleType> = []
         var pending: Set<HKSampleType> = []
 
+        let requestStatus = await healthKit.requestStatusForAuthorization(readTypes: Set(requiredSampleTypes))
+
         for type in requiredSampleTypes {
             switch healthKit.authorizationStatus(for: type) {
             case .sharingAuthorized:
                 granted.insert(type)
             case .sharingDenied:
-                denied.insert(type)
+                if let requestStatus, requestStatus == .unnecessary {
+                    granted.insert(type)
+                } else {
+                    denied.insert(type)
+                }
             case .notDetermined:
                 pending.insert(type)
             @unknown default:
@@ -142,7 +197,7 @@ actor DataAgent {
                                         denied: denied,
                                         notDetermined: pending,
                                         availability: .available)
-        cachedHealthAccessStatus = status
+        logHealthStatus(status)
         return status
     }
 
@@ -153,7 +208,7 @@ actor DataAgent {
 
     private func configureObservation(for status: HealthAccessStatus,
                                       resetRevokedAnchors: Bool) async throws {
-        cachedHealthAccessStatus = status
+        await DebugLogBuffer.shared.append("configureObservation availability=\(status.availability) granted=\(status.granted.map { $0.identifier })")
         guard case .available = status.availability else {
             stopAllObservers(resetAnchors: resetRevokedAnchors)
             return
@@ -164,15 +219,368 @@ actor DataAgent {
         stopRevokedObservers(keeping: status.granted, resetAnchors: resetRevokedAnchors)
     }
 
+    private func backfillHistoricalSamplesIfNeeded(for status: HealthAccessStatus) async {
+        guard case .available = status.availability else {
+            await DebugLogBuffer.shared.append("Backfill skipped: health unavailable")
+            return
+        }
+        let grantedTypes = status.granted
+        guard !grantedTypes.isEmpty else {
+            await DebugLogBuffer.shared.append("Backfill skipped: no granted types")
+            return
+        }
+
+        let today = calendar.startOfDay(for: Date())
+        let warmStartStart = calendar.date(byAdding: .day, value: -(warmStartWindowDays - 1), to: today) ?? today
+        let fullWindowStart = calendar.date(byAdding: .day, value: -(fullAnalysisWindowDays - 1), to: today) ?? today
+
+        let warmStartTypes = grantedTypes.filter { !backfillProgress.warmStartCompletedTypes.contains($0.identifier) }
+        if warmStartTypes.isEmpty {
+            await DebugLogBuffer.shared.append("Warm-start backfill skipped: already complete for granted types")
+        } else {
+            await DebugLogBuffer.shared.append("Warm-start backfill starting (\(warmStartWindowDays)d) start=\(warmStartStart) end=\(today) types=\(warmStartTypes.map { $0.identifier })")
+            _ = await performBackfill(for: warmStartTypes.sorted { $0.identifier < $1.identifier },
+                                      startDate: warmStartStart,
+                                      endDate: today,
+                                      phase: "warm-start",
+                                      targetStartDate: fullWindowStart,
+                                      markWarmStart: true)
+            notifySnapshotUpdate(for: today)
+        }
+
+        scheduleBackgroundFullBackfillIfNeeded(grantedTypes: grantedTypes, targetStartDate: fullWindowStart)
+    }
+
+    private func bootstrapFirstScore(for status: HealthAccessStatus) async {
+        guard case .available = status.availability else { return }
+        guard !status.granted.isEmpty else { return }
+        let today = calendar.startOfDay(for: Date())
+        guard let start = calendar.date(byAdding: .day, value: -(bootstrapWindowDays - 1), to: today) else { return }
+        let types = status.granted.sorted { $0.identifier < $1.identifier }
+        await DebugLogBuffer.shared.append("Bootstrap score window=\(start)→\(today) types=\(types.map { $0.identifier })")
+
+        for type in types {
+            let identifier = type.identifier
+            do {
+                switch identifier {
+                case HKQuantityTypeIdentifier.stepCount.rawValue:
+                    let totals = try await safeFetchDailyStepTotals(startDate: start,
+                                                                    endDate: today,
+                                                                    context: "Bootstrap \(identifier)")
+                    _ = try await applyStepTotals(totals)
+                case HKQuantityTypeIdentifier.heartRate.rawValue:
+                    let stats = try await safeFetchNocturnalHeartRateStats(startDate: start,
+                                                                           endDate: today,
+                                                                           context: "Bootstrap \(identifier)")
+                    _ = try await applyNocturnalStats(stats)
+                default:
+                    let samples = try await healthKit.fetchSamples(for: type, startDate: start, endDate: today)
+                    _ = try await processBackfillSamples(samples, type: type)
+                }
+            } catch {
+                if isProtectedHealthDataInaccessible(error) {
+                    await DebugLogBuffer.shared.append("Bootstrap skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    continue
+                }
+                await DebugLogBuffer.shared.append("Bootstrap failed for \(identifier): \(error.localizedDescription)")
+            }
+        }
+        notifySnapshotUpdate(for: today)
+
+        do {
+            if let _ = try await latestFeatureVector() {
+                return
+            }
+        } catch {
+            await DebugLogBuffer.shared.append("Bootstrap latestFeatureVector check failed: \(error.localizedDescription)")
+        }
+
+        let fallbackEnd = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+        let fallbackStart = calendar.date(byAdding: .day, value: -(fullAnalysisWindowDays - 1), to: today) ?? today
+        let fallbackSucceeded = await bootstrapFromFallbackWindow(status: status,
+                                                                  fallbackStartDate: fallbackStart,
+                                                                  fallbackEndDate: fallbackEnd)
+        if !fallbackSucceeded {
+            notifySnapshotUpdate(for: today)
+        }
+    }
+
+    private func scheduleBackfill(for status: HealthAccessStatus) {
+        guard case .available = status.availability else { return }
+        backgroundBackfillTask?.cancel()
+        backgroundBackfillTask = Task.detached(priority: .background) { [weak self] in
+            guard let self else { return }
+            await self.backfillHistoricalSamplesIfNeeded(for: status)
+        }
+    }
+
+    private func bootstrapFromFallbackWindow(status: HealthAccessStatus,
+                                             fallbackStartDate: Date,
+                                             fallbackEndDate: Date) async -> Bool {
+        guard case .available = status.availability else { return false }
+        guard !status.granted.isEmpty else { return false }
+
+        var touchedDays: Set<Date> = []
+        let types = status.granted.sorted { $0.identifier < $1.identifier }
+
+        for type in types {
+            let identifier = type.identifier
+            do {
+                switch identifier {
+                case HKQuantityTypeIdentifier.stepCount.rawValue:
+                    let totals = try await safeFetchDailyStepTotals(startDate: fallbackStartDate,
+                                                                    endDate: fallbackEndDate,
+                                                                    context: "Bootstrap fallback \(identifier)")
+                    let days = try await applyStepTotals(totals)
+                    touchedDays.formUnion(days)
+                case HKQuantityTypeIdentifier.heartRate.rawValue:
+                    let stats = try await safeFetchNocturnalHeartRateStats(startDate: fallbackStartDate,
+                                                                           endDate: fallbackEndDate,
+                                                                           context: "Bootstrap fallback \(identifier)")
+                    let days = try await applyNocturnalStats(stats)
+                    touchedDays.formUnion(days)
+                default:
+                    let samples = try await healthKit.fetchSamples(for: type, startDate: fallbackStartDate, endDate: fallbackEndDate)
+                    let processed = try await processBackfillSamples(samples, type: type)
+                    touchedDays.formUnion(processed.days)
+                }
+            } catch {
+                if isProtectedHealthDataInaccessible(error) {
+                    await DebugLogBuffer.shared.append("Bootstrap fallback skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    continue
+                }
+                await DebugLogBuffer.shared.append("Bootstrap fallback failed for \(identifier): \(error.localizedDescription)")
+            }
+        }
+
+        guard let latestDay = touchedDays.max() else { return false }
+        notifySnapshotUpdate(for: latestDay)
+        return true
+    }
+
+    private func processBackfillSamples(_ samples: [HKSample], type: HKSampleType) async throws -> (processedSamples: Int, days: Set<Date>) {
+        switch type {
+        case let quantityType as HKQuantityType:
+            let quantitySamples = samples.compactMap { $0 as? HKQuantitySample }
+            await DebugLogBuffer.shared.append("Backfill casting summary for \(quantityType.identifier): quantitySamples=\(quantitySamples.count) raw=\(samples.count)")
+            guard !quantitySamples.isEmpty else {
+                await DebugLogBuffer.shared.append("Backfill skipped \(quantityType.identifier): no castable HKQuantitySample instances")
+                return (0, [])
+            }
+            // Group by day to avoid huge single calls and to log progress.
+            let grouped = Dictionary(grouping: quantitySamples) { calendar.startOfDay(for: $0.startDate) }
+            var touched: Set<Date> = []
+            var processedCount = 0
+            for (day, daySamples) in grouped {
+                let days = try await processQuantitySamples(daySamples, type: quantityType)
+                touched.formUnion(days)
+                processedCount += daySamples.count
+                await DebugLogBuffer.shared.append("Backfill day batch \(day) for \(quantityType.identifier): processed=\(daySamples.count) daysTouched=\(days.count)")
+            }
+            return (processedCount, touched)
+
+        case let categoryType as HKCategoryType:
+            let categorySamples = samples.compactMap { $0 as? HKCategorySample }
+            await DebugLogBuffer.shared.append("Backfill casting summary for \(categoryType.identifier): categorySamples=\(categorySamples.count) raw=\(samples.count)")
+            guard !categorySamples.isEmpty else {
+                await DebugLogBuffer.shared.append("Backfill skipped \(categoryType.identifier): no castable HKCategorySample instances")
+                return (0, [])
+            }
+            let grouped = Dictionary(grouping: categorySamples) { calendar.startOfDay(for: $0.startDate) }
+            var touched: Set<Date> = []
+            var processedCount = 0
+            for (day, daySamples) in grouped {
+                let days = try await processCategorySamples(daySamples, type: categoryType)
+                touched.formUnion(days)
+                processedCount += daySamples.count
+                await DebugLogBuffer.shared.append("Backfill day batch \(day) for \(categoryType.identifier): processed=\(daySamples.count) daysTouched=\(days.count)")
+            }
+            return (processedCount, touched)
+
+        default:
+            await DebugLogBuffer.shared.append("Backfill skipped unsupported type \(type.identifier)")
+            return (0, [])
+        }
+    }
+
+    private func performBackfill(for types: [HKSampleType],
+                                 startDate: Date,
+                                 endDate: Date,
+                                 phase: String,
+                                 targetStartDate: Date,
+                                 markWarmStart: Bool) async -> (days: Set<Date>, totalSamples: Int) {
+        guard !types.isEmpty else { return ([], 0) }
+        let sorted = types.sorted { $0.identifier < $1.identifier }
+        var touchedDays: Set<Date> = []
+        var totalSamples = 0
+        for type in sorted {
+            await DebugLogBuffer.shared.append("Backfill (\(phase)) starting for \(type.identifier) window=\(startDate)→\(endDate)")
+            let identifier = type.identifier
+            do {
+                switch identifier {
+                case HKQuantityTypeIdentifier.stepCount.rawValue:
+                    let totals = try await safeFetchDailyStepTotals(startDate: startDate,
+                                                                    endDate: endDate,
+                                                                    context: "Backfill (\(phase)) \(identifier)")
+                    let processedDays = try await applyStepTotals(totals)
+                    touchedDays.formUnion(processedDays)
+                    totalSamples += totals.count
+                    await DebugLogBuffer.shared.append("Backfill (\(phase)) processed \(totals.count) day totals for \(identifier) touchedDays=\(processedDays.count)")
+                case HKQuantityTypeIdentifier.heartRate.rawValue:
+                    let stats = try await safeFetchNocturnalHeartRateStats(startDate: startDate,
+                                                                           endDate: endDate,
+                                                                           context: "Backfill (\(phase)) \(identifier)")
+                    let processedDays = try await applyNocturnalStats(stats)
+                    touchedDays.formUnion(processedDays)
+                    totalSamples += stats.count
+                    await DebugLogBuffer.shared.append("Backfill (\(phase)) processed \(stats.count) nocturnal HR aggregates for \(identifier) touchedDays=\(processedDays.count)")
+                default:
+                    let samples = try await healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
+                    let earliest = samples.compactMap(\.startDate).min()
+                    let latest = samples.compactMap(\.startDate).max()
+                    await DebugLogBuffer.shared.append("Backfill (\(phase)) fetched \(samples.count) samples for \(identifier); earliest=\(String(describing: earliest)); latest=\(String(describing: latest))")
+
+                    var processed: (processedSamples: Int, days: Set<Date>) = (0, [])
+                    if !samples.isEmpty {
+                        processed = try await processBackfillSamples(samples, type: type)
+                        await DebugLogBuffer.shared.append("Backfill (\(phase)) processed \(processed.processedSamples) samples for \(identifier) touchedDays=\(processed.days.count)")
+                        touchedDays.formUnion(processed.days)
+                        totalSamples += processed.processedSamples
+                    } else {
+                        await DebugLogBuffer.shared.append("Backfill (\(phase)) skipping \(identifier): zero samples fetched")
+                    }
+                }
+
+                if markWarmStart {
+                    backfillProgress.recordWarmStart(for: type.identifier, earliestDate: startDate, calendar: calendar)
+                } else {
+                    backfillProgress.recordProcessedRange(for: type.identifier,
+                                                          startDate: startDate,
+                                                          targetStartDate: targetStartDate,
+                                                          calendar: calendar)
+                }
+                persistBackfillProgress()
+            } catch {
+                if isProtectedHealthDataInaccessible(error) {
+                    await DebugLogBuffer.shared.append("Backfill (\(phase)) skipped for \(identifier): protected data inaccessible (device likely locked).")
+                } else {
+                    await DebugLogBuffer.shared.append("Backfill (\(phase)) failed for \(identifier): \(error.localizedDescription)")
+                }
+            }
+        }
+        return (touchedDays, totalSamples)
+    }
+
+    private func scheduleBackgroundFullBackfillIfNeeded(grantedTypes: Set<HKSampleType>, targetStartDate: Date) {
+        guard needsFullBackfill(for: grantedTypes, targetStartDate: targetStartDate) else {
+            Task { await DebugLogBuffer.shared.append("Background backfill skipped: full window already covered") }
+            return
+        }
+        if let task = backgroundBackfillTask, !task.isCancelled {
+            return
+        }
+        backgroundBackfillTask = Task { [weak self] in
+            await self?.performBackgroundFullBackfill(grantedTypes: grantedTypes, targetStartDate: targetStartDate)
+        }
+    }
+
+    private func needsFullBackfill(for grantedTypes: Set<HKSampleType>, targetStartDate: Date) -> Bool {
+        for type in grantedTypes {
+            let identifier = type.identifier
+            if backfillProgress.fullBackfillCompletedTypes.contains(identifier) {
+                continue
+            }
+            guard let earliest = backfillProgress.earliestProcessedDate(for: identifier, calendar: calendar) else {
+                return true
+            }
+            if earliest > targetStartDate {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func performBackgroundFullBackfill(grantedTypes: Set<HKSampleType>, targetStartDate: Date) async {
+        await DebugLogBuffer.shared.append("Background backfill starting toward \(targetStartDate)")
+        defer { backgroundBackfillTask = nil }
+
+        var iteration = 0
+        var batchTouchedDays: Set<Date> = []
+        var batchSampleCount = 0
+        var batchTypes: [String] = []
+        let today = calendar.startOfDay(for: Date())
+
+        while !Task.isCancelled {
+            var madeProgress = false
+            let sorted = grantedTypes.sorted { $0.identifier < $1.identifier }
+
+            for type in sorted {
+                let identifier = type.identifier
+                if backfillProgress.fullBackfillCompletedTypes.contains(identifier) {
+                    continue
+                }
+
+                let currentEarliest = backfillProgress.earliestProcessedDate(for: identifier, calendar: calendar) ?? calendar.startOfDay(for: Date())
+                if currentEarliest <= targetStartDate {
+                    backfillProgress.markFullBackfillComplete(for: identifier)
+                    persistBackfillProgress()
+                    continue
+                }
+
+                let batchEnd = calendar.date(byAdding: .day, value: -1, to: currentEarliest) ?? targetStartDate
+                var batchStart = calendar.date(byAdding: .day, value: -(backgroundBackfillBatchDays - 1), to: batchEnd) ?? targetStartDate
+                if batchStart < targetStartDate { batchStart = targetStartDate }
+
+                await DebugLogBuffer.shared.append("Background backfill batch \(identifier) start=\(batchStart) end=\(batchEnd)")
+                let touched = await performBackfill(for: [type],
+                                                    startDate: batchStart,
+                                                    endDate: batchEnd,
+                                                    phase: "background",
+                                                    targetStartDate: targetStartDate,
+                                                    markWarmStart: false)
+                batchTypes.append(identifier)
+                batchSampleCount += touched.totalSamples
+                batchTouchedDays.formUnion(touched.days)
+                madeProgress = true
+            }
+
+            if !needsFullBackfill(for: grantedTypes, targetStartDate: targetStartDate) {
+                break
+            }
+            if !madeProgress {
+                await DebugLogBuffer.shared.append("Background backfill paused: no progress made in this iteration")
+                break
+            }
+            await DebugLogBuffer.shared.append("Backfill summary: window=\(batchTouchedDays.min() ?? today)…\(batchTouchedDays.max() ?? today) types=\(batchTypes) days=\(batchTouchedDays.count) samples=\(batchSampleCount)")
+            if !batchTouchedDays.isEmpty {
+                notifySnapshotUpdate(for: today)
+            }
+            batchTouchedDays.removeAll()
+            batchSampleCount = 0
+            batchTypes.removeAll()
+            iteration += 1
+            if iteration > 64 { break }
+            try? await Task.sleep(nanoseconds: 150_000_000)
+        }
+
+        await DebugLogBuffer.shared.append("Background backfill finished or no more work needed")
+    }
+
+
     private func enableBackgroundDelivery(for grantedTypes: Set<HKSampleType>) async throws {
-        guard !grantedTypes.isEmpty else { return }
+        guard !grantedTypes.isEmpty else {
+            await DebugLogBuffer.shared.append("enableBackgroundDelivery skipped: no granted types")
+            return
+        }
         do {
             try await healthKit.enableBackgroundDelivery(for: grantedTypes)
+            await DebugLogBuffer.shared.append("enableBackgroundDelivery enabled for \(grantedTypes.map { $0.identifier })")
         } catch HealthKitServiceError.backgroundDeliveryFailed(let type, let underlying) {
             if shouldIgnoreBackgroundDeliveryError(underlying) {
 #if DEBUG
                 print("[PulsumData] Background delivery disabled (missing entitlement) for \(type.identifier).")
 #endif
+                await DebugLogBuffer.shared.append("enableBackgroundDelivery ignored missing entitlement for \(type.identifier)")
             } else {
                 throw HealthKitServiceError.backgroundDeliveryFailed(type: type, underlying: underlying)
             }
@@ -182,8 +590,12 @@ actor DataAgent {
     }
 
     private func startObserversIfNeeded(for types: Set<HKSampleType>) async throws {
-        guard !types.isEmpty else { return }
+        guard !types.isEmpty else {
+            await DebugLogBuffer.shared.append("startObserversIfNeeded skipped: no granted types")
+            return
+        }
         for type in types {
+            await DebugLogBuffer.shared.append("Starting observer for \(type.identifier)")
             try await observe(sampleType: type)
         }
     }
@@ -191,13 +603,38 @@ actor DataAgent {
     private func stopRevokedObservers(keeping granted: Set<HKSampleType>, resetAnchors: Bool) {
         let grantedIdentifiers = Set(granted.map { $0.identifier })
         let identifiers = Array(observers.keys)
+        var revoked: [String] = []
         for identifier in identifiers where !grantedIdentifiers.contains(identifier) {
             if let type = sampleTypesByIdentifier[identifier] {
                 stopObservation(for: type, resetAnchor: resetAnchors)
+                revoked.append(identifier)
             } else {
                 observers.removeValue(forKey: identifier)
             }
         }
+        if resetAnchors, !revoked.isEmpty {
+            for identifier in revoked {
+                backfillProgress.removeProgress(for: identifier)
+            }
+            persistBackfillProgress()
+        }
+    }
+
+    private func logHealthStatus(_ status: HealthAccessStatus) {
+#if DEBUG
+        let grantedIds = status.granted.map(\.identifier).sorted()
+        let deniedIds = status.denied.map(\.identifier).sorted()
+        let pendingIds = status.notDetermined.map(\.identifier).sorted()
+        print("[PulsumDataAgent] Health access status → granted: \(grantedIds), denied: \(deniedIds), pending: \(pendingIds), availability: \(status.availability)")
+#endif
+        Task { await DebugLogBuffer.shared.append("Health access status → granted: \(status.granted.map(\.identifier)), denied: \(status.denied.map(\.identifier)), pending: \(status.notDetermined.map(\.identifier)), availability: \(status.availability)") }
+    }
+
+    private func statusSummary(_ status: HealthAccessStatus) -> String {
+        let grantedIds = status.granted.map(\.identifier).sorted().joined(separator: ",")
+        let deniedIds = status.denied.map(\.identifier).sorted().joined(separator: ",")
+        let pendingIds = status.notDetermined.map(\.identifier).sorted().joined(separator: ",")
+        return "granted=[\(grantedIds)] denied=[\(deniedIds)] pending=[\(pendingIds)] availability=\(status.availability)"
     }
 
     private func stopAllObservers(resetAnchors: Bool) {
@@ -229,8 +666,14 @@ actor DataAgent {
                                       featureVectorObjectID: latest.objectID)
         }
 
-        guard let computation = result else { return nil }
-        let snapshot = stateEstimator.currentSnapshot(features: computation.featureValues)
+        guard let computation = result else {
+            await DebugLogBuffer.shared.append("latestFeatureVector -> none found")
+            return nil
+        }
+        let modelFeatures = WellbeingModeling.normalize(features: computation.featureValues,
+                                                        imputedFlags: computation.imputedFlags)
+        let snapshot = stateEstimator.currentSnapshot(features: modelFeatures)
+        await DebugLogBuffer.shared.append("latestFeatureVector -> date=\(computation.date) wellbeing=\(snapshot.wellbeingScore) features=\(computation.featureValues)")
         return FeatureVectorSnapshot(date: computation.date,
                                      wellbeingScore: snapshot.wellbeingScore,
                                      contributions: snapshot.contributions,
@@ -243,6 +686,7 @@ actor DataAgent {
         guard let snapshot = try await latestFeatureVector() else { return nil }
 
         let context = self.context
+        await DebugLogBuffer.shared.append("Computing scoreBreakdown for \(snapshot.date)")
 
         struct BaselinePayload: Sendable {
             let median: Double?
@@ -252,6 +696,7 @@ actor DataAgent {
         }
 
         let descriptors = Self.scoreMetricDescriptors
+        let coverageByFeature = try await metricCoverage(for: snapshot, descriptors: descriptors)
         let rawAndBaselines = try await context.perform { () throws -> ([String: Double], [String: BaselinePayload]) in
             var rawValues: [String: Double] = [:]
             var baselines: [String: BaselinePayload] = [:]
@@ -327,7 +772,8 @@ actor DataAgent {
                 baselineMad: baseline?.mad,
                 rollingWindowDays: descriptor.rollingWindowDays,
                 explanation: descriptor.explanation,
-                notes: notes
+                notes: notes,
+                coverage: coverageByFeature[descriptor.featureKey]
             )
 
             metrics.append(detail)
@@ -341,6 +787,77 @@ actor DataAgent {
                               generalNotes: generalNotes)
     }
 
+    private func metricCoverage(for snapshot: FeatureVectorSnapshot,
+                                descriptors: [ScoreMetricDescriptor]) async throws -> [String: ScoreBreakdown.MetricDetail.Coverage] {
+        let calendar = self.calendar
+        let context = self.context
+
+        return try await context.perform {
+            var coverage: [String: ScoreBreakdown.MetricDetail.Coverage] = [:]
+            let endDate = calendar.startOfDay(for: snapshot.date)
+
+            var windowStarts: [String: Date] = [:]
+            for descriptor in descriptors {
+                guard let window = descriptor.rollingWindowDays else { continue }
+                let start = calendar.date(byAdding: .day, value: -(window - 1), to: endDate) ?? endDate
+                windowStarts[descriptor.featureKey] = start
+            }
+
+            guard let earliest = windowStarts.values.min() else { return [:] }
+
+            let request = DailyMetrics.fetchRequest()
+            request.predicate = NSPredicate(format: "date >= %@ AND date <= %@", earliest as NSDate, endDate as NSDate)
+            let metrics = try context.fetch(request)
+
+            var counts: [String: (days: Set<Date>, samples: Int)] = [:]
+
+            for metric in metrics {
+                let flags = DataAgent.decodeFlags(from: metric)
+                let day = calendar.startOfDay(for: metric.date)
+
+                let hrvCount = flags.hrvSamples.isEmpty ? (metric.hrvMedian != nil ? 1 : 0) : flags.hrvSamples.count
+                let nocturnalAvailable = metric.nocturnalHRPercentile10 != nil || flags.aggregatedNocturnalAverage != nil || !flags.heartRateSamples.isEmpty
+                let restingSamples = flags.heartRateSamples.filter { $0.context == .resting }.count
+                let restingCount = restingSamples == 0 ? (metric.restingHR != nil ? 1 : 0) : restingSamples
+                let sleepDebtCount = metric.sleepDebt != nil ? 1 : 0
+                let rrCount = flags.respiratorySamples.isEmpty ? (metric.respiratoryRate != nil ? 1 : 0) : flags.respiratorySamples.count
+                let stepsAvailable = metric.steps != nil || flags.aggregatedStepTotal != nil || !flags.stepBuckets.isEmpty
+
+                let sampleCounts: [String: Int] = [
+                    "z_hrv": hrvCount,
+                    "z_nocthr": nocturnalAvailable ? 1 : 0,
+                    "z_resthr": restingCount,
+                    "z_sleepDebt": sleepDebtCount,
+                    "z_rr": rrCount,
+                    "z_steps": stepsAvailable ? 1 : 0
+                ]
+
+                for (featureKey, count) in sampleCounts {
+                    guard let windowStart = windowStarts[featureKey] else { continue }
+                    guard day >= windowStart else { continue }
+                    guard count > 0 else { continue }
+
+                    var entry = counts[featureKey] ?? (Set<Date>(), 0)
+                    entry.days.insert(day)
+                    entry.samples += count
+                    counts[featureKey] = entry
+                }
+            }
+
+            for (featureKey, _) in windowStarts {
+                if let entry = counts[featureKey] {
+                    coverage[featureKey] = ScoreBreakdown.MetricDetail.Coverage(daysWithSamples: entry.days.count,
+                                                                                sampleCount: entry.samples)
+                } else {
+                    // Explicitly surface zero coverage when no samples are available
+                    coverage[featureKey] = ScoreBreakdown.MetricDetail.Coverage(daysWithSamples: 0, sampleCount: 0)
+                }
+            }
+
+            return coverage
+        }
+    }
+
     func reprocessDay(date: Date) async throws {
         let day = calendar.startOfDay(for: date)
         try await reprocessDayInternal(day)
@@ -350,6 +867,7 @@ actor DataAgent {
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {
         let targetDate = calendar.startOfDay(for: date)
         let context = self.context
+        await DebugLogBuffer.shared.append("Recording subjective inputs for \(targetDate)")
         try await context.perform {
             let request = FeatureVector.fetchRequest()
             request.predicate = NSPredicate(format: "date == %@", targetDate as NSDate)
@@ -375,9 +893,10 @@ actor DataAgent {
             case let .success(update):
                 Task { await self.handle(update: update, sampleType: sampleType) }
             case let .failure(error):
-                #if DEBUG
+#if DEBUG
                 print("HealthKit observe error: \(error)")
-                #endif
+#endif
+                Task { await DebugLogBuffer.shared.append("HealthKit observe error for \(sampleType.identifier): \(error.localizedDescription)") }
             }
         }
         observers[identifier] = token
@@ -390,10 +909,12 @@ actor DataAgent {
             case let quantityType as HKQuantityType:
                 let days = try await processQuantitySamples(update.samples.compactMap { $0 as? HKQuantitySample },
                                                             type: quantityType)
+                await DebugLogBuffer.shared.append("Processed quantity samples for \(quantityType.identifier) count=\(update.samples.count) touchedDays=\(days.count)")
                 touchedDays.formUnion(days)
             case let categoryType as HKCategoryType:
                 let days = try await processCategorySamples(update.samples.compactMap { $0 as? HKCategorySample },
                                                             type: categoryType)
+                await DebugLogBuffer.shared.append("Processed category samples for \(categoryType.identifier) count=\(update.samples.count) touchedDays=\(days.count)")
                 touchedDays.formUnion(days)
             default:
                 break
@@ -402,8 +923,7 @@ actor DataAgent {
             touchedDays.formUnion(deletedDays)
 
             if touchedDays.isEmpty {
-                let today = calendar.startOfDay(for: Date())
-                notifySnapshotUpdate(for: today)
+                notifySnapshotUpdate(for: calendar.startOfDay(for: Date()))
             } else {
                 for day in touchedDays {
                     notifySnapshotUpdate(for: day)
@@ -424,6 +944,37 @@ actor DataAgent {
 
         let calendar = self.calendar
         let context = self.context
+        let identifier = type.identifier
+
+        if identifier == HKQuantityTypeIdentifier.stepCount.rawValue {
+            guard let range = dayRange(for: samples) else { return [] }
+            do {
+                let totals = try await safeFetchDailyStepTotals(startDate: range.start,
+                                                                endDate: range.end,
+                                                                context: "Backfill \(identifier)")
+                return try await applyStepTotals(totals)
+            } catch {
+                if isProtectedHealthDataInaccessible(error) {
+                    await DebugLogBuffer.shared.append("Backfill skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    return []
+                }
+                throw error
+            }
+        } else if identifier == HKQuantityTypeIdentifier.heartRate.rawValue {
+            guard let range = dayRange(for: samples) else { return [] }
+            do {
+                let stats = try await safeFetchNocturnalHeartRateStats(startDate: range.start,
+                                                                       endDate: range.end,
+                                                                       context: "Backfill \(identifier)")
+                return try await applyNocturnalStats(stats)
+            } catch {
+                if isProtectedHealthDataInaccessible(error) {
+                    await DebugLogBuffer.shared.append("Backfill skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    return []
+                }
+                throw error
+            }
+        }
 
         let dirtyDays = try await context.perform { () throws -> Set<Date> in
             var dirtyDays: Set<Date> = []
@@ -464,6 +1015,18 @@ actor DataAgent {
                 let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
                 DataAgent.mutateFlags(metrics) { flags in
                     flags.append(sleepSample: sample)
+                    let value = HKCategoryValueSleepAnalysis(rawValue: sample.value) ?? .inBed
+                    let isAsleep: Bool
+                    switch value {
+                    case .asleepCore, .asleepDeep, .asleepREM, .asleepUnspecified:
+                        isAsleep = true
+                    default:
+                        isAsleep = false
+                    }
+                    if isAsleep {
+                        let duration = sample.endDate.timeIntervalSince(sample.startDate)
+                        flags.aggregatedSleepDurationSeconds = (flags.aggregatedSleepDurationSeconds ?? 0) + duration
+                    }
                 }
                 dirtyDays.insert(day)
             }
@@ -509,6 +1072,73 @@ actor DataAgent {
         return dirtyDays
     }
 
+    private func dayRange(for samples: [HKSample]) -> (start: Date, end: Date)? {
+        guard let earliest = samples.map(\.startDate).min(),
+              let latest = samples.map(\.startDate).max() else { return nil }
+        let startDay = calendar.startOfDay(for: earliest)
+        let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: latest)) ?? calendar.startOfDay(for: latest)
+        return (startDay, endExclusive)
+    }
+
+    private func applyStepTotals(_ totals: [Date: Int]) async throws -> Set<Date> {
+        guard !totals.isEmpty else { return [] }
+        let calendar = self.calendar
+        let context = self.context
+
+        let dirtyDays = try await context.perform { () throws -> Set<Date> in
+            var dirty: Set<Date> = []
+            for (rawDay, total) in totals {
+                let day = calendar.startOfDay(for: rawDay)
+                let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
+                DataAgent.mutateFlags(metrics) { flags in
+                    flags.aggregatedStepTotal = Double(total)
+                    flags.stepBuckets = []
+                }
+                dirty.insert(day)
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+            return dirty
+        }
+
+        for day in dirtyDays {
+            try await reprocessDayInternal(day)
+        }
+
+        return dirtyDays
+    }
+
+    private func applyNocturnalStats(_ stats: [Date: (avgBPM: Double, minBPM: Double?)]) async throws -> Set<Date> {
+        guard !stats.isEmpty else { return [] }
+        let calendar = self.calendar
+        let context = self.context
+
+        let dirtyDays = try await context.perform { () throws -> Set<Date> in
+            var dirty: Set<Date> = []
+            for (rawDay, value) in stats {
+                let day = calendar.startOfDay(for: rawDay)
+                let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
+                DataAgent.mutateFlags(metrics) { flags in
+                    flags.aggregatedNocturnalAverage = value.avgBPM
+                    flags.aggregatedNocturnalMin = value.minBPM
+                    flags.heartRateSamples.removeAll { $0.context == .normal }
+                }
+                dirty.insert(day)
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+            return dirty
+        }
+
+        for day in dirtyDays {
+            try await reprocessDayInternal(day)
+        }
+
+        return dirtyDays
+    }
+
     // MARK: - Daily Computation
 
     private func reprocessDayInternal(_ day: Date) async throws {
@@ -517,7 +1147,7 @@ actor DataAgent {
         let sedentaryThreshold = sedentaryThresholdStepsPerHour
         let sedentaryDuration = sedentaryMinimumDuration
         let sleepDebtWindowDays = self.sleepDebtWindowDays
-        let analysisWindowDays = self.analysisWindowDays
+        let analysisWindowDays = self.fullAnalysisWindowDays
 
         let computation = try await context.perform { () throws -> FeatureComputation in
             let metrics = try DataAgent.fetchDailyMetrics(in: context, date: day)
@@ -562,8 +1192,12 @@ actor DataAgent {
                                       featureVectorObjectID: featureVector.objectID)
         }
 
-        let target = computeTarget(using: computation.featureValues)
-        let snapshot = stateEstimator.update(features: computation.featureValues, target: target)
+        let modelFeatures = WellbeingModeling.normalize(features: computation.featureValues,
+                                                        imputedFlags: computation.imputedFlags)
+        let target = WellbeingModeling.target(for: modelFeatures)
+        let snapshot = stateEstimator.update(features: modelFeatures, target: target)
+        await DebugLogBuffer.shared.append("Reprocessed day \(day) → wellbeing=\(snapshot.wellbeingScore) features=\(computation.featureValues)")
+        persistEstimatorState(from: snapshot)
 
         try await context.perform {
             guard let vector = try? context.existingObject(with: computation.featureVectorObjectID) as? FeatureVector else { return }
@@ -574,6 +1208,41 @@ actor DataAgent {
                 try context.save()
             }
         }
+    }
+
+    private func persistEstimatorState(from snapshot: StateEstimatorSnapshot) {
+        let state = StateEstimatorState(version: EstimatorStateStore.schemaVersion,
+                                        weights: snapshot.weights,
+                                        bias: snapshot.bias)
+        estimatorStore.saveState(state)
+    }
+
+    private func safeFetchDailyStepTotals(startDate: Date, endDate: Date, context: String) async throws -> [Date: Int] {
+        do {
+            return try await healthKit.fetchDailyStepTotals(startDate: startDate, endDate: endDate)
+        } catch {
+            if isProtectedHealthDataInaccessible(error) {
+                await DebugLogBuffer.shared.append("\(context): protected data inaccessible (device likely locked); returning empty step totals.")
+                return [:]
+            }
+            throw error
+        }
+    }
+
+    private func safeFetchNocturnalHeartRateStats(startDate: Date, endDate: Date, context: String) async throws -> [Date: (avgBPM: Double, minBPM: Double?)] {
+        do {
+            return try await healthKit.fetchNocturnalHeartRateStats(startDate: startDate, endDate: endDate)
+        } catch {
+            if isProtectedHealthDataInaccessible(error) {
+                await DebugLogBuffer.shared.append("\(context): protected data inaccessible (device likely locked); returning empty nocturnal HR stats.")
+                return [:]
+            }
+            throw error
+        }
+    }
+
+    private func isProtectedHealthDataInaccessible(_ error: Error) -> Bool {
+        (error as NSError).localizedDescription.localizedCaseInsensitiveContains("Protected health data is inaccessible")
     }
 
     private static func computeSummary(for metrics: DailyMetrics,
@@ -590,7 +1259,7 @@ actor DataAgent {
         let sedentaryIntervals = flags.sedentaryIntervals(thresholdStepsPerHour: sedentaryThreshold,
                                                           minimumDuration: sedentaryMinimumDuration,
                                                           excluding: sleepIntervals)
-        if sedentaryIntervals.isEmpty {
+        if sedentaryIntervals.isEmpty && sleepIntervals.isEmpty {
             imputed["sedentary_missing"] = true
         }
 
@@ -618,20 +1287,25 @@ actor DataAgent {
                                                imputed: &imputed)
 
         let sleepSeconds = flags.sleepDurations()
-        let actualSleepHours = sleepSeconds / 3600
-        if sleepSeconds < 3 * 3600 {
-            imputed["sleep_low_confidence"] = true
-        }
         let sleepNeed = try personalizedSleepNeedHours(context: context,
                                                        referenceDate: metrics.date,
-                                                       latestActualHours: actualSleepHours,
+                                                       latestActualHours: (sleepSeconds ?? 0) / 3600,
                                                        windowDays: analysisWindowDays)
-        let sleepDebt = try sleepDebtHours(context: context,
+        var sleepDebt: Double?
+        if let sleepSeconds {
+            let actualSleepHours = sleepSeconds / 3600
+            if sleepSeconds < 3 * 3600 {
+                imputed["sleep_low_confidence"] = true
+            }
+            sleepDebt = try sleepDebtHours(context: context,
                                            personalNeed: sleepNeed,
                                            currentHours: actualSleepHours,
                                            referenceDate: metrics.date,
                                            windowDays: sleepDebtWindowDays,
                                            calendar: calendar)
+        } else {
+            imputed["sleepDebt_missing"] = true
+        }
 
         let respiratoryRate = flags.averageRespiratoryRate(in: sleepIntervals)
         if respiratoryRate == nil {
@@ -705,16 +1379,7 @@ actor DataAgent {
         vector.subjectiveStress = NSNumber(value: features["subj_stress"] ?? 0)
         vector.subjectiveEnergy = NSNumber(value: features["subj_energy"] ?? 0)
         vector.subjectiveSleepQuality = NSNumber(value: features["subj_sleepQuality"] ?? 0)
-    }
-
-    private func computeTarget(using features: [String: Double]) -> Double {
-        let stress = features["subj_stress"] ?? 0
-        let energy = features["subj_energy"] ?? 0
-        let sleepQuality = features["subj_sleepQuality"] ?? 0
-        let sleepDebt = features["z_sleepDebt"] ?? 0
-        let hrv = features["z_hrv"] ?? 0
-        let steps = features["z_steps"] ?? 0
-        return (-0.35 * hrv) + (-0.25 * steps) + (-0.4 * sleepDebt) + (0.45 * stress) + (-0.4 * energy) + (0.3 * sleepQuality)
+        vector.sentiment = NSNumber(value: features["sentiment"] ?? 0)
     }
 
     // MARK: - Persistence Helpers
@@ -788,9 +1453,19 @@ actor DataAgent {
     }
 
     private func notifySnapshotUpdate(for date: Date) {
-        notificationCenter.post(name: .pulsumScoresUpdated,
-                                object: nil,
-                                userInfo: [AgentNotificationKeys.date: date])
+        pendingSnapshotUpdate?.cancel()
+        let center = notificationCenter
+        let today = calendar.startOfDay(for: Date())
+        pendingSnapshotUpdate = Task { [center] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            center.post(name: .pulsumScoresUpdated,
+                        object: nil,
+                        userInfo: [AgentNotificationKeys.date: today])
+        }
+    }
+
+    private func persistBackfillProgress() {
+        backfillStore.saveState(backfillProgress)
     }
 
 #if DEBUG
@@ -921,10 +1596,11 @@ actor DataAgent {
 
     private static func sleepDebtHours(context: NSManagedObjectContext,
                                        personalNeed: Double,
-                                       currentHours: Double,
+                                       currentHours: Double?,
                                        referenceDate: Date,
                                        windowDays: Int,
-                                       calendar: Calendar) throws -> Double {
+                                       calendar: Calendar) throws -> Double? {
+        guard let currentHours else { return nil }
         let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: referenceDate) ?? referenceDate
         let request = DailyMetrics.fetchRequest()
         request.predicate = NSPredicate(format: "date >= %@ AND date <= %@", start as NSDate, referenceDate as NSDate)
@@ -1009,7 +1685,7 @@ actor DataAgent {
             baselineKey: "sleepDebt",
             rollingWindowDays: 7,
             explanation: "Cumulative sleep debt over the past 7 days vs your personalized sleep need.",
-            flagKeys: ["sleep_low_confidence"]
+            flagKeys: ["sleep_low_confidence", "sleepDebt_missing"]
         ),
         ScoreMetricDescriptor(
             featureKey: "z_rr",
@@ -1099,7 +1775,8 @@ actor DataAgent {
         "rr_missing": "Sleeping respiratory rate missing, so this signal is omitted today.",
         "steps_missing": "Step data unavailable; activity impact excluded from today's score.",
         "steps_low_confidence": "Very low step count (<500) flagged as low confidence.",
-        "sleep_low_confidence": "Less than 3 hours of sleep recorded; sleep-related calculations are low confidence."
+        "sleep_low_confidence": "Less than 3 hours of sleep recorded; sleep-related calculations are low confidence.",
+        "sleepDebt_missing": "No sleep data available; sleep debt is omitted from today's score."
     ]
 
     private static func generalFlagMessages(for flags: [String: Bool]) -> [String] {
@@ -1121,7 +1798,116 @@ actor DataAgent {
     func _testReprocess(day: Date) async throws {
         try await reprocessDayInternal(day)
     }
+
+    @discardableResult
+    func _testUpdateEstimator(features: [String: Double], imputed: [String: Bool] = [:]) -> StateEstimatorSnapshot {
+        let normalized = WellbeingModeling.normalize(features: features, imputedFlags: imputed)
+        let target = WellbeingModeling.target(for: normalized)
+        let snapshot = stateEstimator.update(features: normalized, target: target)
+        persistEstimatorState(from: snapshot)
+        return snapshot
+    }
+
+    func _testEstimatorState() -> StateEstimatorState {
+        stateEstimator.persistedState(version: EstimatorStateStore.schemaVersion)
+    }
+
+    func _testBackfillProgress() -> BackfillProgress {
+        backfillProgress
+    }
+
+    func _testRunFullBackfillNow(targetStartDate: Date? = nil, grantedTypes: Set<HKSampleType>? = nil) async {
+        let today = calendar.startOfDay(for: Date())
+        let target = targetStartDate ?? calendar.date(byAdding: .day, value: -(fullAnalysisWindowDays - 1), to: today) ?? today
+        let types = grantedTypes ?? Set(requiredSampleTypes)
+        await performBackgroundFullBackfill(grantedTypes: types, targetStartDate: target)
+    }
 #endif
+}
+
+enum WellbeingModeling {
+    static let targetWeights: [String: Double] = [
+        "z_hrv": 0.55,
+        "z_nocthr": -0.4,
+        "z_resthr": -0.35,
+        "z_sleepDebt": -0.65,
+        "z_steps": 0.32,
+        "z_rr": -0.1,
+        "subj_stress": -0.4,
+        "subj_energy": 0.45,
+        "subj_sleepQuality": 0.3,
+        "sentiment": 0.22
+    ]
+
+    static func normalize(features: [String: Double], imputedFlags: [String: Bool]) -> [String: Double] {
+        var normalized: [String: Double] = [:]
+        for key in FeatureBundle.requiredKeys {
+            let raw = features[key] ?? 0
+            normalized[key] = normalizedValue(for: key, value: raw, imputedFlags: imputedFlags)
+        }
+        return normalized
+    }
+
+    static func target(for normalizedFeatures: [String: Double]) -> Double {
+        var target = 0.0
+        for (feature, weight) in targetWeights {
+            target += weight * (normalizedFeatures[feature] ?? 0)
+        }
+        return clamp(target, limit: 2.5)
+    }
+
+    private static func normalizedValue(for key: String, value: Double, imputedFlags: [String: Bool]) -> Double {
+        let adjusted = adjustForImputation(key: key, value: value, imputedFlags: imputedFlags)
+        switch key {
+        case let feature where feature.hasPrefix("z_"):
+            return clamp(adjusted, limit: 3)
+        case "subj_stress", "subj_energy", "subj_sleepQuality":
+            let centered = (adjusted - 4.0) / 3.0
+            return clamp(centered, limit: 1)
+        case "sentiment":
+            return clamp(adjusted, limit: 1)
+        default:
+            return adjusted
+        }
+    }
+
+    private static func adjustForImputation(key: String, value: Double, imputedFlags: [String: Bool]) -> Double {
+        var adjusted = value
+
+        switch key {
+        case "z_hrv", "z_nocthr", "z_resthr":
+            if imputedFlags["sedentary_missing"] == true {
+                adjusted *= 0.5
+            }
+        case "z_sleepDebt":
+            if imputedFlags["sleep_low_confidence"] == true {
+                adjusted = 0
+            }
+        case "z_rr":
+            if imputedFlags["rr_missing"] == true {
+                adjusted = 0
+            }
+        case "z_steps":
+            if imputedFlags["steps_missing"] == true {
+                adjusted = 0
+            } else if imputedFlags["steps_low_confidence"] == true {
+                adjusted *= 0.5
+            }
+        default:
+            break
+        }
+
+        let missingKey = key.replacingOccurrences(of: "z_", with: "") + "_missing"
+        if imputedFlags[missingKey] == true {
+            adjusted = 0
+        }
+
+        return adjusted
+    }
+
+    private static func clamp(_ value: Double, limit: Double) -> Double {
+        min(max(value, -limit), limit)
+    }
 }
 
 // MARK: - Supporting Types
@@ -1166,6 +1952,10 @@ private struct DailySummary {
 }
 
 private struct DailyFlags: Codable {
+    var aggregatedStepTotal: Double?
+    var aggregatedNocturnalAverage: Double?
+    var aggregatedNocturnalMin: Double?
+    var aggregatedSleepDurationSeconds: Double?
     var hrvSamples: [HRVSample] = []
     var heartRateSamples: [HeartRateSample] = []
     var respiratorySamples: [RespiratorySample] = []
@@ -1269,8 +2059,12 @@ private struct DailyFlags: Codable {
         return intervals
     }
 
-    func sleepDurations() -> Double {
+    func sleepDurations() -> Double? {
+        if let aggregatedSleepDurationSeconds {
+            return aggregatedSleepDurationSeconds
+        }
         let asleep = sleepSegments.filter { $0.stage.isAsleep }
+        guard !asleep.isEmpty else { return nil }
         return asleep.reduce(0) { $0 + $1.duration }
     }
 
@@ -1292,6 +2086,9 @@ private struct DailyFlags: Codable {
                             fallback: [DateInterval],
                             previous: Double?,
                             imputed: inout [String: Bool]) -> Double? {
+        if let aggregatedNocturnalAverage {
+            return aggregatedNocturnalAverage
+        }
         if let percentile = percentile(samples: heartRateSamples, within: intervals, percentile: 0.10) {
             return percentile
         }
@@ -1324,6 +2121,9 @@ private struct DailyFlags: Codable {
     }
 
     func totalSteps() -> Double? {
+        if let aggregatedStepTotal {
+            return aggregatedStepTotal
+        }
         guard !stepBuckets.isEmpty else { return nil }
         return stepBuckets.reduce(0) { $0 + $1.steps }
     }

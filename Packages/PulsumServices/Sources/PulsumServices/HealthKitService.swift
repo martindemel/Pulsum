@@ -136,8 +136,9 @@ public final class HealthKitService: @unchecked Sendable {
 
     public typealias AnchoredUpdateHandler = @Sendable (Result<AnchoredUpdate, Error>) -> Void
 
-private let healthStore: HKHealthStore
-private let anchorStore: HealthKitAnchorStore
+    private let healthStore: HKHealthStore
+    private let anchorStore: HealthKitAnchorStore
+    private let calendar = Calendar(identifier: .gregorian)
     private let processingQueue = DispatchQueue(label: "ai.pulsum.healthkit.service")
 
     private var activeObserverQueries: [HKSampleType: HKObserverQuery] = [:]
@@ -196,6 +197,140 @@ private let anchorStore: HealthKitAnchorStore
             }
         }
     }
+
+    public func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? {
+        guard #available(iOS 14.0, *) else { return nil }
+        let objectTypes = Set(readTypes.map { $0 as HKObjectType })
+        return try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HKAuthorizationRequestStatus, Error>) in
+            healthStore.getRequestStatusForAuthorization(toShare: [], read: objectTypes) { status, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: status)
+                }
+            }
+        }
+    }
+
+    public func fetchDailyStepTotals(startDate: Date, endDate: Date) async throws -> [Date: Int] {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw HealthKitServiceError.healthDataUnavailable
+        }
+
+        let quantityType = HKObjectType.quantityType(forIdentifier: .stepCount)!
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+
+        var interval = DateComponents()
+        interval.day = 1
+        let anchorDate = calendar.startOfDay(for: startDate)
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Date: Int], Error>) in
+            let query = HKStatisticsCollectionQuery(quantityType: quantityType,
+                                                    quantitySamplePredicate: predicate,
+                                                    options: .cumulativeSum,
+                                                    anchorDate: anchorDate,
+                                                    intervalComponents: interval)
+
+            query.initialResultsHandler = { [calendar] _, collection, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let collection else {
+                    continuation.resume(returning: [:])
+                    return
+                }
+
+                var results: [Date: Int] = [:]
+                collection.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    guard let sum = statistics.sumQuantity() else { return }
+                    let day = calendar.startOfDay(for: statistics.startDate)
+                    results[day] = Int(sum.doubleValue(for: HKUnit.count()))
+                }
+
+                continuation.resume(returning: results)
+            }
+
+            self.healthStore.execute(query)
+        }
+    }
+
+    public func fetchNocturnalHeartRateStats(startDate: Date, endDate: Date) async throws -> [Date: (avgBPM: Double, minBPM: Double?)] {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw HealthKitServiceError.healthDataUnavailable
+        }
+
+        let quantityType = HKObjectType.quantityType(forIdentifier: .heartRate)!
+        var results: [Date: (avgBPM: Double, minBPM: Double?)] = [:]
+
+        var day = calendar.startOfDay(for: startDate)
+        let endBoundary = calendar.startOfDay(for: endDate)
+
+        while day < endDate {
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            let nightStart = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: day) ?? day
+            let nightEnd = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: nextDay) ?? nextDay
+
+            let windowStart = max(nightStart, startDate)
+            let windowEnd = min(nightEnd, endDate)
+            if windowStart < windowEnd {
+                let predicate = HKQuery.predicateForSamples(withStart: windowStart, end: windowEnd, options: .strictStartDate)
+                let stats = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Double, Double?)?, Error>) in
+                    let query = HKStatisticsQuery(quantityType: quantityType,
+                                                  quantitySamplePredicate: predicate,
+                                                  options: [.discreteAverage, .discreteMin]) { _, statistics, error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                            return
+                        }
+                        guard let statistics, let average = statistics.averageQuantity() else {
+                            continuation.resume(returning: nil)
+                            return
+                        }
+                        let unit = HKUnit.count().unitDivided(by: .minute())
+                        let avg = average.doubleValue(for: unit)
+                        let min = statistics.minimumQuantity()?.doubleValue(for: unit)
+                        continuation.resume(returning: (avg, min))
+                    }
+                    self.healthStore.execute(query)
+                }
+
+                if let stats {
+                    results[day] = (avgBPM: stats.0, minBPM: stats.1)
+                }
+            }
+
+            if day == endBoundary { break }
+            guard let advance = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = advance
+        }
+
+        return results
+    }
+
+    public func fetchSamples(for sampleType: HKSampleType, startDate: Date, endDate: Date) async throws -> [HKSample] {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw HealthKitServiceError.healthDataUnavailable
+        }
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKSample], Error>) in
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [.strictStartDate])
+            let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let query = HKSampleQuery(sampleType: sampleType,
+                                      predicate: predicate,
+                                      limit: HKObjectQueryNoLimit,
+                                      sortDescriptors: [sortDescriptor]) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: samples ?? [])
+                }
+            }
+            self.healthStore.execute(query)
+        }
+    }
+
 
     /// Configures background delivery for all supported data types.
     public func enableBackgroundDelivery() async throws {
@@ -342,6 +477,10 @@ private let anchorStore: HealthKitAnchorStore
 public protocol HealthKitServicing: AnyObject, Sendable {
     var isHealthDataAvailable: Bool { get }
     func requestAuthorization() async throws
+    func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus?
+    func fetchDailyStepTotals(startDate: Date, endDate: Date) async throws -> [Date: Int]
+    func fetchNocturnalHeartRateStats(startDate: Date, endDate: Date) async throws -> [Date: (avgBPM: Double, minBPM: Double?)]
+    func fetchSamples(for sampleType: HKSampleType, startDate: Date, endDate: Date) async throws -> [HKSample]
     func enableBackgroundDelivery(for types: Set<HKSampleType>) async throws
     func enableBackgroundDelivery() async throws
     @discardableResult

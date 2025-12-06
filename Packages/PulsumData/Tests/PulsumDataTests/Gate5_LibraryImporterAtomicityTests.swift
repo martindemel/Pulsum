@@ -2,6 +2,7 @@ import CoreData
 import CryptoKit
 import XCTest
 @testable import PulsumData
+@testable import PulsumML
 
 @MainActor
 final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
@@ -74,6 +75,20 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
 
         let calls = await spy.upsertCallCount()
         XCTAssertEqual(calls, 0, "Checksum short-circuit should avoid index usage")
+    }
+
+    func testEmbeddingsUnavailableDefersIndexingGracefully() async throws {
+        let metadata = try sampleMetadata()
+        let unavailableIndex = UnavailableEmbeddingIndex()
+        let importer = LibraryImporter(configuration: testConfig, vectorIndex: unavailableIndex)
+
+        try await importer.ingestIfNeeded()
+
+        XCTAssertTrue(importer.lastImportHadDeferredEmbeddings)
+        XCTAssertNil(fetchLibraryIngest(source: metadata.filename), "Checksum should not be saved when embeddings are unavailable")
+        let (count, uniqueCount) = fetchMicroMomentCounts()
+        XCTAssertGreaterThan(count, 0)
+        XCTAssertEqual(count, uniqueCount)
     }
 
     // MARK: - Helpers
@@ -175,6 +190,18 @@ private actor SpyIndex: VectorIndexProviding {
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] { [] }
 
     func upsertCallCount() -> Int { calls }
+}
+
+private actor UnavailableEmbeddingIndex: VectorIndexProviding {
+    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] {
+        throw EmbeddingError.generatorUnavailable
+    }
+
+    func removeMicroMoment(id: String) async throws {}
+
+    func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
+        throw EmbeddingError.generatorUnavailable
+    }
 }
 
 private enum TestError: Error {

@@ -11,8 +11,8 @@ Got it — I read **every line** of your `bugs.md` (43 bugs) and the companion `
 | 2 | Voice journal E2E | ✅ Complete (2025‑11‑11) | Closed BUG‑0005/0007/0009/0015/0016/0032/0034 with mic preflight hardening, session guardrails, waveform perf, and wellbeing refresh. |
 | 3 | HealthKit ingestion & UI freshness | ✅ Complete (2025‑11‑15) | Closed BUG‑0024/0037/0040/0043 with permission-aware ingestion, restart seam, UI status, and Gate3 tests. |
 | 4 | RAG/LLM wiring & consent UX | ✅ Complete (2025‑11‑16) | Closed BUG‑0004/0008/0010/0023/0041 with minimized cloud payloads, consent UX, and Settings key entry/tests. |
-| 5 | Vector index & data I/O integrity | ⏳ Not started | Blocks: BUG‑0012/0013/0017/0022/0036. |
-| 6 | ML correctness & personalization | ⏳ Not started | Blocks: BUG‑0020/0021/0027/0028/0038/0039. |
+| 5 | Vector index & data I/O integrity | ✅ Complete (2025‑11‑20) | Closed BUG‑0012/0013/0017/0022/0036 with actorized index, safe handles, importer atomicity, single dataset. |
+| 6 | ML correctness & personalization | ⏳ In progress | Weights/persistence/embeddings fixed; phased HealthKit backfill (7d warm-start → 30d background) shipped for BUG‑0045. |
 | 7 | UI polish & spec gaps | ⏳ Not started | Blocks: BUG‑0009/0010/0011/0030/0031/0042. |
 | 8 | Release compliance & final audit | ⏳ Not started | Re-run `scripts/ci/integrity.sh`, privacy report, and release smoke once Gates 0‑7 are green. |
 
@@ -197,24 +197,36 @@ This mirrors the constraints and UX promises in your architecture (privacy first
 ## Gate 6 — **ML correctness & personalization**
 
 **G6.1 — Fix inverted weights & label math (BUG‑0028, S1)**
-**Fix**: Align coefficient signs and target computation so **higher HRV/steps lift** the score and **higher sleep debt lowers** it. Update docs so code & spec agree (architecture currently lists seed weights that conflict with intended semantics).
-**Automated**: Unit tests asserting contribution signs; synthetic feature vectors demonstrate expected directionality.  
+**Fix**: StateEstimator seeds now reward recovery (HRV/steps positive, sleep debt/HR negatives) and `WellbeingModeling` normalizes/clamps inputs so ScoreBreakdown contributions mirror estimator math.
+**Automated**: `Gate6_StateEstimatorWeightsAndLabelsTests` (PulsumAgents).
 
 **G6.2 — Persist StateEstimator across launches (BUG‑0038, S1)**
-**Fix**: Add `EstimatorState` persistence (Core Data entity or small JSON under `Application Support/` with file protection). Load on startup; periodically checkpoint after updates.
-**Automated**: Restart simulation shows weights survive and influence next session. 
+**Fix**: `EstimatorStateStore` checkpoints weights/bias as a versioned JSON under Application Support with complete file protection and loads on startup.
+**Automated**: `Gate6_StateEstimatorPersistenceTests` (PulsumAgents).
 
 **G6.3 — Include sentiment in the target & weights (BUG‑0039, S1)**
-**Fix**: Add the sentiment feature to `computeTarget` and seed a modest positive/negative weight; update `ScoreBreakdown` mapping.
-**Automated**: Journals with opposite sentiment shift the contribution band accordingly. 
+**Fix**: Sentiment is normalized alongside other features, weighted positively in seeds/targets, and persisted into FeatureVectors so ScoreBreakdown reflects journal impact.
+**Automated**: `Gate6_StateEstimatorWeightsAndLabelsTests` (PulsumAgents).
 
 **G6.4 — RecRanker learns from feedback (BUG‑0027, S1)**
-**Fix**: On recommendation complete/skip, call `ranker.update(...)` with bounded LR; persist ranker state if needed.
-**Automated**: Simulated accept/reject series changes pairwise weights; top‑3 ordering adapts. 
+**Fix**: CoachAgent caches ranked feature vectors and applies pairwise updates + adaptive learning rate on acceptance/dismiss events.
+**Automated**: `Gate6_RecRankerLearningTests` (PulsumAgents).
 
 **G6.5 — Embeddings: re‑enable contextual AFM & forbid zero vectors (BUG‑0020, S1; BUG‑0021, S1)**
-**Fix**: Re‑enable `NLContextualEmbedding` per the design (or keep Core ML fallback if APIs remain unsafe), and **never** return a zero vector—throw and degrade to keyword retrieval if both providers fail.
-**Automated**: Dimension invariants (384d) and failure‑path tests; topic gate/safety accuracy regression tests. *(Open question in bugs.md: reason contextual path was disabled—confirm before flipping.)*  
+**Fix**: AFM contextual embeddings are live when available; EmbeddingService now throws on provider failure/zero vectors instead of masking with `[0,...]`.
+**Automated**: `Gate6_EmbeddingProviderContextualTests` + updated `PackageEmbedTests` (PulsumML).
+
+**G6.6 — HealthKit status + phased backfill (BUG‑0043, BUG‑0045, S1)**  
+**Fix**: Shared HealthKit service/status mapping reflects all six types (treat `.unnecessary` as granted) and the ingestion pipeline now runs in two phases: a 7-day warm-start in the foreground for a fast first score, then persisted background batches that extend coverage to 30 days without blocking the UI. Backfill progress is checkpointed on disk (file-protected/backup-excluded) so relaunches resume instead of re-ingesting history.  
+**Automated**: `Gate6_WellbeingBackfillPhasingTests` plus manual App Debug Log/coverage verification.
+
+**G6.7 — Embedding unavailability resilience (runtime crash fix)**  
+**Fix**: LibraryImporter now defers vector indexing when on-device embeddings are unavailable (ingests Core Data, skips checksum) and CoachAgent falls back to keyword-based recommendations with a gentle notice instead of failing startup. Chat routing already fails closed when embeddings are down.  
+**Automated**: `PackageEmbedTests.testAvailabilityModeReportsUnavailableWhenProvidersFail`, `Gate5_LibraryImporterAtomicityTests.testEmbeddingsUnavailableDefersIndexingGracefully`, `Gate6_EmbeddingAvailabilityDegradationTests`.
+
+**G6.8 — HealthKit initial analysis UX & backfill UX**  
+**Fix**: `requestHealthAccess()` and `start()` now run a 2-day bootstrap synchronously for a first score, then schedule warm-start + 30-day backfill in the background without blocking the UI. Snapshot notifications are debounced (single `.pulsumScoresUpdated` per batch), CoachViewModel keeps the main card in `.ready` after the first load, and DebugLogBuffer capacity increased with per-batch backfill summaries.  
+**Automated**: `Gate6_WellbeingBackfillPhasingTests.testRequestHealthAccessReturnsBeforeWarmStartCompletes`, updated `Gate3_FreshnessBusTests`, `DebugLogBufferTests`, plus existing Gate6 backfill phasing coverage.
 
 ---
 

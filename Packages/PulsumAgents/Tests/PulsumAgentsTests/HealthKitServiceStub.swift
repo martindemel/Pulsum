@@ -8,8 +8,74 @@ final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
     private(set) var stoppedIdentifiers: [String] = []
     private(set) var backgroundRequests: [Set<String>] = []
     var authorizationStatuses: [String: HKAuthorizationStatus] = [:]
+    var availabilityReason: String = "Unavailable"
+    var fetchedSamples: [String: [HKSample]] = [:]
+    private(set) var fetchRequests: [(identifier: String, start: Date, end: Date)] = []
+    private(set) var dailyStepTotalsRequests: [(start: Date, end: Date)] = []
+    private(set) var nocturnalStatsRequests: [(start: Date, end: Date)] = []
+    var fetchDelayNanoseconds: UInt64 = 0
 
     func requestAuthorization() async throws {}
+
+    func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? { nil }
+
+    func fetchDailyStepTotals(startDate: Date, endDate: Date) async throws -> [Date: Int] {
+        dailyStepTotalsRequests.append((startDate, endDate))
+        if fetchDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: fetchDelayNanoseconds)
+        }
+
+        let calendar = Calendar(identifier: .gregorian)
+        let samples = fetchedSamples[HKQuantityTypeIdentifier.stepCount.rawValue] ?? []
+        let quantitySamples = samples.compactMap { $0 as? HKQuantitySample }
+        var totals: [Date: Int] = [:]
+        for sample in quantitySamples where sample.startDate >= startDate && sample.startDate < endDate {
+            let day = calendar.startOfDay(for: sample.startDate)
+            let value = sample.quantity.doubleValue(for: HKUnit.count())
+            totals[day, default: 0] += Int(value)
+        }
+        return totals
+    }
+
+    func fetchNocturnalHeartRateStats(startDate: Date, endDate: Date) async throws -> [Date: (avgBPM: Double, minBPM: Double?)] {
+        nocturnalStatsRequests.append((startDate, endDate))
+        if fetchDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: fetchDelayNanoseconds)
+        }
+
+        let calendar = Calendar(identifier: .gregorian)
+        let samples = fetchedSamples[HKQuantityTypeIdentifier.heartRate.rawValue] ?? []
+        let quantitySamples = samples.compactMap { $0 as? HKQuantitySample }
+        var valuesByDay: [Date: [Double]] = [:]
+
+        for sample in quantitySamples where sample.startDate >= startDate && sample.startDate < endDate {
+            let day = calendar.startOfDay(for: sample.startDate)
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { continue }
+            let nightStart = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: day) ?? day
+            let nightEnd = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: nextDay) ?? nextDay
+            guard sample.startDate >= nightStart && sample.startDate < nightEnd else { continue }
+
+            let bpm = sample.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+            valuesByDay[day, default: []].append(bpm)
+        }
+
+        var result: [Date: (avgBPM: Double, minBPM: Double?)] = [:]
+        for (day, values) in valuesByDay where !values.isEmpty {
+            let avg = values.reduce(0, +) / Double(values.count)
+            result[day] = (avgBPM: avg, minBPM: values.min())
+        }
+
+        return result
+    }
+
+    func fetchSamples(for sampleType: HKSampleType, startDate: Date, endDate: Date) async throws -> [HKSample] {
+        fetchRequests.append((sampleType.identifier, startDate, endDate))
+        if fetchDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: fetchDelayNanoseconds)
+        }
+        let samples = fetchedSamples[sampleType.identifier] ?? []
+        return samples.filter { $0.startDate >= startDate && $0.startDate <= endDate }
+    }
 
     func enableBackgroundDelivery(for types: Set<HKSampleType>) async throws {
         backgroundRequests.append(Set(types.map(\.identifier)))

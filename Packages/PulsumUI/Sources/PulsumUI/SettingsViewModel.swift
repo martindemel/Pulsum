@@ -3,6 +3,7 @@ import Observation
 import PulsumAgents
 import HealthKit
 import PulsumTypes
+import PulsumServices
 
 @MainActor
 @Observable
@@ -11,6 +12,7 @@ final class SettingsViewModel {
     private(set) var foundationModelsStatus: String = ""
     var consentGranted: Bool
     var lastConsentUpdated: Date = Date()
+    var healthKitDebugSummary: String = ""
 
     struct HealthAccessRow: Identifiable, Equatable {
         let id: String
@@ -32,12 +34,14 @@ final class SettingsViewModel {
     }
     private(set) var showHealthKitUnavailableBanner: Bool = false
     private(set) var isRequestingHealthKitAuthorization: Bool = false
+    private(set) var canRequestHealthKitAccess: Bool = true
     private(set) var healthKitError: String?
     private(set) var healthKitSuccessMessage: String?
     @ObservationIgnored private var healthKitSuccessTask: Task<Void, Never>?
     private var lastHealthAccessStatus: HealthAccessStatus?
     private var awaitingToastAfterRequest: Bool = false
     private var didApplyInitialStatus: Bool = false
+    var debugLogSnapshot: String = ""
 
     // GPT-5 API Status
     private(set) var gptAPIStatus: String = "Missing API key"
@@ -90,6 +94,7 @@ final class SettingsViewModel {
     func refreshHealthAccessStatus() {
         guard let orchestrator else {
             healthKitSummary = "Agent unavailable"
+            canRequestHealthKitAccess = false
             return
         }
         Task { [weak self] in
@@ -97,6 +102,8 @@ final class SettingsViewModel {
             let status = await orchestrator.currentHealthAccessStatus()
             await MainActor.run {
                 self.applyHealthStatus(status)
+                self.healthKitDebugSummary = Self.debugSummary(from: status)
+                self.debugLogSnapshot = ""
             }
         }
     }
@@ -109,15 +116,34 @@ final class SettingsViewModel {
         isRequestingHealthKitAuthorization = true
         awaitingToastAfterRequest = true
         healthKitError = nil
+        defer { isRequestingHealthKitAuthorization = false }
 
         do {
             let status = try await orchestrator.requestHealthAccess()
             applyHealthStatus(status)
+            healthKitDebugSummary = Self.debugSummary(from: status)
+        } catch let serviceError as HealthKitServiceError {
+            healthKitError = serviceError.localizedDescription
+            let status = await orchestrator.currentHealthAccessStatus()
+            applyHealthStatus(status)
+            healthKitDebugSummary = Self.debugSummary(from: status)
         } catch {
             healthKitError = error.localizedDescription
+            let status = await orchestrator.currentHealthAccessStatus()
+            applyHealthStatus(status)
+            healthKitDebugSummary = Self.debugSummary(from: status)
         }
+    }
 
-        isRequestingHealthKitAuthorization = false
+    func refreshDebugLog() async {
+        guard let orchestrator else {
+            debugLogSnapshot = "Debug log unavailable (orchestrator not ready)"
+            return
+        }
+        let snapshot = await orchestrator.debugLogSnapshot()
+        await MainActor.run {
+            debugLogSnapshot = snapshot.isEmpty ? "No events captured yet." : snapshot
+        }
     }
 
     func toggleConsent(_ newValue: Bool) {
@@ -195,6 +221,7 @@ final class SettingsViewModel {
                 healthKitSummary = "Ready"
             }
             showHealthKitUnavailableBanner = false
+            canRequestHealthKitAccess = true
             let missingTitles = status.missingTypes.compactMap { HealthAccessRequirement.descriptor(for: $0)?.title }
             if missingTitles.isEmpty {
                 missingHealthKitDetail = nil
@@ -205,6 +232,7 @@ final class SettingsViewModel {
             healthKitSummary = "Health data unavailable"
             showHealthKitUnavailableBanner = true
             missingHealthKitDetail = reason
+            canRequestHealthKitAccess = false
         }
 
         healthAccessRows = HealthAccessRequirement.ordered.map { descriptor in
@@ -256,6 +284,17 @@ final class SettingsViewModel {
         healthKitSuccessTask?.cancel()
         healthKitSuccessTask = nil
         healthKitSuccessMessage = nil
+    }
+
+    func debugHealthStatusSnapshot() -> String {
+        healthKitDebugSummary
+    }
+
+    private static func debugSummary(from status: HealthAccessStatus) -> String {
+        let granted = status.granted.map(\.identifier).sorted().joined(separator: ", ")
+        let denied = status.denied.map(\.identifier).sorted().joined(separator: ", ")
+        let pending = status.notDetermined.map(\.identifier).sorted().joined(separator: ", ")
+        return "Granted: [\(granted)] | Denied: [\(denied)] | Pending: [\(pending)] | Availability: \(status.availability)"
     }
 
 #if DEBUG

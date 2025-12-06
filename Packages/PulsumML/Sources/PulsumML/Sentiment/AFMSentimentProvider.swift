@@ -1,11 +1,12 @@
 import Foundation
 
 final class AFMSentimentProvider: SentimentProviding {
+    private let embeddingService: EmbeddingService
     private let positiveAnchors: [[Float]]
     private let negativeAnchors: [[Float]]
 
-    init() {
-        let service = EmbeddingService.shared
+    init(embeddingService: EmbeddingService = .shared) {
+        self.embeddingService = embeddingService
         let positives = [
             "I feel grounded and steady today.",
             "There's momentum building and I can sense the progress.",
@@ -20,14 +21,17 @@ final class AFMSentimentProvider: SentimentProviding {
             "It feels like I'm slipping backwards.",
             "I'm tense and can't shake the stress."
         ]
-        positiveAnchors = positives.map { service.embedding(for: $0) }
-        negativeAnchors = negatives.map { service.embedding(for: $0) }
+        positiveAnchors = positives.compactMap { try? embeddingService.embedding(for: $0) }
+        negativeAnchors = negatives.compactMap { try? embeddingService.embedding(for: $0) }
     }
 
     func sentimentScore(for text: String) async throws -> Double {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleaned.count > 2 else { throw SentimentProviderError.insufficientInput }
-        let embedding = EmbeddingService.shared.embedding(for: cleaned.lowercased())
+        guard !positiveAnchors.isEmpty, !negativeAnchors.isEmpty else {
+            throw SentimentProviderError.unavailable
+        }
+        let embedding = try embeddingService.embedding(for: cleaned.lowercased())
         guard embedding.contains(where: { $0 != 0 }) else {
             throw SentimentProviderError.unavailable
         }
