@@ -24,8 +24,8 @@
 - BUG-20251026-0017 — FileHandle close errors silently swallowed. Vector index upsert/remove suppress close failures, leaking descriptors. (S1 Data) **[Fixed Gate 5]**
 - BUG-20251026-0018 — Backup exclusion failures ignored. PHI data can leak to iCloud if setResourceValues silently fails. (S0 Privacy/Security) **[Fixed Gate 0]**
 - BUG-20251026-0019 — Foundation Models stub has wrong response type. Expects structured SentimentAnalysis but returns string, causing runtime crash. (S0 Dependency) **[Fixed Gate 0]**
-- BUG-20251026-0020 — AFM contextual embeddings permanently disabled. Primary embedding path falls back to legacy word vectors with TODO. (S1 Dependency)
-- BUG-20251026-0021 — Embedding zero-vector fallback masks failures. All provider failures return [0,0,...], corrupting similarity search. (S1 ML)
+- BUG-20251026-0020 — AFM contextual embeddings permanently disabled. Primary embedding path falls back to legacy word vectors with TODO. (S1 Dependency) **[Fixed Gate 6 – opportunistic AFM + CoreML fallback]**
+- BUG-20251026-0021 — Embedding zero-vector fallback masks failures. All provider failures return [0,0,...], corrupting similarity search. (S1 ML) **[Fixed Gate 6 – zero-vector ban + availability probe + self-healing recheck]**
 - BUG-20251026-0022 — Core Data blocking I/O on database thread. LibraryImporter reads JSON inside context.perform, freezing UI. (S2 Data) **[Fixed Gate 5]**
 - BUG-20251026-0023 — LLM PING validation has case mismatch. Request sends "PING" but validator expects "ping", always failing. (S2 Wiring)
 - BUG-20251026-0024 — HealthKit queries lack authorization checks. Observer queries execute without verifying user permission status. (S1 Wiring)
@@ -41,13 +41,14 @@
 - BUG-20251026-0034 — Legacy recordVoiceJournal path never tears down sessions on errors, leaving the mic hot and skipping safety review. (S1 Wiring)
 - BUG-20251026-0035 — PulseView references UIKit haptics without importing UIKit, so the app fails to compile. (S1 UI) **[Fixed Gate 0]**
 - BUG-20251026-0036 — Checked-in Pulsum.xcodeproj.backup still wires SplineRuntime and old build scripts, inviting regressions. (S3 Build)
-- BUG-20251026-0037 — Wellbeing card never refreshes after HealthKit sync; score stays stale until user revisits Insights. (S1 UI)
+- BUG-20251026-0037 — Wellbeing card never refreshes after HealthKit sync; score stays stale until user revisits Insights. (S1 UI) **[Fixed Gate 6 – explicit no-data/permission states]**
 - BUG-20251026-0038 — StateEstimator weights are never persisted, so wellbeing personalization resets every launch. (S1 ML)
 - BUG-20251026-0039 — Journal sentiment feature is absent from the wellbeing target, leaving that metric permanently zero. (S1 ML)
-- BUG-20251026-0040 — HealthKit request buttons never restart DataAgent, so new permissions do nothing until relaunch. (S1 Wiring)
+- BUG-20251026-0040 — HealthKit request buttons never restart DataAgent, so new permissions do nothing until relaunch. (S1 Wiring) **[Fixed Gate 6 follow-up – shared service + Settings/request refresh]**
 - BUG-20251026-0041 — ChatGPT-5 API settings show only a status light; there’s no input or save action so users can’t supply their own key. (S1 UI)
 - BUG-20251026-0042 — Chat keyboard stays visible on other tabs; focus never resigns when leaving the Coach screen. (S2 UI)
 - BUG-20251026-0043 — HealthKit status indicator looks only at HRV authorization, so it reports “Authorized” even when other required types are denied. (S2 UI)
+- BUG-20251026-0045 — HealthKit backfill over 30 days stalls on large datasets (heart rate/steps/respiratory), leaving coverage at 0/0. (S1 Data) **[Fixed Gate 6 – phased 7d warm-start + persisted background batches to 30d]**
 
 ## How to Use This Document
 Packs group related findings so you can triage by domain. Open the referenced card IDs to review evidence with sig8 hashes, then plan fixes downstream. No fixes are proposed here—each card stops at evidence, impact, and suggested diagnostics.
@@ -66,7 +67,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 | ML | 0 | 3 |
 | Build | 0 | 1 |
 
-**Critical Blockers:** BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0008, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031, BUG-20251026-0034, BUG-20251026-0037, BUG-20251026-0038, BUG-20251026-0039, BUG-20251026-0040, BUG-20251026-0041
+**Critical Blockers:** BUG-20251026-0004, BUG-20251026-0005, BUG-20251026-0008, BUG-20251026-0015, BUG-20251026-0016, BUG-20251026-0029, BUG-20251026-0030, BUG-20251026-0031, BUG-20251026-0034, BUG-20251026-0040, BUG-20251026-0041
 
 ## Pack Privacy & Compliance
 
@@ -606,6 +607,20 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Suggested Diagnostics (no code):** Deny HealthKit on first launch, then grant via Settings ▸ Request Health Data Access; observe that `DataAgent.start()`/`HealthKitService.enableBackgroundDelivery()` logs do not reappear and no samples arrive until the app is relaunched or `retryStartup()` is triggered.
 - **Related Contract (from docs):** instructions.md (“HealthKit Integration”) requires the app to request authorization and keep ingestion wired; current implementation breaks that contract.
 
+### BUG: HealthKit 30-day backfill stalls on large datasets
+- **ID:** BUG-20251026-0045
+- **Severity:** S1
+- **Area:** Data
+- **Confidence:** Medium
+- **Status:** Fixed (Gate 6 — phased warm-start + persisted background batches to 30 days)
+- **Symptom/Impact:** With a 30-day backfill window, heart rate/respiratory/steps histories containing tens of thousands of samples can make DataAgent’s initial processing appear stuck, leaving coverage at 0/0 despite granted permissions.
+- **Where/Scope:** `DataAgent.backfillHistoricalSamplesIfNeeded` uses `analysisWindowDays = 30` to fetch and process all granted types in one pass.
+- **Evidence:** Device debug logs show large fetch counts (e.g., 47,789 heart rate samples, 1,517 respiratory) but no processed/touchedDays entries for those types; sleep/HRV complete successfully.
+- **Why This Is a Problem:** Users see HealthKit “granted” but still get “no data”/0 coverage; long-running ingestion blocks wellbeing correctness and trust.
+- **Fix (Gate 6):** Added a two-phase backfill: 7-day warm-start in the foreground for a fast first score, followed by persisted background batches (5-day slices) that expand coverage to the full 30-day analysis window without blocking the UI. Progress is checkpointed per-type on disk with full file protection/backup exclusion so relaunches resume instead of re-ingesting history. Baseline/analysis windows restored to 30 days; coverage lines grow as batches land.
+- **Suggested Diagnostics (no code):** Inspect App Debug Log for per-type “Backfill fetched … raw=…”, “casting summary …”, and “Backfill processed … touchedDays=…”; if heart rate/steps lack processed lines after several seconds, ingestion is still stalled. Once batching lands, raise window and retest.
+- **Related Contract (from docs):** instructions.md/architecture.md assume full 30-day coverage for robust baselines; this hotfix narrows scope and must be reversed with proper batching.
+
 ## Pack Tests & Tooling
 
 ### BUG: Xcode scheme omits all SwiftPM test targets
@@ -692,7 +707,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** Dependency
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 6 — contextual AFM path restored with explicit fallbacks)
 - **Symptom/Impact:** The AFM (Alternative Foundation Models) embedding provider's primary feature (contextual embeddings) is disabled, falling back to legacy word embeddings despite iOS 17+ availability.
 - **Where/Scope:** AFMTextEmbeddingProvider.
 - **Evidence:**
@@ -707,6 +722,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Upstream/Downstream:** All embeddings use inferior word-level vectors instead of contextual; similarity search quality degrades; topic gating and safety classification less accurate.
 - **Why This Is a Problem:** Architecture section 7 describes multi-tier ML fallback with AFM as secondary tier; disabling primary feature defeats the purpose; "alternative" provider offers no advantage over Core ML fallback.
 - **Suggested Diagnostics (no code):** Research NLContextualEmbedding availability; determine if "unsafe runtime code" issue is resolved; benchmark word vs. contextual embedding quality; consider removing TODO or implementing fix.
+- **Tests:** `Gate6_EmbeddingProviderContextualTests` (PulsumML)
 - **Related Contract (from architecture.md):** Section 7 ("ML utilities") describes EmbeddingService with AFM tier for modern embeddings; current implementation provides legacy-tier quality.
 
 ### BUG: Foundation Models stub has wrong response type structure
@@ -741,7 +757,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** ML
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 6 — zero vectors now throw and propagate; follow-up adds availability self-healing probe)
 - **Symptom/Impact:** When all embedding providers fail, EmbeddingService silently returns zero vector `[0,0,...,0]`, corrupting similarity search and masking critical failures.
 - **Where/Scope:** EmbeddingService fallback logic.
 - **Evidence:**
@@ -760,6 +776,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Upstream/Downstream:** Zero vectors match with zero similarity to everything; vector search returns random results; SafetyLocal prototypes become invalid; topic gating breaks; users get irrelevant recommendations.
 - **Why This Is a Problem:** Downstream code cannot distinguish between "legitimately computed zero embedding" vs. "all providers failed"; similarity search corruption is silent; debugging provider issues is impossible.
 - **Suggested Diagnostics (no code):** Add logging for zero-vector fallback; consider throwing error or returning optional; instrument provider failure rates; test with all providers disabled.
+- **Tests:** `Gate6_EmbeddingProviderContextualTests`, `PackageEmbedTests` (stubbed embeddings)
 - **Related Contract (from architecture.md):** Section 7 describes embedding service with fallback providers; zero-vector return violates contract that embeddings are always meaningful vectors.
 
 ### BUG: RecRanker never learns from recommendation events
@@ -767,7 +784,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** ML
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 6 — RecRanker updates from user feedback)
 - **Symptom/Impact:** Recommendation weights stay frozen even after dozens of accept/reject events, so cards never personalize to the user and acceptance rates stagnate.
 - **Where/Scope:** CoachAgent recommendation flow.
 - **Evidence:**
@@ -777,6 +794,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Upstream/Downstream:** UX assumes the ranker adapts as users accept/skip cards. Because weights never change, stale micro-moments keep resurfacing and any A/B improvements are impossible to measure.
 - **Why This Is a Problem:** Violates the Phase 03 design (RecRanker should "learn from interaction logs") and blocks data-driven personalization; logged RecommendationEvents become dead data.
 - **Suggested Diagnostics (no code):** Add temporary counters/logs for `RecRanker.update` invocations; run integration test that simulates accept/reject sequences and asserts weight changes.
+- **Tests:** `Gate6_RecRankerLearningTests` (PulsumAgents)
 - **Related Contract:** Phase 03 short report — Model Training & Optimization section states the ranker “updates from interaction logs”.
 
 ### BUG: Wellbeing coefficients invert recovery signals
@@ -784,7 +802,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** ML
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 6 — weights/targets now align with recovery semantics)
 - **Symptom/Impact:** Higher HRV or step z-scores make the Wellbeing Score fall, while elevated sleep debt makes it rise, contradicting intended recovery semantics.
 - **Where/Scope:** StateEstimator initialization and target label computation.
 - **Evidence:**
@@ -794,6 +812,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Upstream/Downstream:** ScoreBreakdown shows recovery metrics moving opposite to expectations; recommendations derived from the Wellbeing Score misinterpret improvements as regressions.
 - **Why This Is a Problem:** Undermines user trust and breaks the narrative that better recovery signals raise wellbeing; ranker and guardrails consume the wrong signals.
 - **Suggested Diagnostics (no code):** Plot score contributions after simulated days with high HRV vs. low HRV; add unit tests asserting coefficient signs; review gradient targets before deploying.
+- **Tests:** `Gate6_StateEstimatorWeightsAndLabelsTests` (PulsumAgents)
 - **Related Contract:** Phase 03 short report — Model Training & Optimization and Model Refinement sections require sensible seed weights and interpretable contributions.
 
 ### BUG: StateEstimator weights reset every launch, erasing personalization
@@ -801,7 +820,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** ML
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 6 — estimator state now persisted securely)
 - **Symptom/Impact:** The wellbeing model relearns from scratch each run because weights/contributions exist only in memory; a cold app start or crash reverts to seed coefficients, so long-term personalization never accumulates.
 - **Where/Scope:** DataAgent state management.
 - **Evidence:**
@@ -811,6 +830,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Upstream/Downstream:** Users see their score revert to seed weights every time they reopen the app; recommendations and ScoreBreakdown shifts contradict prior sessions, defeating “learning” claims.
 - **Why This Is a Problem:** instructions.md §“Tech Stack” calls out StateEstimator as an online ridge model for personalization; without persistence it can never behave as specified.
 - **Suggested Diagnostics (no code):** Capture `stateEstimator.weights` before quitting, relaunch, and log the weights again; compare ScoreBreakdown before/after a relaunch without new data.
+- **Tests:** `Gate6_StateEstimatorPersistenceTests` (PulsumAgents)
 - **Related Contract (from docs):** instructions.md:156 (“StateEstimator (online ridge regression) ... drives wellbeing score”) assumes weights survive beyond one actor lifetime.
 
 ### BUG: Journal sentiment is excluded from the wellbeing target
@@ -818,7 +838,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Severity:** S1
 - **Area:** ML
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Fixed (Gate 6 — sentiment added to targets/weights)
 - **Symptom/Impact:** Even if journaling triggers reprocessing, the estimator never receives a label signal for sentiment, respiratory rate, or nocturnal HR, so the “Journal Sentiment” metric in ScoreBreakdown will always read as a zero contribution.
 - **Where/Scope:** DataAgent computeTarget, StateEstimator seed weights, ScoreBreakdown descriptors.
 - **Evidence:**
@@ -828,6 +848,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Upstream/Downstream:** Journaling cannot affect wellbeing or recommendations; users see “Journal Sentiment” stuck at 0 despite varied entries, undermining trust in the feature.
 - **Why This Is a Problem:** architecture.md:8 explicitly states “Health metrics and journals flow through DataAgent … to drive a wellbeing score”; excluding sentiment contradicts that contract.
 - **Suggested Diagnostics (no code):** Record journals with opposite sentiment scores, call `scoreBreakdown()`, and confirm the `sentiment` contribution remains 0; add unit tests asserting non-zero contributions when sentiment is injected.
+- **Tests:** `Gate6_StateEstimatorWeightsAndLabelsTests` (PulsumAgents)
 - **Related Contract (from docs):** architecture.md:8-11 (“Health metrics and journals flow through a DataAgent actor … surfaced in UI dashboards”) plus instructions.md voice-journal requirements demand sentiment-informed wellbeing.
 
 ### BUG: Startup bootstrap uses orphaned Tasks and double-runs orchestrator
@@ -907,7 +928,7 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **FIXED (Gate 2)** — Session lifecycle management prevents duplicate starts (BUG-20251026-0016)
 - **MISSING** — StateEstimator personalization must persist across sessions (BUG-20251026-0038)
 - **MISSING** — Journal sentiment must influence wellbeing contributions (BUG-20251026-0039)
-- **FIXED (Gate 3)** — HealthKit reauthorization now restarts ingestion inside the app (BUG-20251026-0040)
+- **FIXED (Gate 3 + Gate 6 refresh/status)** — HealthKit reauthorization now restarts ingestion inside the app and Settings refreshes the shared status after requests (BUG-20251026-0040)
 - **MISSING** — Settings must allow runtime GPT-5 API key configuration/testing (BUG-20251026-0041)
 - **MISSING** — Tab navigation should dismiss keyboards/overlays when contexts change (BUG-20251026-0042)
 - **FIXED (Gate 3)** — HealthKit status UI reflects every required permission (BUG-20251026-0043)

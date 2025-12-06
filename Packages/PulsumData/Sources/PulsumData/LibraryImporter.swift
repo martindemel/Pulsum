@@ -1,6 +1,7 @@
 import Foundation
 import CoreData
 import CryptoKit
+import PulsumML
 
 public struct LibraryImporterConfiguration {
     public let bundle: Bundle
@@ -34,6 +35,7 @@ public enum LibraryImporterError: LocalizedError {
 public final class LibraryImporter {
     private let configuration: LibraryImporterConfiguration
     private let vectorIndex: VectorIndexProviding
+    public private(set) var lastImportHadDeferredEmbeddings = false
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
                 vectorIndex: VectorIndexProviding = VectorIndexManager.shared) {
@@ -42,6 +44,7 @@ public final class LibraryImporter {
     }
 
     public func ingestIfNeeded() async throws {
+        lastImportHadDeferredEmbeddings = false
         let urls = discoverLibraryURLs()
         guard !urls.isEmpty else {
             #if DEBUG
@@ -77,6 +80,13 @@ public final class LibraryImporter {
             do {
                 try await upsertIndexEntries(result.0)
             } catch {
+                if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
+                    lastImportHadDeferredEmbeddings = true
+#if DEBUG
+                    print("[PulsumData] Embeddings unavailable; deferring micro-moment indexing until provider is ready.")
+#endif
+                    return
+                }
                 throw LibraryImporterError.indexingFailed(underlying: error)
             }
         }
@@ -192,7 +202,6 @@ public final class LibraryImporter {
 
     private func buildDetail(episode: PodcastEpisode, recommendation: PodcastRecommendation) -> String {
         var detailComponents: [String] = []
-        detailComponents.append("Episode #\(episode.episodeNumber): \(episode.episodeTitle)")
         detailComponents.append(recommendation.detailedDescription)
         if let microActivity = recommendation.microActivity {
             detailComponents.append("Try this: \(microActivity)")

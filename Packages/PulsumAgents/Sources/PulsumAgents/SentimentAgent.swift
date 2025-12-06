@@ -3,6 +3,7 @@ import CoreData
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
+import os
 import PulsumData
 import PulsumML
 import PulsumServices
@@ -28,11 +29,12 @@ public enum SentimentAgentError: LocalizedError {
 @MainActor
 public final class SentimentAgent {
     private let speechService: SpeechService
-    private let embeddingService = EmbeddingService.shared
+    private let embeddingService: EmbeddingService
     private let context: NSManagedObjectContext
     private let calendar = Calendar(identifier: .gregorian)
     private let sentimentService: SentimentService
     private let sessionState = JournalSessionState()
+    private let logger = Logger(subsystem: "com.pulsum", category: "SentimentAgent")
     
     public var audioLevels: AsyncStream<Float>? {
         sessionState.audioLevels
@@ -44,9 +46,11 @@ public final class SentimentAgent {
 
     public init(speechService: SpeechService = SpeechService(),
                 container: NSPersistentContainer = PulsumData.container,
-                sentimentService: SentimentService = SentimentService()) {
+                sentimentService: SentimentService = SentimentService(),
+                embeddingService: EmbeddingService = .shared) {
         self.speechService = speechService
         self.sentimentService = sentimentService
+        self.embeddingService = embeddingService
         self.context = container.newBackgroundContext()
         self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         self.context.name = "Pulsum.SentimentAgent.FoundationModels"
@@ -131,15 +135,70 @@ public final class SentimentAgent {
         try await persistJournal(transcript: transcript)
     }
 
+    public func reprocessPendingJournals() async {
+        let pending: [JournalEntry] = (try? await context.perform { [context] in
+            let request = JournalEntry.fetchRequest()
+            request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
+            return try context.fetch(request)
+        }) ?? []
+
+        guard !pending.isEmpty else { return }
+
+        for entry in pending {
+            do {
+                let vector = try embeddingService.embedding(for: entry.transcript)
+                let url = try persistVector(vector: vector, id: entry.id)
+                entry.embeddedVectorURL = url.lastPathComponent
+                entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: false)
+            } catch {
+#if DEBUG
+                logger.error("Failed to reprocess pending journal embedding: \(error.localizedDescription, privacy: .public)")
+#endif
+            }
+        }
+
+        do {
+            try await context.perform { [context] in
+                if context.hasChanges {
+                    try context.save()
+                }
+            }
+        } catch {
+#if DEBUG
+            logger.error("Failed to save reprocessed journal embeddings: \(error.localizedDescription, privacy: .public)")
+#endif
+        }
+    }
+
     private func persistJournal(transcript: String) async throws -> JournalResult {
         let sanitized = PIIRedactor.redact(transcript)
         
         // Use async Foundation Models sentiment analysis
         let sentiment = await sentimentService.sentiment(for: sanitized)
-        let vector = embeddingService.embedding(for: sanitized)
 
         let entryID = UUID()
-        let vectorURL = try persistVector(vector: vector, id: entryID)
+        var vectorURL: URL?
+        var embeddingPending = false
+
+        do {
+            let vector = try embeddingService.embedding(for: sanitized)
+            do {
+                vectorURL = try persistVector(vector: vector, id: entryID)
+            } catch {
+                embeddingPending = true
+#if DEBUG
+                logger.error("Failed to persist journal embedding: \(error.localizedDescription, privacy: .public)")
+#endif
+            }
+        } catch {
+            embeddingPending = true
+#if DEBUG
+            logger.error("Embedding unavailable for journal: \(error.localizedDescription, privacy: .public)")
+#endif
+        }
+
+        let pendingFlag = embeddingPending
+        let finalVectorURL = vectorURL
 
         return try await context.perform { [context, calendar] () -> JournalResult in
             let entry = JournalEntry(context: context)
@@ -147,8 +206,8 @@ public final class SentimentAgent {
             entry.date = Date()
             entry.transcript = sanitized
             entry.sentiment = NSNumber(value: sentiment)
-            entry.sensitiveFlags = "{}"
-            entry.embeddedVectorURL = vectorURL.lastPathComponent
+            entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: pendingFlag)
+            entry.embeddedVectorURL = finalVectorURL?.lastPathComponent
 
             let day = calendar.startOfDay(for: entry.date)
             let request = FeatureVector.fetchRequest()
@@ -164,8 +223,16 @@ public final class SentimentAgent {
                                  date: entry.date,
                                  transcript: sanitized,
                                  sentimentScore: sentiment,
-                                 vectorURL: vectorURL)
+                                 vectorURL: finalVectorURL,
+                                 embeddingPending: pendingFlag)
         }
+    }
+
+    nonisolated private static func encodeSensitiveFlags(embeddingPending: Bool) -> String? {
+        guard embeddingPending else { return "{}" }
+        let payload: [String: Any] = ["embedding_pending": true]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return "{}" }
+        return String(data: data, encoding: .utf8) ?? "{}"
     }
 
     nonisolated private func persistVector(vector: [Float], id: UUID) throws -> URL {

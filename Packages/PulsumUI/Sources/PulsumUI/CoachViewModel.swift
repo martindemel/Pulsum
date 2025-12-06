@@ -28,6 +28,8 @@ final class CoachViewModel {
     var recommendations: [RecommendationCard] = []
     var wellbeingScore: Double?
     var contributions: [String: Double] = [:]
+    var wellbeingState: WellbeingScoreState = .loading
+    private var hasLoadedWellbeing = false
 
     var isLoadingCards = false
     var cardErrorMessage: String?
@@ -52,17 +54,35 @@ final class CoachViewModel {
 
     func refreshRecommendations() async {
         guard let orchestrator else { return }
+        if !hasLoadedWellbeing {
+            wellbeingState = .loading
+            cardErrorMessage = nil
+        }
         isLoadingCards = true
         cardErrorMessage = nil
+        defer { isLoadingCards = false }
         do {
             let response = try await orchestrator.recommendations(consentGranted: consentProvider())
             recommendations = response.cards
-            wellbeingScore = response.wellbeingScore
-            contributions = response.contributions
+            wellbeingState = response.wellbeingState
+            cardErrorMessage = response.notice
+
+            switch response.wellbeingState {
+            case let .ready(score, contributions):
+                wellbeingScore = score
+                self.contributions = contributions
+            default:
+                wellbeingScore = nil
+                contributions = [:]
+            }
+            hasLoadedWellbeing = true
         } catch {
             cardErrorMessage = mapError(error)
+            wellbeingState = .error(message: cardErrorMessage ?? "Unable to compute wellbeing right now.")
+            wellbeingScore = nil
+            contributions = [:]
+            hasLoadedWellbeing = true
         }
-        isLoadingCards = false
     }
 
     func updateConsent(_ granted: Bool) {

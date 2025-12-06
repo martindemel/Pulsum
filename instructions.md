@@ -80,7 +80,7 @@ PulsumML/
 Gate 5 data integrity (current state)
 • Vector index stack is actorized: `VectorIndexProviding` is `Sendable`, `VectorIndexManager` is an actor with DI init + `shared`, and shard cache creation happens inside a single critical section.
 • File handles in the vector index are wrapped in `withHandle` so they close exactly once; close errors propagate as `VectorIndexError.ioFailure`.
-• `LibraryImporter.ingestIfNeeded()` discovers URLs, loads/decodes JSON off the main actor via detached task, performs Core Data upserts on a background context, indexes via injected `VectorIndexProviding` outside Core Data, and persists checksum only after successful indexing.
+• `LibraryImporter.ingestIfNeeded()` discovers URLs, loads/decodes JSON off the main actor via detached task, performs Core Data upserts on a background context, indexes via injected `VectorIndexProviding` outside Core Data, and persists checksum only after successful indexing. If embeddings are unavailable, indexing is deferred (no checksum) but ingestion succeeds so the app remains usable and can re-run indexing later.
 • Canonical `Pulsum.xcdatamodeld` lives at `Packages/PulsumData/Sources/PulsumData/Resources/` and loads via `Bundle.pulsumDataResources`; dataset deduped to `podcastrecommendations 2.json` with CI hash guard/backup ban in `scripts/ci/integrity.sh` and `scripts/ci/test-harness.sh`.
 
 ⸻
@@ -145,6 +145,7 @@ Settings
 HEALTH & STATS (science‑backed)
 
 Ingestion (HealthKit): Use HKAnchoredObjectQuery + HKObserverQuery; persist an HKQueryAnchor per type.
+• Gate 6: Shared HealthKit service/status mapping reflects all six types (treat `.unnecessary` as granted) and backfill now runs in two phases—2-day bootstrap for the first score, then a 7-day warm-start + persisted background batches that expand to the full 30-day analysis window without blocking the UI.
 
 Daily features & baselines
 • HRV (SDNN, overnight): query heartRateVariabilitySDNN overlapping sleep stages (asleepCore/deep/REM). Nightly summary = median SDNN across available samples. Sparse‑friendly: accept ≥1 sample in sleep window; if none, use most restful 1–2 h sedentary window; if still none, carry forward yesterday’s value with imputed=true.
@@ -155,7 +156,7 @@ Daily features & baselines
 • Respiratory rate (optional, low weight): sleep RR nightly mean when present.
 
 Baselines & smoothing
-• Rolling window 21–30 days; robust z‑scores via median/MAD; EWMA λ=0.2.
+• Rolling window restored to 30 days (with warm-start ingestion for responsiveness); robust z‑scores via median/MAD; EWMA λ=0.2.
 • Quality gates: Sleep features require ≥3 h valid sleep else mark lowConfidence and widen estimator variance; HRV sparse rule as above; Steps require Motion auth.
 
 Internal score (hidden)
@@ -163,7 +164,7 @@ Internal score (hidden)
 – z‑scores: HRV_SDNN, NocturnalHR, RestingHR, SleepDebt, Steps, RR (low weight)
 – subjective: Stress, Energy, SleepQuality
 – journal: on‑device sentiment/arousal and embedding summary
-• Initialize weights: {HRV:-0.6, NocturnalHR:+0.5, RestingHR:+0.4, SleepDebt:+0.5, Steps:-0.2, RR:+0.1, Stress:+0.6, Energy:-0.6, SleepQuality:+0.4}.
+• Initialize weights: {HRV:+0.6, NocturnalHR:-0.45, RestingHR:-0.35, SleepDebt:-0.55, Steps:+0.3, RR:-0.1, Stress:-0.5, Energy:+0.5, SleepQuality:+0.35, Sentiment:+0.25}.
 • Update nightly with bounded LR; 7–10‑day warm‑up flag; no population priors. Persist per‑feature contributions for internal debugging (not user‑visible).
 
 ⸻

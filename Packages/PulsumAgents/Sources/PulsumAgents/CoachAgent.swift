@@ -12,18 +12,23 @@ import PulsumServices
 public final class CoachAgent {
     private let context: NSManagedObjectContext
     private let vectorIndex: VectorIndexProviding
-    private let ranker = RecRanker()
+    private let ranker: RecRanker
+    private let rankerStore: RecRankerStateStoring
+    private var lastRankedFeatures: [RecommendationFeatures] = []
     private let libraryImporter: LibraryImporter
     private let llmGateway: LLMGateway
     private let shouldIngestLibrary: Bool
     private var hasPreparedLibrary = false
+    private var libraryEmbeddingsDeferred = false
+    private var lastRecommendationNotice: String?
     private let logger = Logger(subsystem: "com.pulsum", category: "CoachAgent")
 
     public init(container: NSPersistentContainer = PulsumData.container,
                 vectorIndex: VectorIndexProviding = VectorIndexManager.shared,
                 libraryImporter: LibraryImporter = LibraryImporter(),
                 llmGateway: LLMGateway = LLMGateway(),
-                shouldIngestLibrary: Bool = true) throws {
+                shouldIngestLibrary: Bool = true,
+                rankerStore: RecRankerStateStoring = RecRankerStateStore()) throws {
         self.context = container.newBackgroundContext()
         self.context.name = "Pulsum.CoachAgent.FoundationModels"
         self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
@@ -31,24 +36,47 @@ public final class CoachAgent {
         self.libraryImporter = libraryImporter
         self.llmGateway = llmGateway
         self.shouldIngestLibrary = shouldIngestLibrary
+        self.rankerStore = rankerStore
+        self.ranker = RecRanker(state: rankerStore.loadState())
     }
 
     public func prepareLibraryIfNeeded() async throws {
-        guard shouldIngestLibrary, !hasPreparedLibrary else { return }
+        guard shouldIngestLibrary else { return }
+        if hasPreparedLibrary && !libraryEmbeddingsDeferred { return }
+        if libraryEmbeddingsDeferred && EmbeddingService.shared.availabilityMode() == .unavailable {
+            return
+        }
         do {
             try await libraryImporter.ingestIfNeeded()
-            hasPreparedLibrary = true
+            libraryEmbeddingsDeferred = libraryImporter.lastImportHadDeferredEmbeddings
+            hasPreparedLibrary = !libraryEmbeddingsDeferred
         } catch {
             hasPreparedLibrary = false
+            libraryEmbeddingsDeferred = false
             throw error
         }
     }
 
     public func recommendationCards(for snapshot: FeatureVectorSnapshot,
                                     consentGranted: Bool) async throws -> [RecommendationCard] {
+        try await prepareLibraryIfNeeded()
+        lastRecommendationNotice = nil
+
         let query = buildQuery(from: snapshot)
-        let matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
-        guard !matches.isEmpty else { return [] }
+        let matches: [VectorMatch]
+        do {
+            matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
+        } catch let embeddingError as EmbeddingError where embeddingError == .generatorUnavailable {
+            libraryEmbeddingsDeferred = true
+            lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
+            return await fallbackRecommendations(snapshot: snapshot, topic: nil)
+        }
+        guard !matches.isEmpty else {
+            if libraryEmbeddingsDeferred {
+                lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
+            }
+            return await fallbackRecommendations(snapshot: snapshot, topic: nil)
+        }
 
         let scoreLookup = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0.score) })
         let moments = try await fetchMicroMoments(ids: Array(scoreLookup.keys))
@@ -66,6 +94,7 @@ public final class CoachAgent {
         guard !candidates.isEmpty else { return [] }
 
         let rankedFeatures = ranker.rank(candidates.map { $0.features })
+        lastRankedFeatures = rankedFeatures
         var rankedCards: [RecommendationCard] = []
         for feature in rankedFeatures {
             guard let candidate = candidates.first(where: { $0.features.id == feature.id }) else { continue }
@@ -138,6 +167,7 @@ public final class CoachAgent {
             event.completedAt = accepted ? Date() : nil
             try context.save()
         }
+        await applyFeedback(for: momentId, accepted: accepted)
     }
 
     public func momentTitle(for id: String) async -> String? {
@@ -153,8 +183,27 @@ public final class CoachAgent {
     /// Returns privacy-safe title and oneLiner (no PHI)
     public func candidateMoments(for intentTopic: String, limit: Int = 2) async -> [CandidateMoment] {
         let query = "wellbeing \(intentTopic)"
-        guard let matches = try? await vectorIndex.searchMicroMoments(query: query, topK: limit),
-              !matches.isEmpty else {
+        let matches: [VectorMatch]
+        do {
+            matches = try await vectorIndex.searchMicroMoments(query: query, topK: limit)
+        } catch let embeddingError as EmbeddingError where embeddingError == .generatorUnavailable {
+            let keyword = try? await keywordBackfillMoments(for: intentTopic, limit: limit)
+            guard let keyword, !keyword.isEmpty else { return [] }
+            return keyword.compactMap { moment in
+                let title = moment.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let short = moment.shortDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !title.isEmpty, !short.isEmpty else { return nil }
+                let detail = normalizeOptionalText(moment.detail, limit: 240)
+                return CandidateMoment(id: moment.id,
+                                       title: title,
+                                       shortDescription: String(short.prefix(200)),
+                                       detail: detail,
+                                       evidenceBadge: moment.evidenceBadge)
+            }
+        } catch {
+            return []
+        }
+        guard !matches.isEmpty else {
             return []
         }
 
@@ -321,7 +370,16 @@ public final class CoachAgent {
     private func buildBody(for moment: MicroMoment) -> String {
         var paragraphs: [String] = [moment.shortDescription]
         if let detail = moment.detail, !detail.isEmpty {
-            paragraphs.append(detail)
+            let filteredDetail = detail
+                .split(separator: "\n")
+                .filter { line in
+                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return !trimmed.hasPrefix("Episode #")
+                }
+                .joined(separator: "\n")
+            if !filteredDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                paragraphs.append(filteredDetail)
+            }
         }
         if let activity = moment.cooldownSec?.intValue, activity > 0 {
             paragraphs.append("Cooldown: \(activity / 60) min between repeats")
@@ -409,6 +467,37 @@ public final class CoachAgent {
         return 1 - (elapsed / cooldown)
     }
 
+    private func applyFeedback(for momentId: String, accepted: Bool) async {
+        guard let target = lastRankedFeatures.first(where: { $0.id == momentId }) else { return }
+        let comparators = lastRankedFeatures.filter { $0.id != momentId }
+        guard !comparators.isEmpty else { return }
+
+        for candidate in comparators {
+            if accepted {
+                ranker.update(preferred: target, other: candidate)
+            } else {
+                ranker.update(preferred: candidate, other: target)
+            }
+        }
+
+        let history = await acceptanceHistory(for: momentId)
+        ranker.updateLearningRate(basedOn: history)
+        persistRankerState()
+    }
+
+    private func acceptanceHistory(for momentId: String) async -> AcceptanceHistory {
+        await context.perform { [context] in
+            let request = RecommendationEvent.fetchRequest()
+            request.predicate = NSPredicate(format: "momentId == %@", momentId)
+            guard let events = try? context.fetch(request), !events.isEmpty else {
+                return AcceptanceHistory(rollingAcceptance: 0.5, sampleCount: 0)
+            }
+            let acceptances = events.filter { $0.accepted }.count
+            let rate = Double(acceptances) / Double(events.count)
+            return AcceptanceHistory(rollingAcceptance: rate, sampleCount: events.count)
+        }
+    }
+
     private func acceptanceRate(for momentId: String) async -> Double {
         await context.perform { [context] in
             let request = RecommendationEvent.fetchRequest()
@@ -424,9 +513,54 @@ public final class CoachAgent {
         let normalized = max(0, min(1, 1 - (seconds / 1800)))
         return normalized
     }
+
+#if DEBUG
+    func _testRankerMetrics() -> RankerMetrics {
+        ranker.getPerformanceMetrics()
+    }
+
+    func _injectRankedFeaturesForTesting(_ features: [RecommendationFeatures]) {
+        lastRankedFeatures = features
+    }
+#endif
 }
 
 private struct CardCandidate {
     let card: RecommendationCard
     let features: RecommendationFeatures
+}
+
+private extension CoachAgent {
+    func persistRankerState() {
+        let state = ranker.snapshotState()
+        rankerStore.saveState(state)
+    }
+
+    func fallbackRecommendations(snapshot: FeatureVectorSnapshot, topic: String?) async -> [RecommendationCard] {
+        let topic = topic ?? "wellbeing"
+        let moments = (try? await keywordBackfillMoments(for: topic, limit: 6)) ?? []
+        guard !moments.isEmpty else { return [] }
+
+        var candidates: [CardCandidate] = []
+        for moment in moments {
+            if let candidate = await makeCandidate(moment: moment, distance: 1.0, snapshot: snapshot) {
+                candidates.append(candidate)
+            }
+        }
+        guard !candidates.isEmpty else { return [] }
+
+        let rankedFeatures = ranker.rank(candidates.map { $0.features })
+        lastRankedFeatures = rankedFeatures
+        var rankedCards: [RecommendationCard] = []
+        for feature in rankedFeatures {
+            guard let candidate = candidates.first(where: { $0.features.id == feature.id }) else { continue }
+            rankedCards.append(candidate.card)
+            if rankedCards.count == 3 { break }
+        }
+        return rankedCards
+    }
+}
+
+extension CoachAgent {
+    public var recommendationNotice: String? { lastRecommendationNotice }
 }

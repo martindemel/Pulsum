@@ -3,7 +3,6 @@ import CoreData
 import Observation
 import PulsumAgents
 import PulsumData
-import PulsumTypes
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -63,6 +62,7 @@ final class AppViewModel {
     let settingsViewModel: SettingsViewModel
 
     init() {
+        Task { await DebugLogBuffer.shared.append("AppViewModel.init invoked") }
         let consent = consentStore.loadConsent()
         self.consentGranted = consent
 
@@ -102,6 +102,7 @@ final class AppViewModel {
         if let issue = PulsumData.backupSecurityIssue {
             let location = issue.url.lastPathComponent
             startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")
+            Task { await DebugLogBuffer.shared.append("Startup blocked: \(issue.reason)") }
             return
         }
         startupState = .loading
@@ -109,8 +110,10 @@ final class AppViewModel {
             guard let self else { return }
             do {
                 print("[Pulsum] Attempting to make orchestrator")
+                await DebugLogBuffer.shared.append("Creating orchestrator")
                 let orchestrator = try PulsumAgents.makeOrchestrator()
                 print("[Pulsum] Orchestrator created")
+                await DebugLogBuffer.shared.append("Orchestrator created")
                 self.orchestrator = orchestrator
                 self.coachViewModel.bind(orchestrator: orchestrator, consentProvider: { [weak self] in
                     self?.consentGranted ?? false
@@ -120,6 +123,7 @@ final class AppViewModel {
                 print("[Pulsum] PulseViewModel bound")
                 self.settingsViewModel.bind(orchestrator: orchestrator)
                 self.settingsViewModel.refreshFoundationStatus()
+                Task { await DebugLogBuffer.shared.append("Orchestrator bound to UI view models") }
                 print("[Pulsum] SettingsViewModel bound and foundation status refreshed")
                 self.startupState = .ready
                 print("[Pulsum] Startup state set to ready")
@@ -128,18 +132,24 @@ final class AppViewModel {
                     guard let self else { return }
                     do {
                         print("[Pulsum] Starting orchestrator start()")
+                        await DebugLogBuffer.shared.append("Starting orchestrator.start()")
                         try await orchestrator.start()
                         print("[Pulsum] Orchestrator start() completed")
+                        self.settingsViewModel.refreshHealthAccessStatus()
                         await self.coachViewModel.refreshRecommendations()
                         print("[Pulsum] Recommendations refreshed")
+                        await DebugLogBuffer.shared.append("Orchestrator start complete; recommendations refreshed")
                     } catch {
                         print("[Pulsum] Orchestrator start failed: \(error)")
+                        await DebugLogBuffer.shared.append("Orchestrator start failed: \(error.localizedDescription)")
                         if let startupError = error as? OrchestratorStartupError {
                             switch startupError {
                             case .healthDataUnavailable:
+                                await DebugLogBuffer.shared.append("HealthDataUnavailable during start")
                                 return
                             case let .healthBackgroundDeliveryMissing(underlying):
                                 if shouldIgnoreBackgroundDeliveryError(underlying) {
+                                    await DebugLogBuffer.shared.append("Background delivery missing but ignored: \(underlying.localizedDescription)")
                                     return
                                 }
                             }
@@ -149,6 +159,7 @@ final class AppViewModel {
                 }
             } catch {
                 print("[Pulsum] Failed to create orchestrator: \(error)")
+                await DebugLogBuffer.shared.append("Failed to create orchestrator: \(error.localizedDescription)")
                 self.startupState = .failed(error.localizedDescription)
             }
         }

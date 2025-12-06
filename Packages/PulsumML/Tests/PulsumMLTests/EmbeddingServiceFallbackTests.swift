@@ -2,12 +2,12 @@ import XCTest
 @testable import PulsumML
 
 final class EmbeddingServiceFallbackTests: XCTestCase {
-    func testFallsBackWhenPrimaryUnavailable() {
+    func testFallsBackWhenPrimaryUnavailable() throws {
         let fallback = MockEmbeddingProvider(vector: Array(repeating: Float(0.25), count: 4))
         let service = EmbeddingService.debugInstance(primary: FailingEmbeddingProvider(),
                                                      fallback: fallback,
                                                      dimension: 4)
-        let vector = service.embedding(for: "pulsum")
+        let vector = try service.embedding(for: "pulsum")
         XCTAssertEqual(vector, fallback.vector)
     }
 }

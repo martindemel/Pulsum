@@ -21,25 +21,48 @@ public struct StateEstimatorSnapshot: Sendable {
     public let contributions: [String: Double]
 }
 
+public struct StateEstimatorState: Codable, Sendable {
+    public let version: Int
+    public let weights: [String: Double]
+    public let bias: Double
+
+    public init(version: Int = 1, weights: [String: Double], bias: Double) {
+        self.version = version
+        self.weights = weights
+        self.bias = bias
+    }
+}
+
 public final class StateEstimator {
+    public static let defaultWeights: [String: Double] = [
+        "z_hrv": 0.6,
+        "z_nocthr": -0.45,
+        "z_resthr": -0.35,
+        "z_sleepDebt": -0.55,
+        "z_steps": 0.3,
+        "z_rr": -0.1,
+        "subj_stress": -0.5,
+        "subj_energy": 0.5,
+        "subj_sleepQuality": 0.35,
+        "sentiment": 0.25
+    ]
+
     private let config: StateEstimatorConfig
     private var weights: [String: Double]
     private var bias: Double
 
-    public init(initialWeights: [String: Double] = [
-        "z_hrv": -0.6,
-        "z_nocthr": 0.5,
-        "z_resthr": 0.4,
-        "z_sleepDebt": 0.5,
-        "z_steps": -0.2,
-        "z_rr": 0.1,
-        "subj_stress": 0.6,
-        "subj_energy": -0.6,
-        "subj_sleepQuality": 0.4
-    ], config: StateEstimatorConfig = StateEstimatorConfig()) {
+    public init(initialWeights: [String: Double] = StateEstimator.defaultWeights,
+                bias: Double = 0,
+                config: StateEstimatorConfig = StateEstimatorConfig()) {
         self.weights = initialWeights
         self.config = config
-        self.bias = 0
+        self.bias = bias
+    }
+
+    public init(state: StateEstimatorState, config: StateEstimatorConfig = StateEstimatorConfig()) {
+        self.weights = state.weights
+        self.bias = state.bias
+        self.config = config
     }
 
     public func predict(features: [String: Double]) -> Double {
@@ -69,6 +92,10 @@ public final class StateEstimator {
         let contributions = contributionVector(features: features)
         let wellbeing = contributions.values.reduce(bias, +)
         return StateEstimatorSnapshot(weights: weights, bias: bias, wellbeingScore: wellbeing, contributions: contributions)
+    }
+
+    public func persistedState(version: Int = 1) -> StateEstimatorState {
+        StateEstimatorState(version: version, weights: weights, bias: bias)
     }
 
     private func contributionVector(features: [String: Double]) -> [String: Double] {

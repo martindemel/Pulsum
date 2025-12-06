@@ -75,8 +75,21 @@ public struct RankerMetrics {
     }
 }
 
+public struct RecRankerState: Codable, Equatable {
+    public let version: Int
+    public let weights: [String: Double]
+    public let learningRate: Double
+
+    public init(version: Int, weights: [String: Double], learningRate: Double) {
+        self.version = version
+        self.weights = weights
+        self.learningRate = learningRate
+    }
+}
+
 public final class RecRanker {
-    private var weights: [String: Double] = [
+    private static let schemaVersion = 1
+    private static let defaultWeights: [String: Double] = [
         "bias": 0.0,
         "wellbeing": -0.2,
         "evidence": 0.6,
@@ -84,17 +97,25 @@ public final class RecRanker {
         "cooldown": -0.5,
         "acceptance": 0.3,
         "timeCostFit": 0.2,
-        "z_hrv": -0.25,
-        "z_nocthr": 0.2,
-        "z_resthr": 0.2,
-        "z_sleepDebt": 0.3,
-        "z_rr": 0.1,
-        "z_steps": -0.15
+        "z_hrv": 0.25,
+        "z_nocthr": -0.2,
+        "z_resthr": -0.2,
+        "z_sleepDebt": -0.25,
+        "z_rr": -0.05,
+        "z_steps": 0.18
     ]
-    private var learningRate: Double = 0.05
+
+    private var weights: [String: Double]
+    private var learningRate: Double
     private let weightCap: ClosedRange<Double> = -3.0...3.0
 
-    public init() {}
+    public init(state: RecRankerState? = nil) {
+        self.weights = Self.defaultWeights
+        self.learningRate = 0.05
+        if let state {
+            apply(state: state)
+        }
+    }
 
     public func score(features: RecommendationFeatures) -> Double {
         logistic(dot(weights: weights, features: features.vector))
@@ -130,8 +151,7 @@ public final class RecRanker {
     public func adaptWeights(from feedback: [UserFeedback]) {
         guard !feedback.isEmpty else { return }
         for entry in feedback {
-            var updated = (weights[entry.featureId] ?? 0) + entry.delta
-            updated = min(max(updated, weightCap.lowerBound), weightCap.upperBound)
+            let updated = clampedWeight((weights[entry.featureId] ?? 0) + entry.delta)
             weights[entry.featureId] = updated
         }
     }
@@ -140,10 +160,13 @@ public final class RecRanker {
         RankerMetrics(weights: weights, learningRate: learningRate)
     }
 
+    public func snapshotState() -> RecRankerState {
+        RecRankerState(version: Self.schemaVersion, weights: weights, learningRate: learningRate)
+    }
+
     private func applyGradient(features: [String: Double], gradient: Double) {
         for (feature, value) in features {
-            var updated = (weights[feature] ?? 0) + learningRate * gradient * value
-            updated = min(max(updated, weightCap.lowerBound), weightCap.upperBound)
+            let updated = clampedWeight((weights[feature] ?? 0) + learningRate * gradient * value)
             weights[feature] = updated
         }
     }
@@ -156,5 +179,17 @@ public final class RecRanker {
 
     private func logistic(_ x: Double) -> Double {
         1 / (1 + exp(-x))
+    }
+
+    private func clampedWeight(_ value: Double) -> Double {
+        min(max(value, weightCap.lowerBound), weightCap.upperBound)
+    }
+
+    private func apply(state: RecRankerState) {
+        guard state.version == Self.schemaVersion else { return }
+        for (key, value) in state.weights {
+            weights[key] = clampedWeight(value)
+        }
+        learningRate = state.learningRate
     }
 }

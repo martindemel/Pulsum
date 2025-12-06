@@ -60,20 +60,22 @@ public final class SafetyLocal {
             return .crisis(reason: "High-risk language detected")
         }
 
-        let embedding = embeddingService.embedding(for: normalized)
+        guard
+            let embedding = try? embeddingService.embedding(for: normalized),
+            embedding.contains(where: { $0 != 0 }),
+            !prototypes.isEmpty
+        else {
+            #if DEBUG
+            print("[SafetyLocal] Embedding unavailable or prototypes missing, using fallback")
+            #endif
+            return fallbackClassification(for: normalized)
+        }
         
         #if DEBUG
         let hasNonZero = embedding.contains(where: { $0 != 0 })
         print("[SafetyLocal] Embedding has non-zero values: \(hasNonZero)")
         #endif
         
-        guard embedding.contains(where: { $0 != 0 }) else {
-            #if DEBUG
-            print("[SafetyLocal] All-zero embedding, using fallback")
-            #endif
-            return fallbackClassification(for: normalized)
-        }
-
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
         for prototype in prototypes {
             let similarity = cosineSimilarity(embedding, prototype.embedding)
@@ -134,8 +136,8 @@ public final class SafetyLocal {
             (.safe, "I finished a light workout and feel grounded")
         ]
 
-        return dataset.map { label, text in
-            let embedding = service.embedding(for: text)
+        return dataset.compactMap { label, text in
+            guard let embedding = try? service.embedding(for: text) else { return nil }
             return Prototype(label: label, text: text, embedding: embedding)
         }
     }

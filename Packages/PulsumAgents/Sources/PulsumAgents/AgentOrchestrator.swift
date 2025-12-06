@@ -104,6 +104,8 @@ public struct RecommendationResponse {
     public let cards: [RecommendationCard]
     public let wellbeingScore: Double
     public let contributions: [String: Double]
+    public let wellbeingState: WellbeingScoreState
+    public let notice: String?
 }
 
 public struct JournalCaptureResponse {
@@ -130,7 +132,8 @@ public struct JournalResult: @unchecked Sendable {
     public let date: Date
     public let transcript: String
     public let sentimentScore: Double
-    public let vectorURL: URL
+    public let vectorURL: URL?
+    public let embeddingPending: Bool
 }
 
 public struct CheerEvent {
@@ -230,6 +233,10 @@ public final class AgentOrchestrator {
         } else {
             return "Foundation Models require iOS 26 or later."
         }
+    }
+
+    public func debugLogSnapshot() async -> String {
+        await DebugLogBuffer.shared.snapshot()
     }
 
     public func start() async throws {
@@ -351,11 +358,57 @@ public final class AgentOrchestrator {
     }
 
     public func recommendations(consentGranted: Bool) async throws -> RecommendationResponse {
-        guard let snapshot = try await dataAgent.latestFeatureVector() else {
-            return RecommendationResponse(cards: [], wellbeingScore: 0, contributions: [:])
+        let healthStatus = await dataAgent.currentHealthAccessStatus()
+
+        let snapshot: FeatureVectorSnapshot?
+        do {
+            snapshot = try await dataAgent.latestFeatureVector()
+        } catch {
+            return Self.makeNoDataRecommendationResponse(for: healthStatus)
         }
-        let cards = try await coachAgent.recommendationCards(for: snapshot, consentGranted: consentGranted)
-        return RecommendationResponse(cards: cards, wellbeingScore: snapshot.wellbeingScore, contributions: snapshot.contributions)
+
+        guard let snapshot else {
+            return Self.makeNoDataRecommendationResponse(for: healthStatus)
+        }
+
+        do {
+            let cards = try await coachAgent.recommendationCards(for: snapshot, consentGranted: consentGranted)
+            let notice = coachAgent.recommendationNotice
+            return RecommendationResponse(cards: cards,
+                                          wellbeingScore: snapshot.wellbeingScore,
+                                          contributions: snapshot.contributions,
+                                          wellbeingState: .ready(score: snapshot.wellbeingScore,
+                                                                  contributions: snapshot.contributions),
+                                          notice: notice)
+        } catch {
+            let sanitized = "Unable to compute wellbeing right now."
+            return RecommendationResponse(cards: [],
+                                          wellbeingScore: 0,
+                                          contributions: [:],
+                                          wellbeingState: .error(message: sanitized),
+                                          notice: "Personalized recommendations are limited on this device right now.")
+        }
+    }
+
+    nonisolated static func computeWellbeingState(for healthStatus: HealthAccessStatus) -> WellbeingScoreState {
+        switch healthStatus.availability {
+        case .unavailable:
+            return .noData(.healthDataUnavailable)
+        case .available:
+            if !healthStatus.denied.isEmpty || !healthStatus.notDetermined.isEmpty {
+                return .noData(.permissionsDeniedOrPending)
+            }
+            return .noData(.insufficientSamples)
+        }
+    }
+
+    private static func makeNoDataRecommendationResponse(for healthStatus: HealthAccessStatus) -> RecommendationResponse {
+        let state = computeWellbeingState(for: healthStatus)
+        return RecommendationResponse(cards: [],
+                                      wellbeingScore: 0,
+                                      contributions: [:],
+                                      wellbeingState: state,
+                                      notice: nil)
     }
 
     public func scoreBreakdown() async throws -> ScoreBreakdown? {
@@ -474,6 +527,24 @@ public final class AgentOrchestrator {
             return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
         }
 
+        // Embedding availability gate: if no on-device embeddings are available, fail closed and respond on-device.
+        if !EmbeddingService.shared.isAvailable() {
+            logger.error("Embeddings unavailable; skipping coverage and routing to on-device response.")
+            emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unavailable → on-device",
+                                decision: nil,
+                                top: nil,
+                                median: nil,
+                                count: nil,
+                                context: diagnosticsContext)
+            let topic = intentTopic ?? "wellbeing"
+            let context = coachAgent.minimalCoachContext(from: snapshot, topic: topic)
+            let payload = await coachAgent.generateResponse(context: context,
+                                                            intentTopic: intentTopic ?? topic,
+                                                            consentGranted: false,
+                                                            groundingFloor: 0.40)
+            return payload.coachReply
+        }
+
         // Step 3: Retrieval coverage with hybrid backfill
         let coverageResult: (matches: [VectorMatch], decision: CoverageDecision)
         do {
@@ -481,6 +552,17 @@ public final class AgentOrchestrator {
                                                                    canonicalTopic: intentTopic,
                                                                    snapshot: snapshot)
         } catch {
+            if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
+                logger.error("Coverage evaluation skipped: embeddings unavailable. Routing to on-device response.")
+                emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unavailable → on-device", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
+                let topic = intentTopic ?? "wellbeing"
+                let context = coachAgent.minimalCoachContext(from: snapshot, topic: topic)
+                let payload = await coachAgent.generateResponse(context: context,
+                                                                intentTopic: intentTopic ?? topic,
+                                                                consentGranted: false,
+                                                                groundingFloor: 0.40)
+                return payload.coachReply
+            }
             logger.error("Coverage evaluation failed: \(error.localizedDescription, privacy: .public). Falling back to redirect.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unknown → redirect", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
             return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."

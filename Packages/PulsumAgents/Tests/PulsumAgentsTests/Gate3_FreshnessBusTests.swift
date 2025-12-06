@@ -14,11 +14,25 @@ final class Gate3_FreshnessBusTests: XCTestCase {
         let today = Date()
         try await agent.reprocessDay(date: today)
 
+        try await Task.sleep(nanoseconds: 700_000_000)
         let posts = center.notifications(named: .pulsumScoresUpdated)
         XCTAssertEqual(posts.count, 1)
         let expectedDay = Calendar(identifier: .gregorian).startOfDay(for: today)
         let postedDay = posts.first?.userInfo?[AgentNotificationKeys.date] as? Date
         XCTAssertEqual(postedDay, expectedDay)
+    }
+
+    func testDebouncedNotificationsCoalesceBursts() async throws {
+        let center = RecordingNotificationCenter()
+        let agent = DataAgent(notificationCenter: center)
+        let day = Date()
+        await agent._testPublishSnapshotUpdate(for: day)
+        await agent._testPublishSnapshotUpdate(for: day)
+        await agent._testPublishSnapshotUpdate(for: day)
+
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        let posts = center.notifications(named: .pulsumScoresUpdated)
+        XCTAssertLessThanOrEqual(posts.count, 2)
     }
 }
 

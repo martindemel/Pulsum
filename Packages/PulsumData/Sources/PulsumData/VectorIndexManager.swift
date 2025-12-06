@@ -27,7 +27,7 @@ public actor VectorIndexManager: VectorIndexProviding {
     @discardableResult
     public func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] {
         let segments = [title, detail ?? "", tags?.joined(separator: " ") ?? ""].filter { !$0.isEmpty }
-        let embedding = embeddingService.embedding(forSegments: segments)
+        let embedding = try embeddingService.embedding(forSegments: segments)
         try await microMomentsIndex.upsert(id: id, vector: embedding)
         return embedding
     }
@@ -37,7 +37,7 @@ public actor VectorIndexManager: VectorIndexProviding {
     }
 
     public func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
-        let embedding = embeddingService.embedding(for: query)
+        let embedding = try embeddingService.embedding(for: query)
         return try await microMomentsIndex.search(vector: embedding, topK: topK)
     }
 }

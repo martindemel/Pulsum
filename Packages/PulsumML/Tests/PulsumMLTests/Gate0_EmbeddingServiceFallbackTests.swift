@@ -22,7 +22,7 @@ private struct MockEmbeddingProvider: TextEmbeddingProviding {
 private struct MockError: Error {}
 
 final class Gate0_EmbeddingServiceFallbackTests: XCTestCase {
-    func testFallsBackWhenPrimaryUnavailable() {
+    func testFallsBackWhenPrimaryUnavailable() throws {
         let fallbackVector: [Float] = [1, 2, 3, 4]
         let service = EmbeddingService.debugInstance(
             primary: MockEmbeddingProvider(mode: .fails(MockError())),
@@ -30,7 +30,18 @@ final class Gate0_EmbeddingServiceFallbackTests: XCTestCase {
             dimension: 4
         )
 
-        let result = service.embedding(for: "test")
+        let result = try service.embedding(for: "test")
         XCTAssertEqual(result, fallbackVector)
+    }
+
+    func testAvailabilityProbeUsesFallback() throws {
+        let fallbackVector: [Float] = [0.1, 0.2, 0.3, 0.4]
+        let service = EmbeddingService.debugInstance(
+            primary: MockEmbeddingProvider(mode: .fails(MockError())),
+            fallback: MockEmbeddingProvider(mode: .succeeds(fallbackVector)),
+            dimension: 4
+        )
+
+        XCTAssertTrue(service.isAvailable())
     }
 }

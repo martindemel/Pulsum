@@ -51,15 +51,16 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
             ("hi coach hello coach hey pulsum good morning coach", nil)  // Greetings have no topic
         ]
 
-        self.wellbeingPrototypes = prototypeData.map { text, topic in
-            WellbeingPrototype(
+        self.wellbeingPrototypes = prototypeData.compactMap { text, topic in
+            guard let embedding = try? embeddingService.embedding(for: text) else { return nil }
+            return WellbeingPrototype(
                 text: text,
-                embedding: embeddingService.embedding(for: text),
+                embedding: embedding,
                 topic: topic
             )
         }
 
-        self.oodPrototypes = Self.OOD_PROTOTYPES.map { embeddingService.embedding(for: $0) }
+        self.oodPrototypes = Self.OOD_PROTOTYPES.compactMap { try? embeddingService.embedding(for: $0) }
     }
 
     public func classify(_ text: String) async throws -> GateDecision {
@@ -95,9 +96,12 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
     }
 
     private func computeDecision(for text: String) -> (decision: GateDecision, domainScore: Float, oodScore: Float, topic: String?) {
-        let inputEmbedding = embeddingService.embedding(for: text)
-
-        guard inputEmbedding.contains(where: { $0 != 0 }) else {
+        guard
+            let inputEmbedding = try? embeddingService.embedding(for: text),
+            inputEmbedding.contains(where: { $0 != 0 }),
+            !wellbeingPrototypes.isEmpty,
+            !oodPrototypes.isEmpty
+        else {
             let decision = GateDecision(
                 isOnTopic: false,
                 reason: "Unable to embed input text",

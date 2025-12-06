@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import PulsumAgents
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -8,25 +9,14 @@ struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Bindable var viewModel: SettingsViewModel
-    let wellbeingScore: Double?
+    let wellbeingState: WellbeingScoreState
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: PulsumSpacing.lg) {
                     // Wellbeing Score Display (moved from MainView)
-                    if let score = wellbeingScore {
-                        if let detailViewModel = viewModel.makeScoreBreakdownViewModel() {
-                            NavigationLink {
-                                ScoreBreakdownScreen(viewModel: detailViewModel)
-                            } label: {
-                                WellbeingScoreCard(score: score)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            WellbeingScoreCard(score: score)
-                        }
-                    }
+                    wellbeingScoreSection
 
                     // Cloud Processing Section
                     VStack(alignment: .leading, spacing: PulsumSpacing.md) {
@@ -260,14 +250,74 @@ struct SettingsScreen: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, PulsumSpacing.sm)
                             }
-                            .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
-                            .disabled(viewModel.isRequestingHealthKitAuthorization)
-                            .accessibilityIdentifier("HealthAccessRequestButton")
+                                    .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
+                                    .disabled(viewModel.isRequestingHealthKitAuthorization || !viewModel.canRequestHealthKitAccess)
+                                    .accessibilityIdentifier("HealthAccessRequestButton")
 
-                            Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
-                                .font(.pulsumFootnote)
-                                .foregroundStyle(Color.pulsumTextSecondary)
-                                .lineSpacing(3)
+                                Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
+                                    .font(.pulsumFootnote)
+                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                    .lineSpacing(3)
+
+                                Divider()
+                                    .padding(.vertical, PulsumSpacing.xs)
+
+                            VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                Text("Health access status")
+                                    .font(.pulsumFootnote.weight(.semibold))
+                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                Text(viewModel.healthKitDebugSummary.isEmpty ? "Tap Refresh to fetch status" : viewModel.healthKitDebugSummary)
+                                    .font(.system(.footnote, design: .monospaced))
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .textSelection(.enabled)
+                                    .accessibilityIdentifier("HealthAccessDebugSummaryLabel")
+                                HStack(spacing: PulsumSpacing.sm) {
+                                    Button("Refresh Status") {
+                                        viewModel.refreshHealthAccessStatus()
+                                    }
+                                    .font(.pulsumFootnote.weight(.semibold))
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                    Button("Copy") {
+                                        copyToClipboard(viewModel.healthKitDebugSummary)
+                                    }
+                                    .font(.pulsumFootnote.weight(.semibold))
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
+                                    .accessibilityIdentifier("HealthAccessCopyButton")
+                                }
+                            }
+
+                            Divider()
+                                .padding(.vertical, PulsumSpacing.xs)
+
+                            VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                Text("App debug log")
+                                    .font(.pulsumFootnote.weight(.semibold))
+                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                Text(viewModel.debugLogSnapshot.isEmpty ? "Tap Refresh Log to capture recent events" : viewModel.debugLogSnapshot)
+                                    .font(.system(.footnote, design: .monospaced))
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .textSelection(.enabled)
+                                    .accessibilityIdentifier("DebugLogSnapshotLabel")
+                                    .frame(maxHeight: 160, alignment: .topLeading)
+                                    .lineLimit(nil)
+                                HStack(spacing: PulsumSpacing.sm) {
+                                    Button("Refresh Log") {
+                                        Task { await viewModel.refreshDebugLog() }
+                                    }
+                                    .font(.pulsumFootnote.weight(.semibold))
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                    Button("Copy Log") {
+                                        copyToClipboard(viewModel.debugLogSnapshot)
+                                    }
+                                    .font(.pulsumFootnote.weight(.semibold))
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
+                                    .accessibilityIdentifier("DebugLogCopyButton")
+                                }
+                            }
                         }
                         .padding(PulsumSpacing.lg)
                         .background(Color.pulsumCardWhite)
@@ -414,7 +464,8 @@ struct SettingsScreen: View {
                     if viewModel.diagnosticsVisible {
                         DiagnosticsPanel(routeHistory: viewModel.routeHistory,
                                          coverageSummary: viewModel.lastCoverageSummary,
-                                         cloudError: viewModel.lastCloudError)
+                                         cloudError: viewModel.lastCloudError,
+                                         healthStatusSummary: viewModel.healthKitDebugSummary)
                             .transition(.opacity)
                     }
 #endif
@@ -478,6 +529,37 @@ struct SettingsScreen: View {
 
     private func needsEnableLink(status: String) -> Bool {
         status.localizedCaseInsensitiveContains("enable") || status.localizedCaseInsensitiveContains("require")
+    }
+
+    private func copyToClipboard(_ text: String) {
+#if canImport(UIKit)
+        UIPasteboard.general.string = text
+#endif
+    }
+
+    @ViewBuilder
+    private var wellbeingScoreSection: some View {
+        switch wellbeingState {
+        case let .ready(score, _):
+            if let detailViewModel = viewModel.makeScoreBreakdownViewModel() {
+                NavigationLink {
+                    ScoreBreakdownScreen(viewModel: detailViewModel)
+                } label: {
+                    WellbeingScoreCard(score: score)
+                }
+                .buttonStyle(.plain)
+            } else {
+                WellbeingScoreCard(score: score)
+            }
+        case .loading:
+            WellbeingScoreLoadingCard()
+        case let .noData(reason):
+            WellbeingNoDataCard(reason: reason) {
+                Task { await viewModel.requestHealthKitAuthorization() }
+            }
+        case let .error(message):
+            WellbeingErrorCard(message: message)
+        }
     }
 
     private func relativeDate(for date: Date) -> String? {
@@ -608,6 +690,7 @@ private struct DiagnosticsPanel: View {
     let routeHistory: [String]
     let coverageSummary: String
     let cloudError: String
+    let healthStatusSummary: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: PulsumSpacing.md) {
@@ -635,6 +718,11 @@ private struct DiagnosticsPanel: View {
                 Text("Coverage: \(coverageSummary)")
                     .font(.pulsumCaption)
                     .foregroundStyle(Color.pulsumTextSecondary)
+
+                Text("Health access: \(healthStatusSummary)")
+                    .font(.pulsumCaption)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .textSelection(.enabled)
 
                 Text("Last cloud error: \(cloudError)")
                     .font(.pulsumCaption)
@@ -697,6 +785,106 @@ struct WellbeingScoreLoadingCard: View {
                 .font(.pulsumCaption)
                 .foregroundStyle(Color.pulsumTextSecondary)
                 .lineSpacing(2)
+        }
+        .padding(PulsumSpacing.lg)
+        .background(Color.pulsumCardWhite)
+        .cornerRadius(PulsumRadius.xl)
+        .shadow(
+            color: PulsumShadow.medium.color,
+            radius: PulsumShadow.medium.radius,
+            x: PulsumShadow.medium.x,
+            y: PulsumShadow.medium.y
+        )
+    }
+}
+
+struct WellbeingNoDataCard: View {
+    let reason: WellbeingNoDataReason
+    var requestAccess: (() -> Void)?
+
+    private var copy: (title: String, detail: String) {
+        switch reason {
+        case .healthDataUnavailable:
+            return ("Health data unavailable",
+                    "Health data is not available on this device. Try again on a device with Health access.")
+        case .permissionsDeniedOrPending:
+            return ("Health access needed",
+                    "Pulsum needs permission to read Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep to compute your score.")
+        case .insufficientSamples:
+            return ("Waiting for data",
+                    "We don't have enough recent Health data yet. Record a Pulse check-in or allow some time for HealthKit to sync.")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+            VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                Text("Wellbeing score")
+                    .font(.pulsumHeadline)
+                Text(copy.title)
+                    .font(.pulsumTitle3)
+                    .foregroundStyle(Color.pulsumTextPrimary)
+                Text(copy.detail)
+                    .font(.pulsumCallout)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .lineSpacing(2)
+            }
+
+            if let requestAccess, reason == .permissionsDeniedOrPending {
+                Button {
+                    requestAccess()
+                } label: {
+                    Text("Request Health Data Access")
+                        .font(.pulsumCallout.weight(.semibold))
+                        .foregroundStyle(Color.pulsumTextPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, PulsumSpacing.sm)
+                }
+                .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
+            }
+        }
+        .padding(PulsumSpacing.lg)
+        .background(Color.pulsumCardWhite)
+        .cornerRadius(PulsumRadius.xl)
+        .shadow(
+            color: PulsumShadow.medium.color,
+            radius: PulsumShadow.medium.radius,
+            x: PulsumShadow.medium.x,
+            y: PulsumShadow.medium.y
+        )
+    }
+}
+
+struct WellbeingErrorCard: View {
+    let message: String
+    var retry: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+            VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                Text("Wellbeing score")
+                    .font(.pulsumHeadline)
+                Text("Something went wrong")
+                    .font(.pulsumTitle3)
+                    .foregroundStyle(Color.pulsumWarning)
+                Text(message)
+                    .font(.pulsumCallout)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .lineSpacing(2)
+            }
+
+            if let retry {
+                Button {
+                    retry()
+                } label: {
+                    Text("Try again")
+                        .font(.pulsumCallout.weight(.semibold))
+                        .foregroundStyle(Color.pulsumTextPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, PulsumSpacing.sm)
+                }
+                .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.6)).interactive())
+            }
         }
         .padding(PulsumSpacing.lg)
         .background(Color.pulsumCardWhite)
