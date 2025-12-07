@@ -68,21 +68,21 @@ Unlike traditional wellness apps that rely entirely on cloud processing, Pulsum 
         <em>Wellbeing score at a glance</em>
       </td>
       <td align="center">
-        <img src="insights.png" alt="Insights View" width="200"/>
+        <img src="insights.PNG" alt="Insights View" width="200"/>
         <br/>
         <strong>Insights</strong>
         <br/>
         <em>Personalized health analytics</em>
       </td>
       <td align="center">
-        <img src="coach.png" alt="Coach View" width="200"/>
+        <img src="coach.PNG" alt="Coach View" width="200"/>
         <br/>
         <strong>AI Coach</strong>
         <br/>
         <em>Contextual recommendations</em>
       </td>
       <td align="center">
-        <img src="checkin.png" alt="Check-in View" width="200"/>
+        <img src="checkin.PNG" alt="Check-in View" width="200"/>
         <br/>
         <strong>Voice Check-in</strong>
         <br/>
