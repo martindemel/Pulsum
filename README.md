@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="#overview">Overview</a> •
+  <a href="#app-preview">Preview</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#ai-powered-intelligence">AI Intelligence</a> •
   <a href="#agentic-system">Agentic System</a> •
@@ -39,6 +40,18 @@ Unlike traditional wellness apps that rely entirely on cloud processing, Pulsum 
 - 🤖 **Agentic Architecture**: Multiple specialized AI agents work together to provide personalized recommendations
 - 🛡️ **Safety Guardrails**: Two-wall safety system with crisis detection and content filtering
 - ✨ **Beautiful UI**: iOS 26 Liquid Glass design language with smooth animations
+
+---
+
+## App Preview
+
+<p align="center">
+  <img src="screenshots/main.gif" alt="Pulsum App Preview" width="300"/>
+</p>
+
+<p align="center">
+  <em>Experience Pulsum's fluid Liquid Glass interface and AI-powered coaching in action</em>
+</p>
 
 ---
 
