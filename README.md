@@ -61,7 +61,7 @@ Unlike traditional wellness apps that rely entirely on cloud processing, Pulsum 
   <table>
     <tr>
       <td align="center">
-        <img src="main_screen.png" alt="Main Screen" width="200"/>
+        <img src="main_screen.PNG" alt="Main Screen" width="200"/>
         <br/>
         <strong>Main Dashboard</strong>
         <br/>
