@@ -46,7 +46,7 @@ Unlike traditional wellness apps that rely entirely on cloud processing, Pulsum 
 ## App Preview
 
 <p align="center">
-  <img src="screenshots/main.gif" alt="Pulsum App Preview" width="300"/>
+  <img src="main.gif" alt="Pulsum App Preview" width="300"/>
 </p>
 
 <p align="center">
