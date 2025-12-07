@@ -92,7 +92,6 @@ Unlike traditional wellness apps that rely entirely on cloud processing, Pulsum 
   </table>
 </p>
 
-> **Note**: Add your screenshots to a `screenshots/` folder with the filenames: `main_screen.png`, `insights.png`, `coach.png`, `checkin.png`
 
 ---
 
