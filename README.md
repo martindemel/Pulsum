@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="#overview">Overview</a> •
-  <a href="#screenshots">Screenshots</a> •
+  <a href="#app-preview">Preview</a> •
   <a href="#ai-powered-intelligence">AI Intelligence</a> •
   <a href="#agentic-system">Agentic System</a> •
   <a href="#key-features">Features</a> •
@@ -42,44 +42,15 @@ Unlike traditional wellness apps that rely entirely on cloud processing, Pulsum 
 
 ---
 
-## Screenshots
+## App Preview
 
 <p align="center">
-  <table>
-    <tr>
-      <td align="center">
-        <img src="screenshots/main_screen.png" alt="Main Screen" width="200"/>
-        <br/>
-        <strong>Main Dashboard</strong>
-        <br/>
-        <em>Wellbeing score at a glance</em>
-      </td>
-      <td align="center">
-        <img src="screenshots/insights.png" alt="Insights View" width="200"/>
-        <br/>
-        <strong>Insights</strong>
-        <br/>
-        <em>Personalized health analytics</em>
-      </td>
-      <td align="center">
-        <img src="screenshots/coach.png" alt="Coach View" width="200"/>
-        <br/>
-        <strong>AI Coach</strong>
-        <br/>
-        <em>Contextual recommendations</em>
-      </td>
-      <td align="center">
-        <img src="screenshots/checkin.png" alt="Check-in View" width="200"/>
-        <br/>
-        <strong>Voice Check-in</strong>
-        <br/>
-        <em>Journal your thoughts</em>
-      </td>
-    </tr>
-  </table>
+  <img src="main.gif" alt="Pulsum App Preview" width="300"/>
 </p>
 
-> **Note**: Add your screenshots to a `screenshots/` folder with the filenames: `main_screen.png`, `insights.png`, `coach.png`, `checkin.png`
+<p align="center">
+  <em>Experience Pulsum's fluid Liquid Glass interface and AI-powered coaching in action</em>
+</p>
 
 ---
 

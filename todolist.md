@@ -140,6 +140,9 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 - [ ] **Profile @MainActor agent operations**: Measure UI responsiveness during Foundation Models operations; if >100ms lag detected, refactor ML ranking/embeddings to background actors (conditional optimization)
 - [ ] **Evaluate BGTaskScheduler integration**: Monitor HealthKit background processing reliability in production; implement BGProcessingTask if observer callbacks show timeouts or battery impact (conditional enhancement)
 
+### New follow-up
+- [ ] Clean up legacy episode metadata in recommendation content: keep JSON as-is for now, but remove stored/displayed episode numbers/titles (e.g., “Episode #200: Arnold’s Pump Club...”) from micro-moment details. Ingestion no longer writes these headers and UI strips any existing ones; consider a reingest/cleanup task post-release to purge legacy episode lines from Core Data/vector index.
+
 ## Gate 3 - HealthKit ingestion & UI freshness (Complete)
 - [x] Add `HealthAccessStatus` caching + `HealthKitServicing.authorizationStatus(for:)` to gate observers per-type and capture denied/notDetermined states.
 - [x] Expose `requestHealthAccess()` / `restartIngestionAfterPermissionsChange()` so Settings/Onboarding can idempotently rebuild observers after the user re-grants data types.
