@@ -1,9 +1,9 @@
-// swiftlint:disable type_name
 @testable import PulsumAgents
 @testable import PulsumServices
 import HealthKit
 import XCTest
 
+// swiftlint:disable:next type_name
 final class Gate6_WellbeingStateMappingTests: XCTestCase {
     func testComputeWellbeingStateMatchesHealthAccess() {
         let required = HealthKitService.orderedReadSampleTypes

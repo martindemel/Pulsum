@@ -180,11 +180,7 @@ actor DataAgent {
             case .sharingAuthorized:
                 granted.insert(type)
             case .sharingDenied:
-                if let requestStatus, requestStatus == .unnecessary {
-                    granted.insert(type)
-                } else {
-                    denied.insert(type)
-                }
+                denied.insert(type)
             case .notDetermined:
                 pending.insert(type)
             @unknown default:
@@ -198,6 +194,9 @@ actor DataAgent {
                                         notDetermined: pending,
                                         availability: .available)
         logHealthStatus(status)
+        if let requestStatus {
+            await DebugLogBuffer.shared.append("HealthKit requestStatusForAuthorization=\(requestStatus.rawValue)")
+        }
         return status
     }
 
@@ -1025,21 +1024,11 @@ actor DataAgent {
                 let day = calendar.startOfDay(for: sample.startDate)
                 let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
                 DataAgent.mutateFlags(metrics) { flags in
-                    flags.append(sleepSample: sample)
-                    let value = HKCategoryValueSleepAnalysis(rawValue: sample.value) ?? .inBed
-                    let isAsleep: Bool
-                    switch value {
-                    case .asleepCore, .asleepDeep, .asleepREM, .asleepUnspecified:
-                        isAsleep = true
-                    default:
-                        isAsleep = false
-                    }
-                    if isAsleep {
-                        let duration = sample.endDate.timeIntervalSince(sample.startDate)
-                        flags.aggregatedSleepDurationSeconds = (flags.aggregatedSleepDurationSeconds ?? 0) + duration
+                    let appended = flags.append(sleepSample: sample)
+                    if appended {
+                        dirtyDays.insert(day)
                     }
                 }
-                dirtyDays.insert(day)
             }
             if context.hasChanges {
                 try context.save()
@@ -1476,7 +1465,12 @@ actor DataAgent {
         let center = notificationCenter
         let today = calendar.startOfDay(for: Date())
         pendingSnapshotUpdate = Task { [center] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 300_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             center.post(name: .pulsumScoresUpdated,
                         object: nil,
                         userInfo: [AgentNotificationKeys.date: today])
@@ -2003,9 +1997,15 @@ private struct DailyFlags: Codable {
         }
     }
 
-    mutating func append(sleepSample sample: HKCategorySample) {
-        sleepSegments.append(SleepSegment(sample))
+    mutating func append(sleepSample sample: HKCategorySample) -> Bool {
+        let segment = SleepSegment(sample)
+        guard !sleepSegments.contains(where: { $0.id == segment.id }) else { return false }
+        sleepSegments.append(segment)
         sleepSegments.trim(to: 256)
+        if segment.stage.isAsleep {
+            aggregatedSleepDurationSeconds = (aggregatedSleepDurationSeconds ?? 0) + segment.duration
+        }
+        return true
     }
 
     mutating func removeSample(with uuid: UUID) {

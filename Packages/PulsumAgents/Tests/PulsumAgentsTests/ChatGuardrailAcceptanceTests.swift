@@ -67,12 +67,18 @@ final class ChatHarness {
     let snapshot: FeatureVectorSnapshot
     let cloudClient: AcceptanceCloudClient
     let localGenerator: AcceptanceLocalGenerator
+    let embeddingService: EmbeddingService
     private let dataAgent: StubDataAgent
 
     init() async throws {
         let container = TestCoreDataStack.makeContainer()
         snapshot = try await ChatHarness.makeSnapshot(in: container)
         dataAgent = StubDataAgent(snapshot: snapshot)
+        embeddingService = EmbeddingService.debugInstance(primary: DeterministicEmbeddingProvider(),
+                                                          fallback: nil,
+                                                          dimension: 16,
+                                                          reprobeInterval: 0,
+                                                          dateProvider: Date.init)
 
         cloudClient = AcceptanceCloudClient()
         localGenerator = AcceptanceLocalGenerator()
@@ -96,6 +102,7 @@ final class ChatHarness {
                                               safetyAgent: safetyAgent,
                                               cheerAgent: cheerAgent,
                                               topicGate: topicGate,
+                                              embeddingService: embeddingService,
                                               afmAvailable: false)
     }
 
@@ -229,7 +236,7 @@ final class AcceptanceTopicGate: TopicGateProviding {
             topic = "sleep"
         } else if lower.contains("stress") {
             topic = "stress"
-        } else if lower.contains("energy") || lower.contains("motivation") {
+        } else if lower.contains("energy") || lower.contains("motivation") || lower.contains("motivat") {
             topic = "energy"
         } else if lower.contains("walk") || lower.contains("steps") {
             topic = "movement"
@@ -242,5 +249,12 @@ final class AcceptanceTopicGate: TopicGateProviding {
                             reason: "stub",
                             confidence: 0.95,
                             topic: topic)
+    }
+}
+
+private struct DeterministicEmbeddingProvider: TextEmbeddingProviding {
+    func embedding(for text: String) throws -> [Float] {
+        // Small deterministic vector with non-zero values to satisfy availability checks.
+        Array(repeating: Float((text.count % 5) + 1) * 0.01, count: 16)
     }
 }

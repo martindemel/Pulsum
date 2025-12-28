@@ -39,4 +39,21 @@ final class Gate3_HealthAccessStatusTests: XCTestCase {
             XCTAssertEqual(counts[type.identifier], 1, "Already granted types should not duplicate observers.")
         }
     }
+
+    func testRequestStatusDoesNotOverrideDeniedAuthorization() async throws {
+        let stub = HealthKitServiceStub()
+        stub.requestAuthorizationStatus = .unnecessary
+        for type in HealthKitService.orderedReadSampleTypes {
+            stub.authorizationStatuses[type.identifier] = .sharingDenied
+        }
+        let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
+
+        let status = await agent.currentHealthAccessStatus()
+        XCTAssertTrue(status.granted.isEmpty)
+        XCTAssertEqual(status.denied.count, HealthKitService.orderedReadSampleTypes.count)
+        XCTAssertTrue(status.notDetermined.isEmpty)
+
+        try await agent.startIngestionIfAuthorized()
+        XCTAssertTrue(stub.observedIdentifiers.isEmpty, "Denied types should not start observation even when request status is unnecessary.")
+    }
 }

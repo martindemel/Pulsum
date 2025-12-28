@@ -1,4 +1,3 @@
-// swiftlint:disable type_name
 @testable import PulsumAgents
 @testable import PulsumData
 import PulsumML
@@ -6,6 +5,7 @@ import PulsumServices
 import XCTest
 
 @MainActor
+// swiftlint:disable:next type_name
 final class Gate6_RecRankerPersistenceTests: XCTestCase {
     func testRankerStatePersistsAcrossAgentRestarts() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -52,9 +52,9 @@ Before building the project for the first time:
    cp Config.xcconfig.template Config.xcconfig
    ```
 
-2. Edit `Config.xcconfig` and replace `YOUR_OPENAI_API_KEY_HERE` with an actual OpenAI API key
+2. Provide your OpenAI API key locally (never commit secrets). Set `PULSUM_COACH_API_KEY` via your shell/`launchctl setenv`, or add `OPENAI_API_KEY = <your_key>` to your untracked `Config.xcconfig`.
 
-3. The Config.xcconfig file is gitignored and must never be committed
+3. Keep `Config.xcconfig` gitignored; only the template lives in version control.
 
 ## Build Commands
 

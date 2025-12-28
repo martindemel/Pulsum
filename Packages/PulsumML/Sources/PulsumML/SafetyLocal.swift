@@ -62,14 +62,13 @@ public final class SafetyLocal {
         refreshPrototypesIfNeeded()
         let (localPrototypes, _) = prototypeQueue.sync { (prototypes, degraded) }
         let normalized = text.lowercased()
-        
         #if DEBUG
-        print("[SafetyLocal] Classifying: '\(text)'")
+        logger.debug("SafetyLocal classify lengthBucket=\(self.lengthBucket(for: normalized), privacy: .public)")
         #endif
         
         if containsKeyword(from: config.crisisKeywords, in: normalized) {
             #if DEBUG
-            print("[SafetyLocal] Crisis keyword detected")
+            logger.debug("SafetyLocal keyword-based crisis trigger")
             #endif
             return .crisis(reason: "High-risk language detected")
         }
@@ -86,11 +85,6 @@ public final class SafetyLocal {
             return fallbackClassification(for: normalized)
         }
         
-        #if DEBUG
-        let hasNonZero = embedding.contains(where: { $0 != 0 })
-        print("[SafetyLocal] Embedding has non-zero values: \(hasNonZero)")
-        #endif
-        
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
         for prototype in localPrototypes {
             let similarity = cosineSimilarity(embedding, prototype.embedding)
@@ -99,22 +93,18 @@ public final class SafetyLocal {
         }
 
         let safeSimilarity = scores[.safe]?.similarity ?? 0
-        
-        #if DEBUG
-        print("[SafetyLocal] Similarities - safe: \(safeSimilarity), crisis: \(scores[.crisis]?.similarity ?? 0), caution: \(scores[.caution]?.similarity ?? 0)")
-        #endif
 
         if let crisis = scores[.crisis],
            crisis.similarity >= config.crisisSimilarityThreshold,
            crisis.similarity - safeSimilarity >= config.resolutionMargin {
             if containsKeyword(from: config.crisisKeywords, in: normalized) {
                 #if DEBUG
-                print("[SafetyLocal] → CRISIS (keyword + similarity)")
+                logger.debug("SafetyLocal → crisis (keyword + similarity)")
                 #endif
                 return .crisis(reason: crisis.prototype.text)
             }
             #if DEBUG
-            print("[SafetyLocal] → CAUTION (similarity only, no keyword)")
+            logger.debug("SafetyLocal → caution (similarity only)")
             #endif
             return .caution(reason: crisis.prototype.text)
         }
@@ -122,13 +112,13 @@ public final class SafetyLocal {
            caution.similarity >= config.cautionSimilarityThreshold,
            caution.similarity - safeSimilarity >= config.resolutionMargin / 2 {
             #if DEBUG
-            print("[SafetyLocal] → CAUTION")
+            logger.debug("SafetyLocal → caution (similarity threshold)")
             #endif
             return .caution(reason: caution.prototype.text)
         }
         
         #if DEBUG
-        print("[SafetyLocal] → SAFE")
+        logger.debug("SafetyLocal → safe")
         #endif
         return .safe
     }
@@ -218,5 +208,13 @@ public final class SafetyLocal {
         let denominator = sqrt(lhsNorm) * sqrt(rhsNorm)
         guard denominator > 0 else { return 0 }
         return dot / denominator
+    }
+
+    private func lengthBucket(for text: String) -> String {
+        switch text.count {
+        case 0...20: return "0-20"
+        case 21...80: return "21-80"
+        default: return "81+"
+        }
     }
 }

@@ -8,6 +8,7 @@ final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
     private(set) var stoppedIdentifiers: [String] = []
     private(set) var backgroundRequests: [Set<String>] = []
     var authorizationStatuses: [String: HKAuthorizationStatus] = [:]
+    var requestAuthorizationStatus: HKAuthorizationRequestStatus?
     var availabilityReason: String = "Unavailable"
     var fetchedSamples: [String: [HKSample]] = [:]
     private(set) var fetchRequests: [(identifier: String, start: Date, end: Date)] = []
@@ -17,7 +18,9 @@ final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
 
     func requestAuthorization() async throws {}
 
-    func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? { nil }
+    func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? {
+        requestAuthorizationStatus
+    }
 
     func fetchDailyStepTotals(startDate: Date, endDate: Date) async throws -> [Date: Int] {
         dailyStepTotalsRequests.append((startDate, endDate))
@@ -45,24 +48,26 @@ final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
 
         let calendar = Calendar(identifier: .gregorian)
         let samples = fetchedSamples[HKQuantityTypeIdentifier.heartRate.rawValue] ?? []
-        let quantitySamples = samples.compactMap { $0 as? HKQuantitySample }
-        var valuesByDay: [Date: [Double]] = [:]
+        let quantitySamples = samples
+            .compactMap { $0 as? HKQuantitySample }
+            .filter { $0.startDate >= startDate && $0.startDate < endDate }
+        var result: [Date: (avgBPM: Double, minBPM: Double?)] = [:]
 
-        for sample in quantitySamples where sample.startDate >= startDate && sample.startDate < endDate {
-            let day = calendar.startOfDay(for: sample.startDate)
-            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { continue }
+        var day = calendar.startOfDay(for: startDate)
+        let endDay = calendar.startOfDay(for: endDate)
+        while day < endDay {
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
             let nightStart = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: day) ?? day
             let nightEnd = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: nextDay) ?? nextDay
-            guard sample.startDate >= nightStart && sample.startDate < nightEnd else { continue }
-
-            let bpm = sample.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
-            valuesByDay[day, default: []].append(bpm)
-        }
-
-        var result: [Date: (avgBPM: Double, minBPM: Double?)] = [:]
-        for (day, values) in valuesByDay where !values.isEmpty {
-            let avg = values.reduce(0, +) / Double(values.count)
-            result[day] = (avgBPM: avg, minBPM: values.min())
+            let values = quantitySamples.compactMap { sample -> Double? in
+                guard sample.startDate >= nightStart && sample.startDate < nightEnd else { return nil }
+                return sample.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+            }
+            if !values.isEmpty {
+                let avg = values.reduce(0, +) / Double(values.count)
+                result[day] = (avgBPM: avg, minBPM: values.min())
+            }
+            day = nextDay
         }
 
         return result

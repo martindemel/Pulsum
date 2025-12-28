@@ -47,14 +47,20 @@ private struct PostedNotification {
 }
 
 private final class RecordingNotificationCenter: NotificationCenter, @unchecked Sendable {
+    private let lock = NSLock()
     private(set) var postedNotifications: [PostedNotification] = []
 
     override func post(name aName: Notification.Name, object anObject: Any?, userInfo aUserInfo: [AnyHashable: Any]? = nil) {
+        lock.lock()
         postedNotifications.append(PostedNotification(name: aName, object: anObject, userInfo: aUserInfo))
+        lock.unlock()
         super.post(name: aName, object: anObject, userInfo: aUserInfo)
     }
 
     func notifications(named name: Notification.Name) -> [PostedNotification] {
-        postedNotifications.filter { $0.name == name }
+        lock.lock()
+        let result = postedNotifications.filter { $0.name == name }
+        lock.unlock()
+        return result
     }
 }

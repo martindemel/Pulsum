@@ -1,8 +1,8 @@
-// swiftlint:disable type_name
 import XCTest
 @testable import PulsumAgents
 @testable import PulsumML
 
+// swiftlint:disable:next type_name
 final class Gate6_StateEstimatorWeightsAndLabelsTests: XCTestCase {
     func testRecoverySignalsLiftScore() {
         let goodRaw: [String: Double] = [

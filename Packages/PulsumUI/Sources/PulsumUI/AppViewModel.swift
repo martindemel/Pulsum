@@ -153,7 +153,6 @@ final class AppViewModel {
                         self.settingsViewModel.refreshHealthAccessStatus()
                         await self.coachViewModel.refreshRecommendations()
                         print("[Pulsum] Recommendations refreshed")
-                        await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork()
                         await DebugLogBuffer.shared.append("Orchestrator start complete; recommendations refreshed")
                     } catch {
                         print("[Pulsum] Orchestrator start failed: \(error)")

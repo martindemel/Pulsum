@@ -156,6 +156,7 @@ public final class AgentOrchestrator {
     private let coachAgent: CoachAgent
     private let safetyAgent: SafetyAgent
     private let cheerAgent: CheerAgent
+    private let embeddingService: EmbeddingService
 
     private let afmAvailable: Bool
     private let topicGate: TopicGateProviding
@@ -190,6 +191,7 @@ public final class AgentOrchestrator {
         self.coachAgent = try CoachAgent()
         self.safetyAgent = SafetyAgent()
         self.cheerAgent = CheerAgent()
+        self.embeddingService = EmbeddingService.shared
     }
 #if DEBUG
     init(dataAgent: any DataAgentProviding,
@@ -198,6 +200,7 @@ public final class AgentOrchestrator {
                 safetyAgent: SafetyAgent,
                 cheerAgent: CheerAgent,
                 topicGate: TopicGateProviding,
+                embeddingService: EmbeddingService = .shared,
                 afmAvailable: Bool = false) {
         self.dataAgent = dataAgent
         self.sentimentAgent = sentimentAgent
@@ -206,6 +209,7 @@ public final class AgentOrchestrator {
         self.cheerAgent = cheerAgent
         self.topicGate = topicGate
         self.afmAvailable = afmAvailable
+        self.embeddingService = embeddingService
     }
 #endif
 
@@ -224,6 +228,7 @@ public final class AgentOrchestrator {
         self.cheerAgent = testCheerAgent
         self.afmAvailable = afmAvailable
         self.topicGate = testTopicGate
+        self.embeddingService = .shared
     }
 #endif
     
@@ -271,8 +276,8 @@ public final class AgentOrchestrator {
 
     /// Re-probes on-device embedding availability and retries any deferred work (pending journal embeddings, library indexing).
     public func refreshOnDeviceModelAvailabilityAndRetryDeferredWork() async {
-        EmbeddingService.shared.invalidateAvailabilityCache()
-        let mode = await EmbeddingService.shared.refreshAvailability(force: true)
+        embeddingService.invalidateAvailabilityCache()
+        let mode = await embeddingService.refreshAvailability(force: true)
         guard mode == .available else { return }
         await sentimentAgent.reprocessPendingJournals()
         await coachAgent.retryDeferredLibraryImport()
@@ -490,6 +495,16 @@ public final class AgentOrchestrator {
             }
         }
 
+        if Self.isGreeting(sanitizedInput) {
+            emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=greeting coverage=skip → on-device", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
+            let context = coachAgent.minimalCoachContext(from: snapshot, topic: "greeting")
+            let payload = await coachAgent.generateResponse(context: context,
+                                                            intentTopic: "greeting",
+                                                            consentGranted: false,
+                                                            groundingFloor: 0.40)
+            return payload.coachReply
+        }
+
         // Step 2: Topic gate (on-device ML classification)
         let intentTopic: String?
         var topSignal: String
@@ -509,7 +524,7 @@ public final class AgentOrchestrator {
             let phraseToTopic: [(substr: String, topic: String)] = [
                 ("sleep", "sleep"), ("insomnia", "sleep"), ("rest", "sleep"), ("tired", "sleep"),
                 ("stress", "stress"), ("anxiety", "stress"), ("overwhelm", "stress"), ("worry", "stress"),
-                ("energy", "energy"), ("fatigue", "energy"), ("motivation", "energy"),
+                ("energy", "energy"), ("fatigue", "energy"), ("motivation", "energy"), ("motivat", "energy"),
                 ("hrv", "hrv"), ("heart rate variability", "hrv"), ("recovery", "hrv"), ("rmssd", "hrv"),
                 ("mood", "mood"), ("feeling", "mood"), ("emotion", "mood"),
                 ("movement", "movement"), ("steps", "movement"), ("walk", "movement"), ("exercise", "movement"),
@@ -539,7 +554,7 @@ public final class AgentOrchestrator {
         }
 
         // Embedding availability gate: if no on-device embeddings are available, fail closed and respond on-device.
-        if !EmbeddingService.shared.isAvailable() {
+        if !embeddingService.isAvailable() {
             logger.error("Embeddings unavailable; skipping coverage and routing to on-device response.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unavailable → on-device",
                                 decision: nil,
@@ -697,6 +712,12 @@ public final class AgentOrchestrator {
         }
 
         return topicScores.max(by: { $0.value < $1.value })?.key
+    }
+
+    private static func isGreeting(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
+        return greetings.contains(where: { lower.hasPrefix($0) || lower == $0 })
     }
 
 }

@@ -1,10 +1,11 @@
-// swiftlint:disable type_name
 @testable import PulsumAgents
 @testable import PulsumData
 @testable import PulsumServices
+import CoreData
 import HealthKit
 import XCTest
 
+// swiftlint:disable:next type_name
 final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)
 
@@ -184,12 +185,80 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         XCTAssertEqual(snapshot?.imputedFlags["sleepDebt_missing"], true)
     }
 
+    @MainActor
+    func testOverlappingBackfillDoesNotInflateSleepTotals() async throws {
+        let stub = HealthKitServiceStub()
+        authorizeAllTypes(stub)
+        let container = TestCoreDataStack.makeContainer()
+        let store = BackfillStateStoreSpy()
+        let agent = DataAgent(healthKit: stub,
+                              container: container,
+                              estimatorStore: EstimatorStateStore(),
+                              backfillStore: store)
+
+        let day = calendar.startOfDay(for: Date())
+        let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+        let sleepStart = calendar.date(byAdding: .hour, value: 22, to: day)!
+        let sleepEnd = calendar.date(byAdding: .hour, value: 30, to: day)!
+        let sample = HKCategorySample(type: sleepType,
+                                      value: HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+                                      start: sleepStart,
+                                      end: sleepEnd)
+
+        try await agent._testProcessCategorySamples([sample], type: sleepType)
+        let firstSnapshotValue = try await agent.latestFeatureVector()
+        let firstSnapshot = try XCTUnwrap(firstSnapshotValue)
+        let firstMetricsValue = try fetchMetrics(for: day, container: container)
+        let firstMetrics = try XCTUnwrap(firstMetricsValue)
+        let firstFlags = try XCTUnwrap(decodeFlags(from: firstMetrics))
+
+        try await agent._testProcessCategorySamples([sample], type: sleepType)
+        let secondSnapshotValue = try await agent.latestFeatureVector()
+        let secondSnapshot = try XCTUnwrap(secondSnapshotValue)
+        let secondMetricsValue = try fetchMetrics(for: day, container: container)
+        let secondMetrics = try XCTUnwrap(secondMetricsValue)
+        let secondFlags = try XCTUnwrap(decodeFlags(from: secondMetrics))
+
+        let expectedDuration = sleepEnd.timeIntervalSince(sleepStart)
+        let firstAggregated = try XCTUnwrap(firstFlags.aggregatedSleepDurationSeconds)
+        let secondAggregated = try XCTUnwrap(secondFlags.aggregatedSleepDurationSeconds)
+        XCTAssertEqual(firstAggregated, expectedDuration, accuracy: 0.5)
+        XCTAssertEqual(secondAggregated, expectedDuration, accuracy: 0.5)
+        XCTAssertEqual(firstFlags.sleepSegments.count, 1)
+        XCTAssertEqual(secondFlags.sleepSegments.count, 1)
+        XCTAssertEqual(Set(firstFlags.sleepSegments.map(\.id)).count, 1)
+        XCTAssertEqual(Set(secondFlags.sleepSegments.map(\.id)).count, 1)
+
+        let firstTotal = try XCTUnwrap(firstMetrics.totalSleepTime?.doubleValue)
+        let secondTotal = try XCTUnwrap(secondMetrics.totalSleepTime?.doubleValue)
+        XCTAssertEqual(firstTotal, expectedDuration, accuracy: 0.5)
+        XCTAssertEqual(secondTotal, expectedDuration, accuracy: 0.5)
+        XCTAssertEqual(firstMetrics.sleepDebt?.doubleValue, secondMetrics.sleepDebt?.doubleValue)
+        XCTAssertEqual(firstSnapshot.features, secondSnapshot.features)
+        XCTAssertEqual(firstSnapshot.wellbeingScore, secondSnapshot.wellbeingScore, accuracy: 0.0001)
+    }
+
     // MARK: - Helpers
 
     private func authorizeAllTypes(_ stub: HealthKitServiceStub) {
         for type in HealthKitService.orderedReadSampleTypes {
             stub.authorizationStatuses[type.identifier] = .sharingAuthorized
         }
+    }
+
+    @MainActor
+    private func fetchMetrics(for day: Date, container: NSPersistentContainer) throws -> DailyMetrics? {
+        let request = DailyMetrics.fetchRequest()
+        request.predicate = NSPredicate(format: "date == %@", day as NSDate)
+        request.fetchLimit = 1
+        return try container.viewContext.fetch(request).first
+    }
+
+    private func decodeFlags(from metrics: DailyMetrics) -> TestDailyFlags? {
+        guard let payload = metrics.flags?.data(using: .utf8) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(TestDailyFlags.self, from: payload)
     }
 
     private func populateSamples(_ stub: HealthKitServiceStub, days: Int) {
@@ -288,4 +357,16 @@ final class BackfillStateStoreSpy: BackfillStateStoring, @unchecked Sendable {
     func saveState(_ state: BackfillProgress) {
         savedState = state
     }
+}
+
+private struct TestDailyFlags: Codable {
+    let aggregatedSleepDurationSeconds: Double?
+    let sleepSegments: [TestSleepSegment]
+}
+
+private struct TestSleepSegment: Codable, Hashable {
+    let id: UUID
+    let start: Date
+    let end: Date
+    let stage: String
 }

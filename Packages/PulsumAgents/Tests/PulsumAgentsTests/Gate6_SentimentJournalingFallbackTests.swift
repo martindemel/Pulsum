@@ -1,10 +1,10 @@
-// swiftlint:disable type_name
 @testable import PulsumAgents
 @testable import PulsumData
 import PulsumML
 import XCTest
 
 @MainActor
+// swiftlint:disable:next type_name
 final class Gate6_SentimentJournalingFallbackTests: XCTestCase {
     func testJournalPersistsWhenEmbeddingUnavailable() async throws {
         let container = TestCoreDataStack.makeContainer()

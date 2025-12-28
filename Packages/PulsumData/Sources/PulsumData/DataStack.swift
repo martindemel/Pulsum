@@ -166,33 +166,7 @@ public final class DataStack {
 #endif
 
     private static func loadManagedObjectModel() -> NSManagedObjectModel {
-        if let url = Bundle.pulsumDataResources.url(forResource: "Pulsum", withExtension: "momd"),
-           let model = NSManagedObjectModel(contentsOf: url) {
-            return model
-        }
-        if let url = Bundle.pulsumDataResources.url(forResource: "PulsumCompiled", withExtension: "momd"),
-           let model = NSManagedObjectModel(contentsOf: url) {
-            return model
-        }
-        if let url = Bundle.main.url(forResource: "Pulsum", withExtension: "momd"),
-           let model = NSManagedObjectModel(contentsOf: url) {
-            return model
-        }
-        if let url = Bundle.main.url(forResource: "PulsumCompiled", withExtension: "momd"),
-           let model = NSManagedObjectModel(contentsOf: url) {
-            return model
-        }
-        for bundle in Bundle.allBundles + Bundle.allFrameworks {
-            if let url = bundle.url(forResource: "Pulsum", withExtension: "momd"),
-               let model = NSManagedObjectModel(contentsOf: url) {
-                return model
-            }
-            if let url = bundle.url(forResource: "PulsumCompiled", withExtension: "momd"),
-               let model = NSManagedObjectModel(contentsOf: url) {
-                return model
-            }
-        }
-        fatalError("PulsumData: NSManagedObjectModel 'Pulsum' not found in bundle resources")
+        PulsumManagedObjectModel.shared
     }
 }
 

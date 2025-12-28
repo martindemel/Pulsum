@@ -341,13 +341,10 @@ Pulsum/
    cp Config.xcconfig.template Config.xcconfig
    ```
 
-3. **Add API Key** (optional, for cloud features)
+3. **Add API Key Locally** (optional, for cloud features)
    
-   Edit `Config.xcconfig` and replace `YOUR_OPENAI_API_KEY_HERE` with your OpenAI API key:
-   ```text
-   OPENAI_API_KEY = sk-your-api-key-here
-   ```
-   > ⚠️ Never commit this file. It's gitignored for security.
+   Configure your OpenAI key on your machine only (never commit secrets). Either set `PULSUM_COACH_API_KEY` via `launchctl setenv`/your shell environment, or add `OPENAI_API_KEY = YOUR_OPENAI_API_KEY_HERE` to your untracked `Config.xcconfig`.
+   > ⚠️ Keep `Config.xcconfig` untracked; only the template lives in git.
 
 4. **Open in Xcode**
    ```bash

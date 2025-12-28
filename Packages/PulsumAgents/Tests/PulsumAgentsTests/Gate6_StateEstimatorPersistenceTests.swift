@@ -1,8 +1,8 @@
-// swiftlint:disable type_name
 import XCTest
 @testable import PulsumAgents
 @testable import PulsumML
 
+// swiftlint:disable:next type_name
 final class Gate6_StateEstimatorPersistenceTests: XCTestCase {
     func testEstimatorStatePersistsAcrossInstances() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory

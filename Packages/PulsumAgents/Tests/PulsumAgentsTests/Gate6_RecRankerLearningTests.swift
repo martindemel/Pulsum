@@ -1,4 +1,3 @@
-// swiftlint:disable type_name
 import XCTest
 @testable import PulsumAgents
 @testable import PulsumData
@@ -6,6 +5,7 @@ import XCTest
 @testable import PulsumServices
 
 @MainActor
+// swiftlint:disable:next type_name
 final class Gate6_RecRankerLearningTests: XCTestCase {
     func testCoachAgentAppliesFeedbackToRanking() async throws {
         let container = TestCoreDataStack.makeContainer()
