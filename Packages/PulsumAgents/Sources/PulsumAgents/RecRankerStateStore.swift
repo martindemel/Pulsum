@@ -40,6 +40,10 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
     }
 
     public func saveState(_ state: RecRankerState) {
+        guard state.version == Self.schemaVersion else {
+            logger.error("Refusing to persist RecRanker state: version mismatch (expected \(Self.schemaVersion), found \(state.version)).")
+            return
+        }
         do {
             let data = try JSONEncoder().encode(state)
             try data.write(to: fileURL, options: .atomic)

@@ -14,10 +14,15 @@ final class PackageEmbedTests: XCTestCase {
     }
 
     func testSegmentEmbeddingAveragesVectors() throws {
-        let provider = ConstantEmbeddingProvider(vector: Array(repeating: Float(1), count: 384))
+        let vectors: [String: [Float]] = [
+            "sleep hygiene": Array(repeating: Float(1), count: 384),
+            "low HRV": Array(repeating: Float(3), count: 384)
+        ]
+        let provider = MappingEmbeddingProvider(map: vectors)
         let service = EmbeddingService.debugInstance(primary: provider, fallback: nil, dimension: 384)
         let vector = try service.embedding(forSegments: ["sleep hygiene", "low HRV"])
         XCTAssertEqual(vector.count, 384)
+        XCTAssertEqual(vector.first, 2)
     }
 
     func testCoreMLFallbackModelIsBundled() throws {
@@ -110,5 +115,16 @@ private struct ConstantEmbeddingProvider: TextEmbeddingProviding {
 private struct FailingEmbeddingProvider: TextEmbeddingProviding {
     func embedding(for text: String) throws -> [Float] {
         throw EmbeddingError.generatorUnavailable
+    }
+}
+
+private struct MappingEmbeddingProvider: TextEmbeddingProviding {
+    let map: [String: [Float]]
+
+    func embedding(for text: String) throws -> [Float] {
+        guard let vector = map[text] else {
+            throw EmbeddingError.generatorUnavailable
+        }
+        return vector
     }
 }

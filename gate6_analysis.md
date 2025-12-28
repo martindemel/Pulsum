@@ -1,9 +1,9 @@
-**Summary**
+## Summary
 - Embedding stack is now opportunistic AFM with a hardened CoreML fallback: zero vectors throw, availability is probed once, and coverage only fails closed when all on-device providers are down.
 - Wellbeing pipeline now normalizes/clamps inputs (including sentiment), uses recovery-positive seeds, persists the StateEstimator, and drives a new wellbeing state model so UI surfaces clear loading/no-data/denied/error states instead of spinning forever.
 - Personalization and health UX tightened: RecRanker learns from feedback, HealthKit request/denied/unavailable paths are surfaced consistently across main/insights/settings, and docs/tests lock the Gate 6 fixes.
 
-**Changes by Area**
+## Changes by Area
 - **Embeddings & AFM**
 - `Packages/PulsumML/Sources/PulsumML/Embedding/{AFMTextEmbeddingProvider.swift,EmbeddingService.swift,CoreMLEmbeddingFallbackProvider.swift,Placeholder.swift}` now treat AFM as best-effort: availability is checked via `FoundationModelsAvailability.checkAvailability`, contextual embeddings use `NLEmbedding.sentence`/word only when Apple Intelligence is ready, CoreML fallback logs/asserts when missing, APIs throw on failure, validate 384 dims, and ban zero vectors; `PulsumML.embedding` now throws.
 - `Packages/PulsumML/Sources/PulsumML/Sentiment/AFMSentimentProvider.swift`, `Packages/PulsumML/Sources/PulsumML/SafetyLocal.swift`, `Packages/PulsumML/Sources/PulsumML/TopicGate/EmbeddingTopicGateProvider.swift`, `Packages/PulsumData/Sources/PulsumData/VectorIndexManager.swift`, `Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift` were updated to use throwing embeddings; prototypes/anchors are built only when embeddings succeed, and safety/topic gates fail closed to keyword fallbacks when embeddings are unavailable.
@@ -22,13 +22,13 @@
 - New Gate 6 agent tests: `Packages/PulsumAgents/Tests/PulsumAgentsTests/{Gate6_StateEstimatorWeightsAndLabelsTests.swift,Gate6_StateEstimatorPersistenceTests.swift,Gate6_RecRankerLearningTests.swift}` cover weight directionality, persistence, and ranker feedback.
 - Docs updated: `instructions.md` seed weights now recovery-positive with sentiment; `gates.md` Gate 6 items now list the implemented fixes/tests; `bugs.md` marks contextual/zero-vector embeddings and wellbeing refresh bugs as fixed; `todolist.md` notes Gate 6 stabilization; `gate6_summary.md` captures the pass.
 
-**Architectural Alignment**
+## Architectural Alignment
 - Guardrails: Safety → Topic → Coverage ordering preserved; new embedding-availability gate sits between topic and coverage and routes on-device when embeddings are down—no cloud path is taken earlier.
 - Embeddings & PHI: All embeddings remain on-device (AFM/NL/CoreML); zero vectors are rejected; availability probe uses synthetic text; `generatorUnavailable` now means both AFM and fallback failed, so the “embedding unavailable” banner corresponds to true total failure.
 - Gate 6 invariants: Recovery-positive seeds, normalized targets, sentiment included/persisted, estimator state persisted, RecRanker learns from feedback, and AFM is opportunistic with CoreML fallback + zero-vector ban; core ML math otherwise unchanged.
 - UX correctness: Wellbeing spinner replaced by explicit loading/no-data/denied/error states across main/insights/settings; health-access messaging and request actions reuse the shared HealthKit service; embedding unavailability now only trips when all on-device providers fail.
 
-**Potential Risks / Follow-Ups**
+## Potential Risks / Follow-Ups
 - `EmbeddingService.isAvailable()` caches the first probe; if Apple Intelligence finishes downloading later, availability stays false until restart—consider invalidating on FoundationModels status changes.
 - `SentimentAgent.persistJournal` now throws when embeddings fail; confirm UI surfaces a recoverable error during journaling/import rather than silently dropping entries.
 - `AFMTextEmbeddingProvider` uses `NLEmbedding.sentence` gated on Apple Intelligence readiness; validate embedding quality vs true contextual AFM and telemetry fallback rates.

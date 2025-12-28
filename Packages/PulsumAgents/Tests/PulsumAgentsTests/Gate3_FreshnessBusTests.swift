@@ -32,6 +32,10 @@ final class Gate3_FreshnessBusTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
         let posts = center.notifications(named: .pulsumScoresUpdated)
+        XCTAssertGreaterThan(posts.count, 0)
+        let expectedDay = Calendar(identifier: .gregorian).startOfDay(for: day)
+        let postedDay = posts.first?.userInfo?[AgentNotificationKeys.date] as? Date
+        XCTAssertEqual(postedDay, expectedDay)
         XCTAssertLessThanOrEqual(posts.count, 2)
     }
 }

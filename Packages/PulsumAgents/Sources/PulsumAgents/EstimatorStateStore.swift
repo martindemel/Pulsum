@@ -40,6 +40,10 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
     }
 
     func saveState(_ state: StateEstimatorState) {
+        guard state.version == Self.schemaVersion else {
+            logger.error("Refusing to persist estimator state: version mismatch (expected \(Self.schemaVersion), found \(state.version)).")
+            return
+        }
         do {
             let data = try JSONEncoder().encode(state)
             try data.write(to: fileURL, options: .atomic)

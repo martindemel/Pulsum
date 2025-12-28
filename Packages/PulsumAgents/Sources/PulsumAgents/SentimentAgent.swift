@@ -136,20 +136,23 @@ public final class SentimentAgent {
     }
 
     public func reprocessPendingJournals() async {
-        let pending: [JournalEntry] = (try? await context.perform { [context] in
+        let pending: [(objectID: NSManagedObjectID, entryID: UUID, transcript: String)] = (try? await context.perform { [context] in
             let request = JournalEntry.fetchRequest()
             request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
-            return try context.fetch(request)
+            return try context.fetch(request).map { entry in
+                (entry.objectID, entry.id, entry.transcript)
+            }
         }) ?? []
 
         guard !pending.isEmpty else { return }
 
-        for entry in pending {
+        var updates: [(objectID: NSManagedObjectID, vectorURL: URL)] = []
+
+        for item in pending {
             do {
-                let vector = try embeddingService.embedding(for: entry.transcript)
-                let url = try persistVector(vector: vector, id: entry.id)
-                entry.embeddedVectorURL = url.lastPathComponent
-                entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: false)
+                let vector = try embeddingService.embedding(for: item.transcript)
+                let url = try persistVector(vector: vector, id: item.entryID)
+                updates.append((objectID: item.objectID, vectorURL: url))
             } catch {
 #if DEBUG
                 logger.error("Failed to reprocess pending journal embedding: \(error.localizedDescription, privacy: .public)")
@@ -157,8 +160,16 @@ public final class SentimentAgent {
             }
         }
 
+        guard !updates.isEmpty else { return }
+        let updatesToApply = updates
+
         do {
             try await context.perform { [context] in
+                for update in updatesToApply {
+                    guard let entry = try? context.existingObject(with: update.objectID) as? JournalEntry else { continue }
+                    entry.embeddedVectorURL = update.vectorURL.lastPathComponent
+                    entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: false)
+                }
                 if context.hasChanges {
                     try context.save()
                 }

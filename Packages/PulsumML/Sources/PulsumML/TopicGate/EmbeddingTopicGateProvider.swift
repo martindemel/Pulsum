@@ -1,10 +1,12 @@
 import Foundation
+import os
 
 /// Fallback topic gate using embedding similarity against wellbeing knowledge base
 public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Sendable {
     private let embeddingService: EmbeddingService
     private let wellbeingPrototypes: [WellbeingPrototype]
     private let oodPrototypes: [[Float]]
+    private let logger = Logger(subsystem: "com.pulsum", category: "EmbeddingTopicGateProvider")
 
     private let OOD_MARGIN: Float = 0.12
     private let ON_TOPIC_THRESHOLD: Float = 0.59
@@ -102,6 +104,9 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
             !wellbeingPrototypes.isEmpty,
             !oodPrototypes.isEmpty
         else {
+            #if DEBUG
+            logger.debug("Topic gate degraded: embedding unavailable or prototypes empty (wellbeing=\(self.wellbeingPrototypes.count, privacy: .public), ood=\(self.oodPrototypes.count, privacy: .public)).")
+            #endif
             let decision = GateDecision(
                 isOnTopic: false,
                 reason: "Unable to embed input text",

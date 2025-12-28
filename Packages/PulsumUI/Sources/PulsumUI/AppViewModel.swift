@@ -3,8 +3,12 @@ import CoreData
 import Observation
 import PulsumAgents
 import PulsumData
+import PulsumTypes
 #if canImport(HealthKit)
 import HealthKit
+#endif
+#if canImport(UIKit)
+import UIKit
 #endif
 
 @MainActor
@@ -45,6 +49,9 @@ final class AppViewModel {
     private let consentStore = ConsentStore()
     @ObservationIgnored private(set) var orchestrator: AgentOrchestrator?
     @ObservationIgnored private var scoreRefreshObserver: NSObjectProtocol?
+    #if canImport(UIKit)
+    @ObservationIgnored private var appActiveObserver: NSObjectProtocol?
+    #endif
 
     var startupState: StartupState = .idle
     var selectedTab: Tab = .main
@@ -95,6 +102,14 @@ final class AppViewModel {
                 await self?.coachViewModel.refreshRecommendations()
             }
         }
+
+        #if canImport(UIKit)
+        appActiveObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                                                   object: nil,
+                                                                   queue: .main) { [weak self] _ in
+            self?.refreshOnForeground()
+        }
+        #endif
     }
 
     func start() {
@@ -138,6 +153,7 @@ final class AppViewModel {
                         self.settingsViewModel.refreshHealthAccessStatus()
                         await self.coachViewModel.refreshRecommendations()
                         print("[Pulsum] Recommendations refreshed")
+                        await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork()
                         await DebugLogBuffer.shared.append("Orchestrator start complete; recommendations refreshed")
                     } catch {
                         print("[Pulsum] Orchestrator start failed: \(error)")
@@ -199,6 +215,13 @@ final class AppViewModel {
     func dismissSafetyCard() {
         isShowingSafetyCard = false
         safetyMessage = nil
+    }
+
+    private func refreshOnForeground() {
+        guard startupState == .ready, let orchestrator else { return }
+        Task {
+            await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork()
+        }
     }
 }
 

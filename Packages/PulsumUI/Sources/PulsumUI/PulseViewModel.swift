@@ -189,7 +189,7 @@ final class PulseViewModel {
         onSafetyDecision?(response.safety)
         analysisError = nil
         if response.result.embeddingPending {
-            savedToastMessage = "Saved. We'll analyze this entry when the on-device model is available."
+            savedToastMessage = "Saved. We'll finish analyzing this entry soon."
         } else {
             savedToastMessage = "Saved to Journal"
         }

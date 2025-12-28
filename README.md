@@ -65,13 +65,13 @@ The app uses iOS 26's Foundation Models framework as the primary AI engine:
 | Capability | Description | Fallback |
 |------------|-------------|----------|
 | **Sentiment Analysis** | Analyzes voice journal transcripts to understand emotional state | Core ML model |
-| **Safety Classification** | Detects crisis situations and sensitive content | Local keyword + embedding classifier |
+| **Safety Classification** | Detects crises and sensitive content | Local keyword + embedding classifier |
 | **Text Embeddings** | Generates semantic vectors for similarity search | Bundled 384-dimensional Core ML model |
 | **Coach Generation** | Creates personalized coaching responses | On-device generation |
 
 ### Multi-Tier Fallback Strategy
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    AI Provider Cascade                          │
 ├─────────────────────────────────────────────────────────────────┤
@@ -102,7 +102,7 @@ Pulsum implements a sophisticated **manager-pattern agent architecture** where a
 
 ### Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                      AgentOrchestrator                          │
 │        (Single User-Facing Agent • @MainActor Isolated)         │
@@ -228,7 +228,7 @@ Three validated slider scales (1-7):
 
 Pulsum uses a modular Swift Package Manager architecture:
 
-```
+```text
 Pulsum/
 ├── Pulsum (Main App Target)
 │   ├── PulsumApp.swift          # @main entry point
@@ -278,7 +278,7 @@ Pulsum/
 
 ### Dependency Flow
 
-```
+```text
                     ┌─────────────┐
                     │  Main App   │
                     └──────┬──────┘
@@ -344,7 +344,7 @@ Pulsum/
 3. **Add API Key** (optional, for cloud features)
    
    Edit `Config.xcconfig` and replace `YOUR_OPENAI_API_KEY_HERE` with your OpenAI API key:
-   ```
+   ```text
    OPENAI_API_KEY = sk-your-api-key-here
    ```
    > ⚠️ Never commit this file. It's gitignored for security.
@@ -421,7 +421,7 @@ scripts/ci/build-release.sh
 
 ### Consent Model
 
-```
+```text
 Cloud Processing: OFF by default
 
 When enabled:
@@ -503,13 +503,13 @@ Copyright © 2025 Martin Demel. All Rights Reserved.
 
 This project is made public for **educational and reference purposes only**. 
 
-**Permitted:**
+#### Permitted
 - ✅ Viewing and studying the source code
 - ✅ Learning from the architecture and patterns
 - ✅ Referencing for educational purposes
 - ✅ Personal, non-commercial experimentation
 
-**Not Permitted:**
+#### Not Permitted
 - ❌ Commercial use of any kind
 - ❌ Redistribution or sublicensing
 - ❌ Creating derivative works for commercial purposes
@@ -535,4 +535,3 @@ For any other use, explicit written permission from the author is required.
 <p align="center">
   <em>Pulsum: Your wellbeing, on your device, under your control.</em>
 </p>
-

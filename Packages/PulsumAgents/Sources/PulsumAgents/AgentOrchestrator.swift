@@ -96,6 +96,7 @@ protocol SentimentAgentProviding: AnyObject {
     var speechStream: AsyncThrowingStream<SpeechSegment, Error>? { get }
     func updateTranscript(_ transcript: String)
     func latestTranscriptSnapshot() -> String
+    func reprocessPendingJournals() async
 }
 
 extension SentimentAgent: SentimentAgentProviding {}
@@ -243,6 +244,7 @@ public final class AgentOrchestrator {
         do {
             try await coachAgent.prepareLibraryIfNeeded()
             try await dataAgent.start()
+            await refreshOnDeviceModelAvailabilityAndRetryDeferredWork()
         } catch let healthError as HealthKitServiceError {
             switch healthError {
             case .healthDataUnavailable:
@@ -265,6 +267,15 @@ public final class AgentOrchestrator {
 
     public func restartHealthDataIngestion() async throws -> HealthAccessStatus {
         try await dataAgent.restartIngestionAfterPermissionsChange()
+    }
+
+    /// Re-probes on-device embedding availability and retries any deferred work (pending journal embeddings, library indexing).
+    public func refreshOnDeviceModelAvailabilityAndRetryDeferredWork() async {
+        EmbeddingService.shared.invalidateAvailabilityCache()
+        let mode = await EmbeddingService.shared.refreshAvailability(force: true)
+        guard mode == .available else { return }
+        await sentimentAgent.reprocessPendingJournals()
+        await coachAgent.retryDeferredLibraryImport()
     }
 
     /// Begins voice journal recording and returns immediately after starting audio capture.

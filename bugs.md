@@ -679,12 +679,12 @@ Packs group related findings so you can triage by domain. Open the referenced ca
 - **Related Contract (from architecture.md):** Section 9 describes LLM gateway with validation; Settings (section 10) promises API key testing.
 - **Fix (2025-11-16 / Gate 4):** `LLMGateway.makePingRequestBody` and `validatePingPayload` now share the same guard (case-insensitive) and the validator is exposed for tests so `"PING"` and `"ping"` both pass. `LLMGateway.testAPIConnection()` rejects unexpected fields before firing the request and short-circuits when the UITest stub flag is set. `Gate4_LLMKeyTests` prove the validator accepts mixed-case payloads and that key storage round-trips through the Keychain stub, while `Gate4_LLMGatewayPingSeams` covers the UITest environment flag.
 
--### BUG: HealthKit queries lack authorization status checks before execution
-+ **ID:** BUG-20251026-0024
-+ **Severity:** S1
-+ **Area:** Wiring
-+ **Confidence:** High
-+ **Status:** Fixed (Gate 3 — DataAgent now computes `HealthAccessStatus` and skips denied/notDetermined types before building observers.)
+### BUG: HealthKit queries lack authorization status checks before execution
+- **ID:** BUG-20251026-0024
+- **Severity:** S1
+- **Area:** Wiring
+- **Confidence:** High
+- **Status:** Fixed (Gate 3 — DataAgent now computes `HealthAccessStatus` and skips denied/notDetermined types before building observers.)
 - **Symptom/Impact:** Observer queries execute without checking authorization status, causing silent failures if user revokes HealthKit permission after initial grant.
 - **Where/Scope:** HealthKitService query execution.
 - **Evidence:**

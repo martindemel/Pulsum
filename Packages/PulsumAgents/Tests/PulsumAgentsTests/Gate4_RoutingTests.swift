@@ -73,31 +73,26 @@ private func makeSnapshot(features: [String: Double]) throws -> FeatureVectorSna
     let container = TestCoreDataStack.makeContainer()
     let context = container.newBackgroundContext()
 
-    var snapshot: FeatureVectorSnapshot?
-    var capturedError: Error?
+    return try context.performAndWaitThrowing {
+        let vector = FeatureVector(context: context)
+        try context.obtainPermanentIDs(for: [vector])
+        return FeatureVectorSnapshot(date: Date(),
+                                     wellbeingScore: 0,
+                                     contributions: [:],
+                                     imputedFlags: [:],
+                                     featureVectorObjectID: vector.objectID,
+                                     features: features)
+    }
+}
 
-    context.performAndWait {
-        do {
-            let vector = FeatureVector(context: context)
-            try context.obtainPermanentIDs(for: [vector])
-            snapshot = FeatureVectorSnapshot(date: Date(),
-                                             wellbeingScore: 0,
-                                             contributions: [:],
-                                             imputedFlags: [:],
-                                             featureVectorObjectID: vector.objectID,
-                                             features: features)
-        } catch {
-            capturedError = error
+private extension NSManagedObjectContext {
+    func performAndWaitThrowing<T: Sendable>(_ block: @Sendable () throws -> T) throws -> T {
+        var result: Result<T, Error>!
+        performAndWait {
+            result = Result { try block() }
         }
+        return try result.get()
     }
-
-    if let capturedError {
-        throw capturedError
-    }
-    guard let snapshot else {
-        throw NSError(domain: "Gate4RoutingTests", code: 0)
-    }
-    return snapshot
 }
 
 private actor RoutingVectorIndexStub: VectorIndexProviding {

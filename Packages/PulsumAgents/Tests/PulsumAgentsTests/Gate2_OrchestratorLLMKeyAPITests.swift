@@ -104,6 +104,7 @@ private final class SentimentAgentStub: SentimentAgentProviding {
     func stopRecording() {}
     func updateTranscript(_ transcript: String) {}
     func latestTranscriptSnapshot() -> String { "" }
+    func reprocessPendingJournals() async {}
 }
 
 private struct TopicGateStub: TopicGateProviding {

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public enum SafetyClassification: Equatable {
     case safe
@@ -38,15 +39,28 @@ public final class SafetyLocal {
     }
 
     private let config: SafetyLocalConfig
-    private let embeddingService = EmbeddingService.shared
-    private let prototypes: [Prototype]
+    private let embeddingService: EmbeddingService
+    private let prototypeQueue = DispatchQueue(label: "ai.pulsum.safetyLocal.prototypes", qos: .userInitiated)
+    private var prototypes: [Prototype]
+    private var degraded: Bool
+    private let logger = Logger(subsystem: "com.pulsum", category: "SafetyLocal")
 
-    public init(config: SafetyLocalConfig = SafetyLocalConfig()) {
+    public init(config: SafetyLocalConfig = SafetyLocalConfig(),
+                embeddingService: EmbeddingService = .shared) {
         self.config = config
-        self.prototypes = SafetyLocal.makePrototypes(using: embeddingService)
+        self.embeddingService = embeddingService
+        let build = SafetyLocal.makePrototypes(using: embeddingService, logger: logger)
+        self.prototypes = build.prototypes
+        self.degraded = build.degraded
+    }
+
+    public var isDegraded: Bool {
+        prototypeQueue.sync { degraded || prototypes.isEmpty }
     }
 
     public func classify(text: String) -> SafetyClassification {
+        refreshPrototypesIfNeeded()
+        let (localPrototypes, _) = prototypeQueue.sync { (prototypes, degraded) }
         let normalized = text.lowercased()
         
         #if DEBUG
@@ -63,10 +77,11 @@ public final class SafetyLocal {
         guard
             let embedding = try? embeddingService.embedding(for: normalized),
             embedding.contains(where: { $0 != 0 }),
-            !prototypes.isEmpty
+            !localPrototypes.isEmpty
         else {
+            prototypeQueue.sync { degraded = true }
             #if DEBUG
-            print("[SafetyLocal] Embedding unavailable or prototypes missing, using fallback")
+            logger.debug("SafetyLocal degraded: embedding unavailable or prototypes missing; using fallback classification.")
             #endif
             return fallbackClassification(for: normalized)
         }
@@ -77,7 +92,7 @@ public final class SafetyLocal {
         #endif
         
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
-        for prototype in prototypes {
+        for prototype in localPrototypes {
             let similarity = cosineSimilarity(embedding, prototype.embedding)
             if let current = scores[prototype.label], current.similarity >= similarity { continue }
             scores[prototype.label] = (similarity, prototype)
@@ -120,7 +135,7 @@ public final class SafetyLocal {
 
     // MARK: - Prototype Setup
 
-    private static func makePrototypes(using service: EmbeddingService) -> [Prototype] {
+    private static func makePrototypes(using service: EmbeddingService, logger: Logger) -> (prototypes: [Prototype], degraded: Bool) {
         let dataset: [(Label, String)] = [
             (.crisis, "I want to hurt myself"),
             (.crisis, "Thinking about ending my life"),
@@ -136,13 +151,45 @@ public final class SafetyLocal {
             (.safe, "I finished a light workout and feel grounded")
         ]
 
-        return dataset.compactMap { label, text in
-            guard let embedding = try? service.embedding(for: text) else { return nil }
-            return Prototype(label: label, text: text, embedding: embedding)
+        var built: [Prototype] = []
+        var failures = 0
+
+        for (index, item) in dataset.enumerated() {
+            do {
+                let embedding = try service.embedding(for: item.1)
+                built.append(Prototype(label: item.0, text: item.1, embedding: embedding))
+            } catch {
+                failures += 1
+                #if DEBUG
+                logger.debug("Failed to embed safety prototype \(index, privacy: .public) label=\(item.0.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                #endif
+            }
         }
+
+        let degraded = failures > 0 || built.isEmpty
+
+        #if DEBUG
+        if built.isEmpty {
+            logger.warning("SafetyLocal prototypes empty; classifier will operate in degraded keyword-only mode.")
+        } else if failures > 0 {
+            logger.debug("SafetyLocal built \(built.count, privacy: .public) prototypes with \(failures, privacy: .public) failures. Degraded=\(degraded, privacy: .public)")
+        }
+        #endif
+
+        return (built, degraded)
     }
 
     // MARK: - Helpers
+
+    private func refreshPrototypesIfNeeded() {
+        let needsRefresh = prototypeQueue.sync { degraded || prototypes.isEmpty }
+        guard needsRefresh else { return }
+        let build = SafetyLocal.makePrototypes(using: embeddingService, logger: logger)
+        prototypeQueue.sync {
+            prototypes = build.prototypes
+            degraded = build.degraded
+        }
+    }
 
     private func containsKeyword(from keywords: [String], in text: String) -> Bool {
         for keyword in keywords where !keyword.isEmpty {

@@ -202,8 +202,19 @@ actor DataAgent {
     }
 
     private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
-        let message = (error as NSError).localizedDescription
-        return message.contains("Missing com.apple.developer.healthkit.background-delivery")
+        if let hkError = error as? HKError {
+            // Explicitly ignore only the missing entitlement case; other HKError codes should surface.
+            if hkError.errorCode == HKError.errorInvalidArgument.rawValue {
+                return false
+            }
+        }
+        let nsError = error as NSError
+        if nsError.domain == HKError.errorDomain,
+           nsError.code == HKError.errorInvalidArgument.rawValue {
+            return false
+        }
+        // Fallback for older SDKs/localized messages; keep localization-safe by avoiding string equality.
+        return nsError.localizedDescription.localizedCaseInsensitiveContains("background-delivery")
     }
 
     private func configureObservation(for status: HealthAccessStatus,
@@ -1242,7 +1253,15 @@ actor DataAgent {
     }
 
     private func isProtectedHealthDataInaccessible(_ error: Error) -> Bool {
-        (error as NSError).localizedDescription.localizedCaseInsensitiveContains("Protected health data is inaccessible")
+        if let hkError = error as? HKError {
+            return hkError.code == .errorDatabaseInaccessible || hkError.code == .errorHealthDataUnavailable
+        }
+        let nsError = error as NSError
+        if nsError.domain == HKError.errorDomain {
+            return nsError.code == HKError.errorDatabaseInaccessible.rawValue
+        }
+        // Fallback for unexpected error domains where localizedDescription is the only indicator.
+        return nsError.localizedDescription.localizedCaseInsensitiveContains("Protected health data is inaccessible")
     }
 
     private static func computeSummary(for metrics: DailyMetrics,
@@ -1788,11 +1807,11 @@ actor DataAgent {
     }
 #if DEBUG
     func _testProcessQuantitySamples(_ samples: [HKQuantitySample], type: HKQuantityType) async throws {
-        try await processQuantitySamples(samples, type: type)
+        _ = try await processQuantitySamples(samples, type: type)
     }
 
     func _testProcessCategorySamples(_ samples: [HKCategorySample], type: HKCategoryType) async throws {
-        try await processCategorySamples(samples, type: type)
+        _ = try await processCategorySamples(samples, type: type)
     }
 
     func _testReprocess(day: Date) async throws {

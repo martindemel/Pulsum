@@ -57,6 +57,16 @@ public final class CoachAgent {
         }
     }
 
+    public func retryDeferredLibraryImport() async {
+        guard shouldIngestLibrary else { return }
+        if !libraryEmbeddingsDeferred && hasPreparedLibrary { return }
+        do {
+            try await prepareLibraryIfNeeded()
+        } catch {
+            logger.error("Deferred library import retry failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     public func recommendationCards(for snapshot: FeatureVectorSnapshot,
                                     consentGranted: Bool) async throws -> [RecommendationCard] {
         try await prepareLibraryIfNeeded()

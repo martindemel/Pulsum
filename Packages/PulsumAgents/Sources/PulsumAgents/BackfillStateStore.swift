@@ -7,6 +7,10 @@ protocol BackfillStateStoring: Sendable {
     func saveState(_ state: BackfillProgress)
 }
 
+private struct SendableFileManager: @unchecked Sendable {
+    let value: FileManager
+}
+
 struct BackfillProgress: Codable, Sendable {
     static let schemaVersion = 1
 
@@ -49,53 +53,61 @@ struct BackfillProgress: Codable, Sendable {
     }
 }
 
-final class BackfillStateStore: BackfillStateStoring, @unchecked Sendable {
+final class BackfillStateStore: BackfillStateStoring, Sendable {
+    private let queue = DispatchQueue(label: "ai.pulsum.backfillStateStore", qos: .utility)
     private let fileURL: URL
-    private let fileManager: FileManager
+    private let fileManager: SendableFileManager
+    private var fm: FileManager { fileManager.value }
     private let logger = Logger(subsystem: "ai.pulsum", category: "BackfillStateStore")
 
     init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
          fileManager: FileManager = .default) {
-        self.fileManager = fileManager
+        self.fileManager = SendableFileManager(value: fileManager)
         let directory = baseDirectory.appendingPathComponent("BackfillState", isDirectory: true)
         self.fileURL = directory.appendingPathComponent("state_v\(BackfillProgress.schemaVersion).json")
-        prepareDirectory(at: directory)
+        queue.sync {
+            prepareDirectory(at: directory)
+        }
     }
 
     func loadState() -> BackfillProgress? {
-        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let state = try JSONDecoder().decode(BackfillProgress.self, from: data)
-            guard state.version == BackfillProgress.schemaVersion else {
-                logger.warning("Backfill state version mismatch. Expected \(BackfillProgress.schemaVersion), found \(state.version). Ignoring persisted state.")
+        queue.sync {
+            guard fm.fileExists(atPath: fileURL.path) else { return nil }
+            do {
+                let data = try Data(contentsOf: fileURL)
+                let state = try JSONDecoder().decode(BackfillProgress.self, from: data)
+                guard state.version == BackfillProgress.schemaVersion else {
+                    logger.warning("Backfill state version mismatch. Expected \(BackfillProgress.schemaVersion), found \(state.version). Ignoring persisted state.")
+                    return nil
+                }
+                return state
+            } catch {
+                logger.error("Failed to load backfill state: \(error.localizedDescription, privacy: .public)")
                 return nil
             }
-            return state
-        } catch {
-            logger.error("Failed to load backfill state: \(error.localizedDescription, privacy: .public)")
-            return nil
         }
     }
 
     func saveState(_ state: BackfillProgress) {
-        do {
-            let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL, options: .atomic)
-            applyFileProtection()
-            excludeFromBackup()
-        } catch {
-            logger.error("Failed to persist backfill state: \(error.localizedDescription, privacy: .public)")
+        queue.sync {
+            do {
+                let data = try JSONEncoder().encode(state)
+                try data.write(to: fileURL, options: .atomic)
+                applyFileProtection()
+                excludeFromBackup()
+            } catch {
+                logger.error("Failed to persist backfill state: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
     private func prepareDirectory(at url: URL) {
-        if !fileManager.fileExists(atPath: url.path) {
+        if !fm.fileExists(atPath: url.path) {
             do {
 #if os(iOS)
-                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
+                try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
 #else
-                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+                try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
 #endif
             } catch {
                 logger.error("Failed to prepare backfill state directory: \(error.localizedDescription, privacy: .public)")
@@ -103,7 +115,7 @@ final class BackfillStateStore: BackfillStateStoring, @unchecked Sendable {
         } else {
 #if os(iOS)
             do {
-                try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+                try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
             } catch {
                 logger.error("Failed to update backfill state directory protection: \(error.localizedDescription, privacy: .public)")
             }
@@ -114,7 +126,7 @@ final class BackfillStateStore: BackfillStateStoring, @unchecked Sendable {
     private func applyFileProtection() {
 #if os(iOS)
         do {
-            try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
+            try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
         } catch {
             logger.error("Failed to set file protection on backfill state: \(error.localizedDescription, privacy: .public)")
         }

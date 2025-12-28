@@ -74,7 +74,7 @@ final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
             try await Task.sleep(nanoseconds: fetchDelayNanoseconds)
         }
         let samples = fetchedSamples[sampleType.identifier] ?? []
-        return samples.filter { $0.startDate >= startDate && $0.startDate <= endDate }
+        return samples.filter { $0.startDate >= startDate && $0.startDate < endDate }
     }
 
     func enableBackgroundDelivery(for types: Set<HKSampleType>) async throws {

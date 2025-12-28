@@ -1,3 +1,4 @@
+// swiftlint:disable type_name
 @testable import PulsumAgents
 @testable import PulsumData
 @testable import PulsumServices

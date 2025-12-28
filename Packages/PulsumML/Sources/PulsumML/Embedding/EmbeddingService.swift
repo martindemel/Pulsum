@@ -26,6 +26,9 @@ public final class EmbeddingService {
     private let reprobeInterval: TimeInterval
     private let dateProvider: () -> Date
     private let logger = Logger(subsystem: "com.pulsum", category: "EmbeddingService")
+    #if DEBUG
+    private let debugAvailabilityOverride: Bool?
+    #endif
 
     private init(primary: TextEmbeddingProviding? = nil,
                  fallback: TextEmbeddingProviding? = nil,
@@ -35,6 +38,9 @@ public final class EmbeddingService {
         self.dimension = dimension
         self.reprobeInterval = reprobeInterval
         self.dateProvider = dateProvider
+        #if DEBUG
+        self.debugAvailabilityOverride = Self.parseDebugAvailabilityOverride()
+        #endif
         if let primary {
             self.primaryProvider = primary
         } else if #available(iOS 17.0, macOS 13.0, *) {
@@ -59,6 +65,14 @@ public final class EmbeddingService {
         var cachedResult: Bool?
 
         availabilityQueue.sync {
+            #if DEBUG
+            if let override = debugAvailabilityOverride {
+                availabilityState = override ? .available : .unavailable(lastChecked: now)
+                shouldProbe = false
+                cachedResult = override
+                return
+            }
+            #endif
             switch availabilityState {
             case .available:
                 shouldProbe = false
@@ -93,6 +107,58 @@ public final class EmbeddingService {
             availabilityState = result ? .available : .unavailable(lastChecked: now)
         }
         return result
+    }
+
+    /// Clears any cached availability decision so a subsequent probe re-evaluates providers.
+    public func invalidateAvailabilityCache() {
+        availabilityQueue.sync {
+            availabilityState = .unknown
+        }
+    }
+
+    /// Refreshes availability off the caller's thread, optionally forcing a probe even if cached unavailable.
+    @discardableResult
+    public func refreshAvailability(force: Bool = false) async -> AvailabilityMode {
+        await withCheckedContinuation { continuation in
+            availabilityQueue.async {
+                let now = self.dateProvider()
+
+                #if DEBUG
+                if let override = self.debugAvailabilityOverride {
+                    self.availabilityState = override ? .available : .unavailable(lastChecked: now)
+                    continuation.resume(returning: override ? .available : .unavailable)
+                    return
+                }
+                #endif
+
+                var shouldProbe = force
+                var cached: AvailabilityMode = .unavailable
+                switch self.availabilityState {
+                case .available:
+                    cached = .available
+                case .unavailable(let lastChecked):
+                    cached = .unavailable
+                    let fmReady = FoundationModelsAvailability.checkAvailability() == .ready
+                    if fmReady || now.timeIntervalSince(lastChecked) >= self.reprobeInterval {
+                        shouldProbe = true
+                    }
+                case .probing(let previous):
+                    cached = (previous ?? false) ? .available : .unavailable
+                case .unknown:
+                    shouldProbe = true
+                }
+
+                guard shouldProbe else {
+                    continuation.resume(returning: cached)
+                    return
+                }
+
+                self.availabilityState = .probing(previous: cached == .available)
+                let result = self.probeAvailability()
+                self.availabilityState = result ? .available : .unavailable(lastChecked: now)
+                continuation.resume(returning: result ? .available : .unavailable)
+            }
+        }
     }
 
     /// Lightweight availability probe without invoking caller text; callers can branch without throwing.
@@ -130,7 +196,7 @@ public final class EmbeddingService {
         guard !segments.isEmpty else { throw EmbeddingError.emptyResult }
         var accumulator = [Float](repeating: 0, count: dimension)
         var count: Float = 0
-        for segment in segments where !segment.isEmpty {
+        for (index, segment) in segments.enumerated() where !segment.isEmpty {
             do {
                 let vector = try embedding(for: segment)
                 for index in 0..<dimension {
@@ -138,6 +204,9 @@ public final class EmbeddingService {
                 }
                 count += 1
             } catch {
+                #if DEBUG
+                logger.debug("Segment embedding failed at index \(index, privacy: .public); continuing without it. Error: \(error.localizedDescription, privacy: .public)")
+                #endif
                 continue
             }
         }
@@ -181,6 +250,21 @@ public final class EmbeddingService {
         logger.error("Embedding availability probe failed; providers unavailable or returned zero-vector.")
         return false
     }
+
+    #if DEBUG
+    private static func parseDebugAvailabilityOverride() -> Bool? {
+        guard let value = ProcessInfo.processInfo.environment["PULSUM_EMBEDDINGS_AVAILABLE"]?.lowercased() else {
+            return nil
+        }
+        if ["1", "true", "yes", "available"].contains(value) {
+            return true
+        }
+        if ["0", "false", "no", "unavailable"].contains(value) {
+            return false
+        }
+        return nil
+    }
+    #endif
 }
 
 #if DEBUG
