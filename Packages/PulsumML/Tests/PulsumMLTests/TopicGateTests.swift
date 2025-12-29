@@ -101,9 +101,6 @@ struct TopicGateTests {
     func marginGuardRejectsOffTopic() async throws {
         let provider = makeTopicGateProvider()
         let scores = try await provider.debugScores(for: "Calculate the prime factors of 512")
-#if DEBUG
-        print("TopicGate margin debug → domain=\(String(format: "%.3f", scores.domain)) ood=\(String(format: "%.3f", scores.ood)) margin=\(String(format: "%.3f", scores.margin))")
-#endif
         #expect(scores.margin < 0.12)
     }
 

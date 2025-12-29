@@ -1,5 +1,6 @@
 import Foundation
 @preconcurrency import HealthKit
+import PulsumTypes
 
 public protocol HealthKitObservationToken: AnyObject {}
 #if canImport(HealthKit)
@@ -25,6 +26,15 @@ public enum HealthKitServiceError: LocalizedError {
             return "Failed to execute HealthKit query: \(underlying.localizedDescription)"
         }
     }
+}
+
+public enum ReadAuthorizationProbeResult: Equatable, Sendable {
+    case authorized
+    case denied
+    case notDetermined
+    case protectedDataUnavailable
+    case healthDataUnavailable
+    case error(domain: String, code: Int)
 }
 
 #if DEBUG
@@ -65,13 +75,20 @@ private final class HealthKitAuthorizationOverrides: @unchecked Sendable {
                 }
                 if debugLoggingEnabled {
                     let identifiers = availableTypes.map(\.identifier).sorted()
-                    print("[PulsumHealthKitOverride] Granting all overrides for: \(identifiers.joined(separator: ", "))")
+                    Diagnostics.log(level: .debug,
+                                    category: .healthkit,
+                                    name: "healthkit.override.grantAll",
+                                    fields: [
+                                        "type_count": .int(identifiers.count)
+                                    ])
                 }
             }
             return true
         case .none:
             if debugLoggingEnabled {
-                print("[PulsumHealthKitOverride] No override behavior configured.")
+                Diagnostics.log(level: .debug,
+                                category: .healthkit,
+                                name: "healthkit.override.none")
             }
             return false
         }
@@ -199,6 +216,16 @@ public final class HealthKitService: @unchecked Sendable {
     }
 
     public func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? {
+#if DEBUG
+        if BuildFlags.uiTestSeamsCompiledIn {
+            let hasOverride = readTypes.contains { type in
+                HealthKitAuthorizationOverrides.shared.status(for: type.identifier) != nil
+            }
+            if hasOverride {
+                return .unnecessary
+            }
+        }
+#endif
         guard #available(iOS 14.0, *) else { return nil }
         let objectTypes = Set(readTypes.map { $0 as HKObjectType })
         return try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HKAuthorizationRequestStatus, Error>) in
@@ -209,6 +236,73 @@ public final class HealthKitService: @unchecked Sendable {
                     continuation.resume(returning: status)
                 }
             }
+        }
+    }
+
+    public func probeReadAuthorization(for type: HKSampleType) async -> ReadAuthorizationProbeResult {
+#if DEBUG
+        if BuildFlags.uiTestSeamsCompiledIn,
+           let override = HealthKitAuthorizationOverrides.shared.status(for: type.identifier) {
+            switch override {
+            case .sharingAuthorized:
+                return .authorized
+            case .sharingDenied:
+                return .denied
+            case .notDetermined:
+                return .notDetermined
+            @unknown default:
+                return .notDetermined
+            }
+        }
+#endif
+        guard HKHealthStore.isHealthDataAvailable() else {
+            return .healthDataUnavailable
+        }
+
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -1, to: endDate) ?? endDate.addingTimeInterval(-86_400)
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [.strictStartDate])
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type,
+                                      predicate: predicate,
+                                      limit: 1,
+                                      sortDescriptors: nil) { _, _, error in
+                if let error {
+                    continuation.resume(returning: self.readProbeResult(for: error))
+                } else {
+                    continuation.resume(returning: .authorized)
+                }
+            }
+
+            self.healthStore.execute(query)
+        }
+    }
+
+    public func probeReadAuthorization(for types: [HKSampleType]) async -> [HKSampleType: ReadAuthorizationProbeResult] {
+        guard !types.isEmpty else { return [:] }
+        let maxConcurrent = 3
+        return await withTaskGroup(of: (HKSampleType, ReadAuthorizationProbeResult).self) { group in
+            var iterator = types.makeIterator()
+            for _ in 0 ..< maxConcurrent {
+                guard let next = iterator.next() else { break }
+                group.addTask { [self] in
+                    let result = await self.probeReadAuthorization(for: next)
+                    return (next, result)
+                }
+            }
+
+            var results: [HKSampleType: ReadAuthorizationProbeResult] = [:]
+            for await (type, result) in group {
+                results[type] = result
+                if let next = iterator.next() {
+                    group.addTask { [self] in
+                        let result = await self.probeReadAuthorization(for: next)
+                        return (next, result)
+                    }
+                }
+            }
+            return results
         }
     }
 
@@ -478,6 +572,8 @@ public protocol HealthKitServicing: AnyObject, Sendable {
     var isHealthDataAvailable: Bool { get }
     func requestAuthorization() async throws
     func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus?
+    func probeReadAuthorization(for type: HKSampleType) async -> ReadAuthorizationProbeResult
+    func probeReadAuthorization(for types: [HKSampleType]) async -> [HKSampleType: ReadAuthorizationProbeResult]
     func fetchDailyStepTotals(startDate: Date, endDate: Date) async throws -> [Date: Int]
     func fetchNocturnalHeartRateStats(startDate: Date, endDate: Date) async throws -> [Date: (avgBPM: Double, minBPM: Double?)]
     func fetchSamples(for sampleType: HKSampleType, startDate: Date, endDate: Date) async throws -> [HKSample]
@@ -502,4 +598,45 @@ private struct CompletionBox: @unchecked Sendable {
 
 private struct PredicateBox: @unchecked Sendable {
     let value: NSPredicate?
+}
+
+private extension HealthKitService {
+    func readProbeResult(for error: Error) -> ReadAuthorizationProbeResult {
+        if let hkError = error as? HKError {
+            return readProbeResult(for: hkError)
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == HKError.errorDomain,
+           let code = HKError.Code(rawValue: nsError.code) {
+            return readProbeResult(forHKCode: code)
+        }
+
+        return .error(domain: (error as NSError).domain, code: (error as NSError).code)
+    }
+
+    func readProbeResult(for hkError: HKError) -> ReadAuthorizationProbeResult {
+        return readProbeResult(forHKCode: hkError.code)
+    }
+
+    func readProbeResult(forHKCode code: HKError.Code) -> ReadAuthorizationProbeResult {
+        switch code {
+        case .errorAuthorizationDenied, .errorRequiredAuthorizationDenied:
+            return .denied
+        case .errorAuthorizationNotDetermined:
+            return .notDetermined
+        case .errorDatabaseInaccessible:
+            return .protectedDataUnavailable
+        case .errorHealthDataUnavailable, .errorHealthDataRestricted:
+            return .healthDataUnavailable
+        case .errorNoData:
+            return .authorized
+#if compiler(>=6.0)
+        case .errorNotPermissibleForGuestUserMode:
+            return .healthDataUnavailable
+#endif
+        default:
+            return .error(domain: HKError.errorDomain, code: code.rawValue)
+        }
+    }
 }

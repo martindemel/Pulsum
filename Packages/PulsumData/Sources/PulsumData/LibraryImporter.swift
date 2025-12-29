@@ -2,6 +2,7 @@ import Foundation
 import CoreData
 import CryptoKit
 import PulsumML
+import PulsumTypes
 
 public struct LibraryImporterConfiguration {
     public let bundle: Bundle
@@ -47,73 +48,154 @@ public final class LibraryImporter {
         lastImportHadDeferredEmbeddings = false
         let urls = discoverLibraryURLs()
         guard !urls.isEmpty else {
-            #if DEBUG
-            print("[PulsumData] Recommendation library resources not found. Skipping ingestion.")
-            #endif
+            Diagnostics.log(level: .info,
+                            category: .library,
+                            name: "library.import.skip",
+                            fields: ["reason": .safeString(.stage("missing_resources", allowed: ["missing_resources"]))])
             return
         }
 
-        let resources = try await Self.loadResourcesAsync(from: urls)
-        guard !resources.isEmpty else { return }
+        var decodedCount = 0
+        var indexedCount = 0
+        var payloadCount = 0
+        let span = Diagnostics.span(category: .library,
+                                    name: "library.import",
+                                    fields: ["resource_count": .int(urls.count)],
+                                    level: .info)
+        let monitor = DiagnosticsStallMonitor(category: .library,
+                                              name: "library.import",
+                                              traceId: nil,
+                                              thresholdSeconds: 20,
+                                              initialFields: ["resource_count": .int(urls.count)])
+        await monitor.start()
 
-        let context = PulsumData.newBackgroundContext(name: "Pulsum.LibraryImporter")
-        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-
-        let result = try await context.perform {
-            var payloads: [MicroMomentIndexPayload] = []
-            var updates: [LibraryIngestUpdate] = []
-            for resource in resources {
-                let outcome = try self.process(resource: resource, context: context)
-                payloads.append(contentsOf: outcome.payloads)
-                if let update = outcome.ingestUpdate {
-                    updates.append(update)
-                }
+        do {
+            let resources = try await Self.loadResourcesAsync(from: urls)
+            decodedCount = resources.count
+            await monitor.heartbeat(progressFields: ["decoded_count": .int(decodedCount)])
+            guard !resources.isEmpty else {
+                await monitor.stop(finalFields: ["decoded_count": .int(decodedCount)])
+                span.end(additionalFields: [
+                    "decoded_count": .int(decodedCount),
+                    "inserted_count": .int(0),
+                    "indexed_count": .int(0)
+                ], error: nil)
+                return
             }
 
-            if context.hasChanges {
-                try context.save()
-            }
-            return (payloads, updates)
-        }
+            let context = PulsumData.newBackgroundContext(name: "Pulsum.LibraryImporter")
+            context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
 
-        if !result.0.isEmpty {
-            do {
-                try await upsertIndexEntries(result.0)
-            } catch {
-                if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
-                    lastImportHadDeferredEmbeddings = true
-#if DEBUG
-                    print("[PulsumData] Embeddings unavailable; deferring micro-moment indexing until provider is ready.")
-#endif
-                    return
-                }
-                throw LibraryImporterError.indexingFailed(underlying: error)
-            }
-        }
-
-        if !result.1.isEmpty {
-            try await context.perform {
-                for update in result.1 {
-                    let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
-                    fetchRequest.predicate = NSPredicate(format: "source == %@", update.source)
-                    fetchRequest.fetchLimit = 1
-                    let ingest: LibraryIngest
-                    if let existing = try context.fetch(fetchRequest).first {
-                        ingest = existing
-                    } else {
-                        let newIngest = LibraryIngest(context: context)
-                        newIngest.id = UUID()
-                        ingest = newIngest
+            let result = try await context.perform {
+                var payloads: [MicroMomentIndexPayload] = []
+                var updates: [LibraryIngestUpdate] = []
+                for resource in resources {
+                    let outcome = try self.process(resource: resource, context: context)
+                    payloads.append(contentsOf: outcome.payloads)
+                    if let update = outcome.ingestUpdate {
+                        updates.append(update)
                     }
-                    ingest.source = update.source
-                    ingest.checksum = update.checksum
-                    ingest.version = "1"
-                    ingest.ingestedAt = Date()
                 }
+
                 if context.hasChanges {
                     try context.save()
                 }
+                return (payloads, updates)
             }
+
+            payloadCount = result.0.count
+            await monitor.heartbeat(progressFields: ["payload_count": .int(payloadCount)])
+
+            if !result.0.isEmpty {
+                do {
+                    try await upsertIndexEntries(result.0)
+                    indexedCount = payloadCount
+                } catch {
+                    if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
+                        lastImportHadDeferredEmbeddings = true
+                        Diagnostics.log(level: .warn,
+                                        category: .library,
+                                        name: "library.import.deferred",
+                                        fields: [
+                                            "reason": .safeString(.stage("embeddings_unavailable", allowed: ["embeddings_unavailable"])),
+                                            "decoded_count": .int(decodedCount),
+                                            "payload_count": .int(payloadCount)
+                                        ])
+                        await monitor.stop(finalFields: [
+                            "payload_count": .int(payloadCount),
+                            "indexed_count": .int(0)
+                        ])
+                        span.end(additionalFields: [
+                            "decoded_count": .int(decodedCount),
+                            "inserted_count": .int(payloadCount),
+                            "indexed_count": .int(0),
+                            "deferred": .bool(true)
+                        ], error: nil)
+                        return
+                    }
+                    await monitor.stop(finalFields: ["payload_count": .int(payloadCount)])
+                    span.end(additionalFields: [
+                        "decoded_count": .int(decodedCount),
+                        "inserted_count": .int(payloadCount),
+                        "indexed_count": .int(indexedCount)
+                    ], error: error)
+                    throw LibraryImporterError.indexingFailed(underlying: error)
+                }
+            }
+
+            if !result.1.isEmpty {
+                try await context.perform {
+                    for update in result.1 {
+                        let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
+                        fetchRequest.predicate = NSPredicate(format: "source == %@", update.source)
+                        fetchRequest.fetchLimit = 1
+                        let ingest: LibraryIngest
+                        if let existing = try context.fetch(fetchRequest).first {
+                            ingest = existing
+                        } else {
+                            let newIngest = LibraryIngest(context: context)
+                            newIngest.id = UUID()
+                            ingest = newIngest
+                        }
+                        ingest.source = update.source
+                        ingest.checksum = update.checksum
+                        ingest.version = "1"
+                        ingest.ingestedAt = Date()
+                    }
+                    if context.hasChanges {
+                        try context.save()
+                    }
+                }
+            }
+
+            let stats = await vectorIndex.stats()
+            Diagnostics.log(level: .info,
+                            category: .vectorIndex,
+                            name: "vectorIndex.stats",
+                            fields: [
+                                "shards": .int(stats.shards),
+                                "items": .int(stats.items)
+                            ])
+            await monitor.stop(finalFields: [
+                "decoded_count": .int(decodedCount),
+                "indexed_count": .int(indexedCount)
+            ])
+            span.end(additionalFields: [
+                "decoded_count": .int(decodedCount),
+                "inserted_count": .int(payloadCount),
+                "indexed_count": .int(indexedCount)
+            ], error: nil)
+        } catch {
+            await monitor.stop(finalFields: [
+                "decoded_count": .int(decodedCount),
+                "indexed_count": .int(indexedCount)
+            ])
+            span.end(additionalFields: [
+                "decoded_count": .int(decodedCount),
+                "inserted_count": .int(payloadCount),
+                "indexed_count": .int(indexedCount)
+            ], error: error)
+            throw error
         }
     }
 

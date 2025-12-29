@@ -250,9 +250,11 @@ private final class LegacySpeechBackend: SpeechBackending {
         } catch {
 #if targetEnvironment(simulator)
             // In simulator, audio session config may fail but recording still works
-            speechLogger.debug("Audio session config failed in simulator (expected): \(error.localizedDescription, privacy: .public)")
+            let info = Self.safeErrorInfo(error)
+            speechLogger.debug("Audio session config failed in simulator (expected). domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
 #else
-            speechLogger.error("Audio session configuration failed: \(error.localizedDescription, privacy: .public)")
+            let info = Self.safeErrorInfo(error)
+            speechLogger.error("Audio session configuration failed. domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
             throw SpeechServiceError.audioSessionUnavailable
 #endif
         }
@@ -293,7 +295,8 @@ private final class LegacySpeechBackend: SpeechBackending {
             try engine.start()
             speechLogger.info("Audio engine started.")
         } catch {
-            speechLogger.error("Failed to start audio engine: \(error.localizedDescription, privacy: .public)")
+            let info = Self.safeErrorInfo(error)
+            speechLogger.error("Failed to start audio engine. domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
             throw SpeechServiceError.engineError(error.localizedDescription)
         }
 
@@ -314,7 +317,8 @@ private final class LegacySpeechBackend: SpeechBackending {
             guard let self else { return }
             
             if let error {
-                speechLogger.error("Recognition error: \(error.localizedDescription, privacy: .public)")
+                let info = Self.safeErrorInfo(error)
+                speechLogger.error("Recognition error. domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
                 self.streamContinuation?.finish(throwing: error)
                 return
             }
@@ -360,6 +364,11 @@ private final class LegacySpeechBackend: SpeechBackending {
             },
             audioLevels: audioLevelStream
         )
+    }
+
+    private static func safeErrorInfo(_ error: Error) -> (domain: String, code: Int) {
+        let nsError = error as NSError
+        return (nsError.domain, nsError.code)
     }
     
     private static func calculateRMSLevel(from buffer: AVAudioPCMBuffer) -> Float {

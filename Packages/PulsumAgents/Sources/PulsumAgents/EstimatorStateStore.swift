@@ -14,6 +14,10 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
     private let fileURL: URL
     private let fileManager: FileManager
     private let logger = Logger(subsystem: "ai.pulsum", category: "EstimatorStateStore")
+    private func logError(_ message: String, error: Error) {
+        let nsError = error as NSError
+        logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
+    }
 
     init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
          fileManager: FileManager = .default) {
@@ -34,7 +38,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
             }
             return state
         } catch {
-            logger.error("Failed to load estimator state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to load estimator state.", error: error)
             return nil
         }
     }
@@ -50,7 +54,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
             applyFileProtection()
             excludeFromBackup()
         } catch {
-            logger.error("Failed to persist estimator state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to persist estimator state.", error: error)
         }
     }
 
@@ -63,14 +67,14 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
                 #endif
             } catch {
-                logger.error("Failed to prepare estimator state directory: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to prepare estimator state directory.", error: error)
             }
         } else {
             #if os(iOS)
             do {
                 try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
             } catch {
-                logger.error("Failed to update estimator state directory protection: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to update estimator state directory protection.", error: error)
             }
             #endif
         }
@@ -81,7 +85,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
         do {
             try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
         } catch {
-            logger.error("Failed to set file protection on estimator state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to set file protection on estimator state.", error: error)
         }
         #endif
     }
@@ -93,7 +97,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
         do {
             try mutableURL.setResourceValues(values)
         } catch {
-            logger.error("Failed to mark estimator state as backup-excluded: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to mark estimator state as backup-excluded.", error: error)
         }
     }
 }

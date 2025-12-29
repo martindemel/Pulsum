@@ -8,18 +8,31 @@ final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
     private(set) var stoppedIdentifiers: [String] = []
     private(set) var backgroundRequests: [Set<String>] = []
     var authorizationStatuses: [String: HKAuthorizationStatus] = [:]
-    var requestAuthorizationStatus: HKAuthorizationRequestStatus?
+    var requestAuthorizationStatus: HKAuthorizationRequestStatus? = .unnecessary
     var availabilityReason: String = "Unavailable"
     var fetchedSamples: [String: [HKSample]] = [:]
     private(set) var fetchRequests: [(identifier: String, start: Date, end: Date)] = []
     private(set) var dailyStepTotalsRequests: [(start: Date, end: Date)] = []
     private(set) var nocturnalStatsRequests: [(start: Date, end: Date)] = []
     var fetchDelayNanoseconds: UInt64 = 0
+    var readProbeResults: [String: ReadAuthorizationProbeResult] = [:]
 
     func requestAuthorization() async throws {}
 
     func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? {
         requestAuthorizationStatus
+    }
+
+    func probeReadAuthorization(for type: HKSampleType) async -> ReadAuthorizationProbeResult {
+        readProbeResults[type.identifier] ?? .authorized
+    }
+
+    func probeReadAuthorization(for types: [HKSampleType]) async -> [HKSampleType: ReadAuthorizationProbeResult] {
+        var results: [HKSampleType: ReadAuthorizationProbeResult] = [:]
+        for type in types {
+            results[type] = await probeReadAuthorization(for: type)
+        }
+        return results
     }
 
     func fetchDailyStepTotals(startDate: Date, endDate: Date) async throws -> [Date: Int] {

@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import PulsumAgents
 import SwiftUI
+import PulsumTypes
 
 @MainActor
 @Observable
@@ -190,6 +191,14 @@ final class PulseViewModel {
         analysisError = nil
         if response.result.embeddingPending {
             savedToastMessage = "Saved. We'll finish analyzing this entry soon."
+            Diagnostics.log(level: .info,
+                            category: .ui,
+                            name: "ui.analysis.deferred",
+                            fields: [
+                                "reason": .safeString(.stage("journal_embeddings_pending",
+                                                             allowed: ["embeddings_pending", "health_backfill_running", "library_index_deferred", "journal_embeddings_pending", "unknown"])),
+                                "pending_journals": .int(1)
+                            ])
         } else {
             savedToastMessage = "Saved to Journal"
         }

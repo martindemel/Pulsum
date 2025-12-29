@@ -7,7 +7,10 @@ final class Gate3_IngestionIdempotenceTests: XCTestCase {
     func testRestartDoesNotDuplicateObserversAndStopsRevokedTypes() async throws {
         let stub = HealthKitServiceStub()
         let identifiers = HealthKitService.orderedReadSampleTypes.map { $0.identifier }
-        identifiers.forEach { stub.authorizationStatuses[$0] = .sharingAuthorized }
+        identifiers.forEach {
+            stub.authorizationStatuses[$0] = .sharingAuthorized
+            stub.readProbeResults[$0] = .authorized
+        }
         let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
 
         try await agent.startIngestionIfAuthorized()
@@ -30,12 +33,14 @@ final class Gate3_IngestionIdempotenceTests: XCTestCase {
         }
 
         stub.authorizationStatuses[firstIdentifier] = .sharingDenied
+        stub.readProbeResults[firstIdentifier] = .denied
 
         try await agent.restartIngestionAfterPermissionsChange()
 
         XCTAssertTrue(stub.stoppedIdentifiers.contains(firstIdentifier), "Revoked type should be stopped.")
 
         stub.authorizationStatuses[firstIdentifier] = .sharingAuthorized
+        stub.readProbeResults[firstIdentifier] = .authorized
 
         try await agent.restartIngestionAfterPermissionsChange()
 

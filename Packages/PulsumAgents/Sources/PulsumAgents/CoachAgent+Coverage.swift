@@ -1,5 +1,6 @@
 import Foundation
 import PulsumData
+import PulsumTypes
 
 public enum CoveragePassKind {
     case strong
@@ -107,7 +108,15 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
 }
 
 public func logCoverage(_ decision: CoverageDecision) {
-#if DEBUG
-    print("Coverage decision: kind=\(decision.kind) reason=\(decision.reason) matches=\(decision.count) top=\(String(format: "%.2f", decision.top)) median=\(String(format: "%.2f", decision.median)) thr=\(decision.thresholdUsed)")
-#endif
+    Diagnostics.log(level: .debug,
+                    category: .coach,
+                    name: "coach.coverage.decision",
+                    fields: [
+                        "kind": .safeString(.stage("\(decision.kind)", allowed: ["strong", "soft", "fail"])),
+                        "reason": .safeString(.metadata(decision.reason)),
+                        "match_count": .int(decision.count),
+                        "top": .double(decision.top),
+                        "median": .double(decision.median),
+                        "threshold": .double(decision.thresholdUsed)
+                    ])
 }

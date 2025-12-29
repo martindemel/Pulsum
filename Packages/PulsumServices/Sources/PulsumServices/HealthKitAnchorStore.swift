@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import PulsumData
+import PulsumTypes
 
 /// Persists HealthKit query anchors on-device with complete file protection.
 public final class HealthKitAnchorStore {
@@ -28,9 +29,13 @@ public final class HealthKitAnchorStore {
             do {
                 let data = try NSKeyedArchiver.archivedData(withRootObject: anchor, requiringSecureCoding: true)
                 try data.write(to: fileURL, options: .atomic)
-                try self.applyFileProtection(to: fileURL)
+                self.applyFileProtectionIfAvailable(to: fileURL)
             } catch {
-                assertionFailure("Failed to persist HKQueryAnchor for \(sampleTypeIdentifier): \(error)")
+                Diagnostics.log(level: .warn,
+                                category: .healthkit,
+                                name: "healthkit.anchor.persist.failed",
+                                fields: ["type": .safeString(.metadata(sampleTypeIdentifier))],
+                                error: error)
             }
         }
     }
@@ -42,7 +47,11 @@ public final class HealthKitAnchorStore {
             do {
                 try self.fileManager.removeItem(at: fileURL)
             } catch {
-                assertionFailure("Failed to remove HKQueryAnchor for \(sampleTypeIdentifier): \(error)")
+                Diagnostics.log(level: .warn,
+                                category: .healthkit,
+                                name: "healthkit.anchor.remove.failed",
+                                fields: ["type": .safeString(.metadata(sampleTypeIdentifier))],
+                                error: error)
             }
         }
     }
@@ -51,8 +60,10 @@ public final class HealthKitAnchorStore {
         directory.appendingPathComponent(identifier.safeFilenameComponent).appendingPathExtension("anchor")
     }
 
-    private func applyFileProtection(to url: URL) throws {
-        try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+    private func applyFileProtectionIfAvailable(to url: URL) {
+#if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+#endif
     }
 }
 

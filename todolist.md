@@ -96,6 +96,40 @@
 - [x] Deduplicated podcast dataset to the single canonical `podcastrecommendations 2.json`; enforced hash uniqueness and banned `*.pbxproj.backup` in `scripts/ci/integrity.sh` and `scripts/ci/test-harness.sh`.
 - [x] Added Gate5 suites (concurrency, file-handle failure, manager actor, importer perf/atomicity) and run package build/tests with `-Xswiftc -strict-concurrency=complete`.
 
+## Gate 6 – Diagnostics Logging Upgrade (First-run stall investigation)
+### A) PulsumTypes: Structured diagnostics layer
+- [x] A1: Add DiagnosticsLevel/DiagnosticsCategory/DiagnosticsSafeString/DiagnosticsValue/DiagnosticsEvent types (Codable + Sendable), enforcing safe string/value rules.
+- [x] A2: Implement DiagnosticsConfig (UserDefaults-backed) with DEBUG/RELEASE defaults and persistence flags.
+- [x] A3: Build DiagnosticsLogger actor (singleton) with DebugLogBuffer mirroring, OSLog mirroring, rolling file persistence (protected, backup-excluded, rotation, batched flush), non-async front-door API.
+- [x] A4: Add span helpers (DiagnosticsSpanToken, measure/span, os_signpost integration) with duration_ms.
+- [x] A5: Create DiagnosticsStallMonitor (heartbeat + stall warn) and wire for backfill/pending work loops.
+
+### B) Instrument first-run critical path
+- [x] B0: Emit timeline.firstRun.start/checkpoint/end with coherent reasoning for “needs more time/analyzing”.
+- [x] B1: AppViewModel lifecycle/session events with session_id and environment fields.
+- [x] B2: AgentOrchestrator start spans/checkpoints (health access summary, embeddings availability, pending journals, deferred library import).
+- [x] B3: EmbeddingService availability probes/changes/failures events.
+- [x] B4: SentimentAgent persistence/reprocess/pending embedding instrumentation + stall monitor heartbeats.
+- [x] B5: DataAgent/HealthKit bootstrap/backfill status/batch instrumentation + stall monitors + snapshot publish events.
+- [x] B6: LibraryImporter/VectorIndex stats/import/deferred/retry instrumentation + stall monitors.
+- [x] B7: CoachAgent recommendation/feedback instrumentation.
+- [x] B8: UI wellbeing/analysis state transition events (including timeline.firstRun.end reasons).
+
+### C) Settings UI controls + export
+- [x] C1: Surface diagnostics config (enabled/minLevel/persistence/signposts/OSLog), session_id display, export diagnostics report (header + snapshot + log tails), and clear diagnostics (buffer + files) with warning copy.
+
+### D) Remove/replace unsafe prints
+- [x] D1: Remove or replace prints/unsafe logging (especially SafetyLocal) with safe Diagnostics events.
+
+### TESTS
+- [x] T1: PulsumTypesTests for formatting (single-line with session_id), file rotation/maxFiles, backup exclusion/file protection attempts, export report contents, forbidden-substring guard; keep DebugLogBufferTests passing.
+
+### DOCS
+- [x] Doc1: Update architecture/README to document on-device diagnostics, opt-in persistence, export flow, and privacy guarantees.
+
+### Verification follow-up
+- [x] Gate6 diagnostics hardening: actorized stall monitor, enforced single timeline start/end, and moved exports to protected Application Support/Diagnostics with backup exclusion.
+
 ## Gate 0 - Security & Build Blockers (✅ COMPLETE - November 9, 2025)
 - [x] Remove Info.plist/OpenAI key paths, harden `LLMGateway` to Keychain/environment only, and add repo/binary secret scans (`scripts/ci/scan-secrets.sh`, LLMGateway precedence tests) — fixes BUG-20251026-0001.
 - [x] Add PrivacyInfo manifests for app + all packages (XML plist format) and enforce them via `scripts/ci/check-privacy-manifests.sh` with optional `RUN_PRIVACY_REPORT=1` — fixes BUG-20251026-0002.

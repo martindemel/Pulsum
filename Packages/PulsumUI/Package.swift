@@ -15,6 +15,7 @@ let package = Package(
     dependencies: [
         .package(path: "../PulsumAgents"),
         .package(path: "../PulsumData"),
+        .package(path: "../PulsumServices"),
         .package(path: "../PulsumTypes")
     ],
     targets: [
@@ -23,6 +24,7 @@ let package = Package(
             dependencies: [
                 "PulsumAgents",
                 "PulsumData",
+                "PulsumServices",
                 "PulsumTypes"
             ],
             path: "Sources",

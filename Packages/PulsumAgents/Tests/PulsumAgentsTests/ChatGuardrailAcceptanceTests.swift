@@ -84,6 +84,7 @@ final class ChatHarness {
         localGenerator = AcceptanceLocalGenerator()
         let gateway = LLMGateway(cloudClient: cloudClient,
                                  localGenerator: localGenerator)
+        try? gateway.setAPIKey("stub-acceptance-key")
         let coachAgent: CoachAgent = try CoachAgent(container: container,
                                                     vectorIndex: StubVectorIndex(),
                                                     libraryImporter: LibraryImporter(configuration: LibraryImporterConfiguration(),
@@ -137,6 +138,8 @@ private actor StubDataAgent: DataAgentProviding {
         self.snapshot = snapshot
     }
 
+    func setDiagnosticsTraceId(_ traceId: UUID?) async {}
+
     func start() async throws {}
 
     func latestFeatureVector() async throws -> FeatureVectorSnapshot? {
@@ -163,6 +166,14 @@ private actor StubDataAgent: DataAgentProviding {
 
     func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus {
         await currentHealthAccessStatus()
+    }
+
+    func diagnosticsBackfillCounts() async -> (warmCompleted: Int, fullCompleted: Int) {
+        (warmCompleted: 0, fullCompleted: 0)
+    }
+
+    func latestSnapshotMetadata() async -> (dayString: String?, score: Double?) {
+        (dayString: nil, score: snapshot?.wellbeingScore)
     }
 
     func reset() {}

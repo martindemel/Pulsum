@@ -14,6 +14,10 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
     private let fileURL: URL
     private let fileManager: FileManager
     private let logger = Logger(subsystem: "ai.pulsum", category: "RecRankerStateStore")
+    private func logError(_ message: String, error: Error) {
+        let nsError = error as NSError
+        logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
+    }
 
     public init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
                 fileManager: FileManager = .default) {
@@ -34,7 +38,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
             }
             return state
         } catch {
-            logger.error("Failed to load RecRanker state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to load RecRanker state.", error: error)
             return nil
         }
     }
@@ -50,7 +54,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
             applyFileProtection()
             excludeFromBackup()
         } catch {
-            logger.error("Failed to persist RecRanker state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to persist RecRanker state.", error: error)
         }
     }
 
@@ -63,14 +67,14 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
 #endif
             } catch {
-                logger.error("Failed to prepare RecRanker state directory: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to prepare RecRanker state directory.", error: error)
             }
         } else {
 #if os(iOS)
             do {
                 try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
             } catch {
-                logger.error("Failed to update RecRanker state directory protection: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to update RecRanker state directory protection.", error: error)
             }
 #endif
         }
@@ -81,7 +85,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
         do {
             try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
         } catch {
-            logger.error("Failed to set file protection on RecRanker state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to set file protection on RecRanker state.", error: error)
         }
 #endif
     }
@@ -93,7 +97,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
         do {
             try mutableURL.setResourceValues(values)
         } catch {
-            logger.error("Failed to mark RecRanker state as backup-excluded: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to mark RecRanker state as backup-excluded.", error: error)
         }
     }
 }

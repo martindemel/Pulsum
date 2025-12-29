@@ -5,6 +5,7 @@ import PulsumAgents
 #if canImport(FoundationModels) && os(iOS)
 import FoundationModels
 #endif
+import PulsumTypes
 
 @MainActor
 @Observable
@@ -45,6 +46,7 @@ final class CoachViewModel {
     private(set) var consentGranted: Bool = false
     var chatFocusToken = UUID()
     @ObservationIgnored private let logger = Logger(subsystem: "com.pulsum", category: "CoachViewModel")
+    private var lastWellbeingState: WellbeingScoreState = .loading
 
     func bind(orchestrator: AgentOrchestrator, consentProvider: @escaping () -> Bool) {
         self.orchestrator = orchestrator
@@ -55,7 +57,9 @@ final class CoachViewModel {
     func refreshRecommendations() async {
         guard let orchestrator else { return }
         if !hasLoadedWellbeing {
+            let previous = wellbeingState
             wellbeingState = .loading
+            logWellbeingTransition(from: previous, to: wellbeingState, reason: "loading")
             cardErrorMessage = nil
         }
         isLoadingCards = true
@@ -64,7 +68,9 @@ final class CoachViewModel {
         do {
             let response = try await orchestrator.recommendations(consentGranted: consentProvider())
             recommendations = response.cards
+            let previous = wellbeingState
             wellbeingState = response.wellbeingState
+            logWellbeingTransition(from: previous, to: wellbeingState, reason: "refresh")
             cardErrorMessage = response.notice
 
             switch response.wellbeingState {
@@ -78,11 +84,14 @@ final class CoachViewModel {
             hasLoadedWellbeing = true
         } catch {
             cardErrorMessage = mapError(error)
+            let previous = wellbeingState
             wellbeingState = .error(message: cardErrorMessage ?? "Unable to compute wellbeing right now.")
+            logWellbeingTransition(from: previous, to: wellbeingState, reason: "error")
             wellbeingScore = nil
             contributions = [:]
             hasLoadedWellbeing = true
         }
+        lastWellbeingState = wellbeingState
     }
 
     func updateConsent(_ granted: Bool) {
@@ -136,7 +145,8 @@ final class CoachViewModel {
             logger.debug("Chat response appended. Characters: \(response.count, privacy: .public)")
         } catch {
             chatErrorMessage = mapError(error)
-            logger.error("Chat send failed: \(error.localizedDescription, privacy: .public)")
+            let nsError = error as NSError
+            logger.error("Chat send failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
         }
         isSendingChat = false
     }
@@ -166,5 +176,33 @@ final class CoachViewModel {
             guard let self else { return }
             cheerEventMessage = nil
         }
+    }
+
+    private func logWellbeingTransition(from: WellbeingScoreState, to: WellbeingScoreState, reason: String) {
+        let allowedStates: Set<String> = ["loading", "ready", "no_data", "error"]
+        let allowedReasons: Set<String> = ["refresh", "error", "loading", "unknown"]
+        Diagnostics.log(level: .info,
+                        category: .ui,
+                        name: "ui.wellbeingState.transition",
+                        fields: [
+                            "from": .safeString(.stage(label(for: from), allowed: allowedStates)),
+                            "to": .safeString(.stage(label(for: to), allowed: allowedStates)),
+                            "reason": .safeString(.stage(reason, allowed: allowedReasons)),
+                            "has_snapshot": .bool(hasSnapshot(to))
+                        ])
+    }
+
+    private func label(for state: WellbeingScoreState) -> String {
+        switch state {
+        case .loading: return "loading"
+        case .ready: return "ready"
+        case .noData: return "no_data"
+        case .error: return "error"
+        }
+    }
+
+    private func hasSnapshot(_ state: WellbeingScoreState) -> Bool {
+        if case .ready = state { return true }
+        return false
     }
 }

@@ -14,13 +14,15 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(path: "../PulsumML")
+        .package(path: "../PulsumML"),
+        .package(path: "../PulsumTypes")
     ],
     targets: [
         .target(
             name: "PulsumData",
             dependencies: [
-                "PulsumML"
+                "PulsumML",
+                "PulsumTypes"
             ],
             path: "Sources",
             resources: [

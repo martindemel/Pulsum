@@ -6,6 +6,11 @@ public protocol VectorIndexProviding: AnyObject, Sendable {
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float]
     func removeMicroMoment(id: String) async throws
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch]
+    func stats() async -> (shards: Int, items: Int)
+}
+
+public extension VectorIndexProviding {
+    func stats() async -> (shards: Int, items: Int) { (0, 0) }
 }
 
 public actor VectorIndexManager: VectorIndexProviding {
@@ -39,5 +44,9 @@ public actor VectorIndexManager: VectorIndexProviding {
     public func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
         let embedding = try embeddingService.embedding(for: query)
         return try await microMomentsIndex.search(vector: embedding, topK: topK)
+    }
+
+    public func stats() async -> (shards: Int, items: Int) {
+        await microMomentsIndex.stats()
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import os
+import PulsumTypes
 
 /// Central access point for on-device embeddings with AFM primary and hash fallback.
 public final class EmbeddingService {
@@ -22,6 +23,7 @@ public final class EmbeddingService {
     }
 
     private var availabilityState: AvailabilityState = .unknown
+    private var lastReportedAvailability: AvailabilityMode?
     private let availabilityProbeText = "pulsum-availability-check"
     private let reprobeInterval: TimeInterval
     private let dateProvider: () -> Date
@@ -59,7 +61,7 @@ public final class EmbeddingService {
     }
 
     /// Availability probe with self-healing. Re-probes after a cooldown or once Apple Intelligence reports ready.
-    public func isAvailable() -> Bool {
+    public func isAvailable(trigger: String = "cache_check") -> Bool {
         let now = dateProvider()
         var shouldProbe = true
         var cachedResult: Bool?
@@ -101,10 +103,11 @@ public final class EmbeddingService {
             return cachedResult ?? false
         }
 
-        let result = probeAvailability()
+        let result = probeAvailability(trigger: trigger)
 
         availabilityQueue.sync {
             availabilityState = result ? .available : .unavailable(lastChecked: now)
+            logAvailabilityChangeIfNeeded(newMode: result ? .available : .unavailable, trigger: trigger)
         }
         return result
     }
@@ -118,7 +121,7 @@ public final class EmbeddingService {
 
     /// Refreshes availability off the caller's thread, optionally forcing a probe even if cached unavailable.
     @discardableResult
-    public func refreshAvailability(force: Bool = false) async -> AvailabilityMode {
+    public func refreshAvailability(force: Bool = false, trigger: String = "manual") async -> AvailabilityMode {
         await withCheckedContinuation { continuation in
             availabilityQueue.async {
                 let now = self.dateProvider()
@@ -154,21 +157,24 @@ public final class EmbeddingService {
                 }
 
                 self.availabilityState = .probing(previous: cached == .available)
-                let result = self.probeAvailability()
-                self.availabilityState = result ? .available : .unavailable(lastChecked: now)
-                continuation.resume(returning: result ? .available : .unavailable)
+                let result = self.probeAvailability(trigger: trigger)
+                let mode: AvailabilityMode = result ? .available : .unavailable
+                self.availabilityState = mode == .available ? .available : .unavailable(lastChecked: now)
+                self.logAvailabilityChangeIfNeeded(newMode: mode, trigger: trigger)
+                continuation.resume(returning: mode)
             }
         }
     }
 
     /// Lightweight availability probe without invoking caller text; callers can branch without throwing.
-    public func availabilityMode() -> AvailabilityMode {
-        isAvailable() ? .available : .unavailable
+    public func availabilityMode(trigger: String = "cache_check") -> AvailabilityMode {
+        isAvailable(trigger: trigger) ? .available : .unavailable
     }
 
     /// Generates an embedding for the supplied text, padding or truncating to 384 dimensions.
     public func embedding(for text: String) throws -> [Float] {
         var lastError: Error?
+        var lastProvider: DiagnosticsSafeString?
 
         if let primaryProvider {
             do {
@@ -176,6 +182,7 @@ public final class EmbeddingService {
                 return try validated(vector)
             } catch {
                 lastError = error
+                lastProvider = DiagnosticsSafeString.stage("primary", allowed: Set(["primary", "fallback"]))
             }
         }
 
@@ -185,9 +192,18 @@ public final class EmbeddingService {
                 return try validated(vector)
             } catch {
                 lastError = error
+                lastProvider = DiagnosticsSafeString.stage("fallback", allowed: Set(["primary", "fallback"]))
             }
         }
 
+        Diagnostics.log(level: .error,
+                        category: .embeddings,
+                        name: "embeddings.embedding.failed",
+                        fields: [
+                            "provider": .safeString(lastProvider ?? DiagnosticsSafeString.stage("none", allowed: Set(["none", "primary", "fallback"]))),
+                            "dimension": .int(dimension)
+                        ],
+                        error: lastError)
         throw lastError ?? EmbeddingError.generatorUnavailable
     }
 
@@ -241,14 +257,62 @@ public final class EmbeddingService {
         return adjusted
     }
 
-    private func probeAvailability() -> Bool {
-        if let vector = try? embedding(for: availabilityProbeText),
-           vector.count == dimension,
-           vector.contains(where: { $0 != 0 }) {
-            return true
+    private func probeAvailability(trigger: String) -> Bool {
+        let triggerSafe = DiagnosticsSafeString.stage(trigger, allowed: Set(["cache_check", "manual", "startup", "foreground", "retry_deferred"]))
+        let span = Diagnostics.span(category: .embeddings,
+                                    name: "embeddings.availability.probe",
+                                    fields: [
+                                        "trigger": .safeString(triggerSafe),
+                                        "dimension": .int(dimension)
+                                    ],
+                                    level: .info)
+        let start = ContinuousClock().now
+        var providerUsed = DiagnosticsSafeString.stage("unknown", allowed: Set(["primary", "fallback", "unknown"]))
+        var success = false
+
+        if let primaryProvider {
+            if let vector = try? primaryProvider.embedding(for: availabilityProbeText),
+               vector.count == dimension,
+               vector.contains(where: { $0 != 0 }) {
+                success = true
+                providerUsed = DiagnosticsSafeString.stage("primary", allowed: Set(["primary", "fallback", "unknown"]))
+            }
         }
-        logger.error("Embedding availability probe failed; providers unavailable or returned zero-vector.")
-        return false
+
+        if !success, let fallbackProvider {
+            if let vector = try? fallbackProvider.embedding(for: availabilityProbeText),
+               vector.count == dimension,
+               vector.contains(where: { $0 != 0 }) {
+                success = true
+                providerUsed = DiagnosticsSafeString.stage("fallback", allowed: Set(["primary", "fallback", "unknown"]))
+            }
+        }
+
+        if !success {
+            logger.error("Embedding availability probe failed; providers unavailable or returned zero-vector.")
+        }
+
+        let elapsed = ContinuousClock().now - start
+        let durationMs = Double(elapsed.components.seconds) * 1_000 + Double(elapsed.components.attoseconds) / 1_000_000_000_000_000.0
+        span.end(additionalFields: [
+            "trigger": .safeString(triggerSafe),
+            "provider": .safeString(providerUsed),
+            "result": .safeString(DiagnosticsSafeString.stage(success ? "available" : "unavailable",
+                                                              allowed: Set(["available", "unavailable"]))),
+            "dimension": .int(dimension)
+        ], error: success ? nil : EmbeddingError.generatorUnavailable)
+        Diagnostics.log(level: success ? .info : .warn,
+                        category: .embeddings,
+                        name: "embeddings.availability.probe.end",
+                        fields: [
+                            "trigger": .safeString(triggerSafe),
+                            "provider": .safeString(providerUsed),
+                            "result": .safeString(DiagnosticsSafeString.stage(success ? "available" : "unavailable",
+                                                                              allowed: Set(["available", "unavailable"]))),
+                            "dimension": .int(dimension),
+                            "duration_ms": .double(durationMs)
+                        ])
+        return success
     }
 
     #if DEBUG
@@ -265,6 +329,20 @@ public final class EmbeddingService {
         return nil
     }
     #endif
+
+    private func logAvailabilityChangeIfNeeded(newMode: AvailabilityMode, trigger: String) {
+        guard lastReportedAvailability != newMode else { return }
+        lastReportedAvailability = newMode
+        Diagnostics.log(level: .info,
+                        category: .embeddings,
+                        name: "embeddings.availability.changed",
+                        fields: [
+                            "state": .safeString(DiagnosticsSafeString.stage(newMode == .available ? "available" : "unavailable",
+                                                                             allowed: Set(["available", "unavailable"]))),
+                            "trigger": .safeString(DiagnosticsSafeString.stage(trigger,
+                                                                               allowed: Set(["cache_check", "manual", "startup", "foreground", "retry_deferred"])))
+                        ])
+    }
 }
 
 #if DEBUG

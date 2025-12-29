@@ -64,6 +64,9 @@ actor DataAgent {
     private var backfillProgress: BackfillProgress
     private var pendingSnapshotUpdate: Task<Void, Never>?
     private var backgroundBackfillTask: Task<Void, Never>?
+    private var cachedReadAccess: (timestamp: Date, results: [String: ReadAuthorizationProbeResult])?
+    private let readProbeCacheTTL: TimeInterval = 30
+    private var diagnosticsTraceId: UUID?
 
     // Phase 1: small foreground window for fast first score; Phase 2: full context restored in background.
     private let warmStartWindowDays = 7
@@ -107,26 +110,40 @@ actor DataAgent {
 
     // MARK: - Lifecycle
 
+    func setDiagnosticsTraceId(_ traceId: UUID?) async {
+        diagnosticsTraceId = traceId
+    }
+
     func start() async throws {
-        await DebugLogBuffer.shared.append("DataAgent.start invoked")
+        let span = Diagnostics.span(category: .dataAgent,
+                                    name: "data.start",
+                                    traceId: diagnosticsTraceId)
         let initialStatus = await currentHealthAccessStatus()
-        await DebugLogBuffer.shared.append("Initial HealthKit status: \(statusSummary(initialStatus))")
         try await configureObservation(for: initialStatus, resetRevokedAnchors: false)
 
         // Always re-request to refresh HealthKit's internal state; authorized paths return immediately.
         do {
             try await healthKit.requestAuthorization()
-            await DebugLogBuffer.shared.append("HealthKit requestAuthorization succeeded")
+            logDiagnostics(level: .info,
+                           category: .healthkit,
+                           name: "data.healthkit.authorization",
+                           fields: ["state": .safeString(.stage("authorized", allowed: ["authorized", "failed"]))])
+            invalidateReadAccessCache()
         } catch {
-            await DebugLogBuffer.shared.append("HealthKit requestAuthorization failed: \(error.localizedDescription)")
+            logDiagnostics(level: .error,
+                           category: .healthkit,
+                           name: "data.healthkit.authorization",
+                           fields: ["state": .safeString(.stage("failed", allowed: ["authorized", "failed"]))],
+                           error: error)
+            span.end(error: error)
             throw error
         }
 
         let refreshedStatus = await currentHealthAccessStatus()
-        await DebugLogBuffer.shared.append("Refreshed HealthKit status: \(statusSummary(refreshedStatus))")
         try await configureObservation(for: refreshedStatus, resetRevokedAnchors: true)
         await bootstrapFirstScore(for: refreshedStatus)
         scheduleBackfill(for: refreshedStatus)
+        span.end(error: nil)
     }
 
     @discardableResult
@@ -140,6 +157,7 @@ actor DataAgent {
 
     @discardableResult
     func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus {
+        invalidateReadAccessCache()
         let status = await currentHealthAccessStatus()
         await DebugLogBuffer.shared.append("restartIngestionAfterPermissionsChange status: \(statusSummary(status))")
         try await configureObservation(for: status, resetRevokedAnchors: true)
@@ -151,6 +169,7 @@ actor DataAgent {
     @discardableResult
     func requestHealthAccess() async throws -> HealthAccessStatus {
         try await healthKit.requestAuthorization()
+        invalidateReadAccessCache()
         let status = await currentHealthAccessStatus()
         await DebugLogBuffer.shared.append("requestHealthAccess refreshed status: \(statusSummary(status))")
         try await configureObservation(for: status, resetRevokedAnchors: true)
@@ -172,19 +191,23 @@ actor DataAgent {
         var granted: Set<HKSampleType> = []
         var denied: Set<HKSampleType> = []
         var pending: Set<HKSampleType> = []
+        var probeResults: [String: ReadAuthorizationProbeResult] = [:]
 
         let requestStatus = await healthKit.requestStatusForAuthorization(readTypes: Set(requiredSampleTypes))
 
-        for type in requiredSampleTypes {
-            switch healthKit.authorizationStatus(for: type) {
-            case .sharingAuthorized:
-                granted.insert(type)
-            case .sharingDenied:
-                denied.insert(type)
-            case .notDetermined:
-                pending.insert(type)
-            @unknown default:
-                pending.insert(type)
+        if requestStatus == .shouldRequest || requestStatus == nil {
+            pending = Set(requiredSampleTypes)
+        } else {
+            probeResults = await readAuthorizationProbeResults()
+            for type in requiredSampleTypes {
+                switch probeResults[type.identifier] ?? .notDetermined {
+                case .authorized:
+                    granted.insert(type)
+                case .denied:
+                    denied.insert(type)
+                case .notDetermined, .protectedDataUnavailable, .healthDataUnavailable, .error:
+                    pending.insert(type)
+                }
             }
         }
 
@@ -193,10 +216,7 @@ actor DataAgent {
                                         denied: denied,
                                         notDetermined: pending,
                                         availability: .available)
-        logHealthStatus(status)
-        if let requestStatus {
-            await DebugLogBuffer.shared.append("HealthKit requestStatusForAuthorization=\(requestStatus.rawValue)")
-        }
+        logHealthStatus(status, requestStatus: requestStatus, probeResults: probeResults)
         return status
     }
 
@@ -231,12 +251,24 @@ actor DataAgent {
 
     private func backfillHistoricalSamplesIfNeeded(for status: HealthAccessStatus) async {
         guard case .available = status.availability else {
-            await DebugLogBuffer.shared.append("Backfill skipped: health unavailable")
+            logDiagnostics(level: .info,
+                           category: .backfill,
+                           name: "data.backfill.phase.skip",
+                           fields: [
+                               "phase": .safeString(.stage("warmStart7d", allowed: ["warmStart7d", "full30d"])),
+                               "reason": .safeString(.stage("health_unavailable", allowed: ["health_unavailable", "no_granted"]))
+                           ])
             return
         }
         let grantedTypes = status.granted
         guard !grantedTypes.isEmpty else {
-            await DebugLogBuffer.shared.append("Backfill skipped: no granted types")
+            logDiagnostics(level: .info,
+                           category: .backfill,
+                           name: "data.backfill.phase.skip",
+                           fields: [
+                               "phase": .safeString(.stage("warmStart7d", allowed: ["warmStart7d", "full30d"])),
+                               "reason": .safeString(.stage("no_granted", allowed: ["health_unavailable", "no_granted"]))
+                           ])
             return
         }
 
@@ -246,16 +278,51 @@ actor DataAgent {
 
         let warmStartTypes = grantedTypes.filter { !backfillProgress.warmStartCompletedTypes.contains($0.identifier) }
         if warmStartTypes.isEmpty {
-            await DebugLogBuffer.shared.append("Warm-start backfill skipped: already complete for granted types")
+            logDiagnostics(level: .info,
+                           category: .backfill,
+                           name: "data.backfill.phase.skip",
+                           fields: [
+                               "phase": .safeString(.stage("warmStart7d", allowed: ["warmStart7d", "full30d"])),
+                               "reason": .safeString(.stage("already_complete", allowed: ["health_unavailable", "no_granted", "already_complete"]))
+                           ])
         } else {
-            await DebugLogBuffer.shared.append("Warm-start backfill starting (\(warmStartWindowDays)d) start=\(warmStartStart) end=\(today) types=\(warmStartTypes.map { $0.identifier })")
-            _ = await performBackfill(for: warmStartTypes.sorted { $0.identifier < $1.identifier },
-                                      startDate: warmStartStart,
-                                      endDate: today,
-                                      phase: "warm-start",
-                                      targetStartDate: fullWindowStart,
-                                      markWarmStart: true)
-            notifySnapshotUpdate(for: today)
+            let phaseSpan = Diagnostics.span(category: .backfill,
+                                             name: "data.backfill.phase",
+                                             fields: [
+                                                 "phase": .safeString(.stage("warmStart7d", allowed: ["warmStart7d", "full30d"])),
+                                                 "start_day": .day(warmStartStart),
+                                                 "end_day": .day(today),
+                                                 "target_start_day": .day(fullWindowStart)
+                                             ],
+                                             traceId: diagnosticsTraceId,
+                                             level: .info)
+            let monitor = DiagnosticsStallMonitor(category: .backfill,
+                                                  name: "data.backfill.warmStart",
+                                                  traceId: diagnosticsTraceId,
+                                                  thresholdSeconds: 25,
+                                                  initialFields: [
+                                                      "phase": .safeString(.stage("warmStart7d", allowed: ["warmStart7d", "full30d"])),
+                                                      "type_count": .int(warmStartTypes.count)
+                                                  ])
+            await monitor.start()
+            let result = await performBackfill(for: warmStartTypes.sorted { $0.identifier < $1.identifier },
+                                               startDate: warmStartStart,
+                                               endDate: today,
+                                               phase: "warm-start",
+                                               targetStartDate: fullWindowStart,
+                                               markWarmStart: true,
+                                               monitor: monitor)
+            await monitor.stop(finalFields: [
+                "touched_days": .int(result.days.count),
+                "raw_sample_count": .int(result.totalSamples)
+            ])
+            phaseSpan.end(additionalFields: [
+                "touched_days": .int(result.days.count),
+                "raw_sample_count": .int(result.totalSamples)
+            ], error: nil)
+            notifySnapshotUpdate(for: today,
+                                 reason: .stage("warm_backfill",
+                                                allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
         }
 
         scheduleBackgroundFullBackfillIfNeeded(grantedTypes: grantedTypes, targetStartDate: fullWindowStart)
@@ -267,42 +334,94 @@ actor DataAgent {
         let today = calendar.startOfDay(for: Date())
         guard let start = calendar.date(byAdding: .day, value: -(bootstrapWindowDays - 1), to: today) else { return }
         let types = status.granted.sorted { $0.identifier < $1.identifier }
-        await DebugLogBuffer.shared.append("Bootstrap score window=\(start)→\(today) types=\(types.map { $0.identifier })")
+        let bootstrapSpan = Diagnostics.span(category: .dataAgent,
+                                             name: "data.bootstrap",
+                                             fields: [
+                                                 "window_days": .int(bootstrapWindowDays),
+                                                 "start_day": .day(start),
+                                                 "end_day": .day(today)
+                                             ],
+                                             traceId: diagnosticsTraceId)
+        var touchedDays = Set<Date>()
+        var totalSamples = 0
 
         for type in types {
             let identifier = type.identifier
+            let batchSpan = Diagnostics.span(category: .dataAgent,
+                                             name: "data.bootstrap.batch",
+                                             fields: [
+                                                 "type": .safeString(.metadata(identifier)),
+                                                 "batch_start_day": .day(start),
+                                                 "batch_end_day": .day(today)
+                                             ],
+                                             traceId: diagnosticsTraceId,
+                                             level: .info)
             do {
                 switch identifier {
                 case HKQuantityTypeIdentifier.stepCount.rawValue:
                     let totals = try await safeFetchDailyStepTotals(startDate: start,
                                                                     endDate: today,
                                                                     context: "Bootstrap \(identifier)")
-                    _ = try await applyStepTotals(totals)
+                    let days = try await applyStepTotals(totals)
+                    touchedDays.formUnion(days)
+                    totalSamples += totals.count
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(totals.count),
+                        "processed_days": .int(days.count)
+                    ], error: nil)
                 case HKQuantityTypeIdentifier.heartRate.rawValue:
                     let stats = try await safeFetchNocturnalHeartRateStats(startDate: start,
                                                                            endDate: today,
                                                                            context: "Bootstrap \(identifier)")
-                    _ = try await applyNocturnalStats(stats)
+                    let days = try await applyNocturnalStats(stats)
+                    touchedDays.formUnion(days)
+                    totalSamples += stats.count
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(stats.count),
+                        "processed_days": .int(days.count)
+                    ], error: nil)
                 default:
                     let samples = try await healthKit.fetchSamples(for: type, startDate: start, endDate: today)
-                    _ = try await processBackfillSamples(samples, type: type)
+                    let processed = try await processBackfillSamples(samples, type: type)
+                    touchedDays.formUnion(processed.days)
+                    totalSamples += processed.processedSamples
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(samples.count),
+                        "processed_sample_count": .int(processed.processedSamples),
+                        "processed_days": .int(processed.days.count)
+                    ], error: nil)
                 }
             } catch {
                 if isProtectedHealthDataInaccessible(error) {
-                    await DebugLogBuffer.shared.append("Bootstrap skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    batchSpan.end(additionalFields: [
+                        "skip_reason": .safeString(.stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                    ], error: nil)
                     continue
                 }
-                await DebugLogBuffer.shared.append("Bootstrap failed for \(identifier): \(error.localizedDescription)")
+                batchSpan.end(additionalFields: [
+                    "skip_reason": .safeString(.stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]))
+                ], error: error)
             }
         }
-        notifySnapshotUpdate(for: today)
+        notifySnapshotUpdate(for: today,
+                             reason: .stage("bootstrap",
+                                            allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
 
         do {
             if let _ = try await latestFeatureVector() {
+                bootstrapSpan.end(additionalFields: [
+                    "touched_days": .int(touchedDays.count),
+                    "raw_sample_count": .int(totalSamples),
+                    "snapshot_day": .day(today)
+                ], error: nil)
                 return
             }
         } catch {
-            await DebugLogBuffer.shared.append("Bootstrap latestFeatureVector check failed: \(error.localizedDescription)")
+            bootstrapSpan.end(additionalFields: [
+                "touched_days": .int(touchedDays.count),
+                "raw_sample_count": .int(totalSamples),
+                "snapshot_day": .day(today)
+            ], error: error)
         }
 
         let fallbackEnd = calendar.date(byAdding: .day, value: 1, to: today) ?? today
@@ -311,8 +430,15 @@ actor DataAgent {
                                                                   fallbackStartDate: fallbackStart,
                                                                   fallbackEndDate: fallbackEnd)
         if !fallbackSucceeded {
-            notifySnapshotUpdate(for: today)
+            notifySnapshotUpdate(for: today,
+                                 reason: .stage("bootstrap",
+                                                allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
         }
+        bootstrapSpan.end(additionalFields: [
+            "touched_days": .int(touchedDays.count),
+            "raw_sample_count": .int(totalSamples),
+            "snapshot_day": .day(today)
+        ], error: nil)
     }
 
     private func scheduleBackfill(for status: HealthAccessStatus) {
@@ -330,11 +456,29 @@ actor DataAgent {
         guard case .available = status.availability else { return false }
         guard !status.granted.isEmpty else { return false }
 
+        let span = Diagnostics.span(category: .dataAgent,
+                                    name: "data.bootstrap.fallback",
+                                    fields: [
+                                        "start_day": .day(fallbackStartDate),
+                                        "end_day": .day(fallbackEndDate)
+                                    ],
+                                    traceId: diagnosticsTraceId,
+                                    level: .info)
         var touchedDays: Set<Date> = []
+        var totalSamples = 0
         let types = status.granted.sorted { $0.identifier < $1.identifier }
 
         for type in types {
             let identifier = type.identifier
+            let batchSpan = Diagnostics.span(category: .dataAgent,
+                                             name: "data.bootstrap.fallback.batch",
+                                             fields: [
+                                                 "type": .safeString(.metadata(identifier)),
+                                                 "batch_start_day": .day(fallbackStartDate),
+                                                 "batch_end_day": .day(fallbackEndDate)
+                                             ],
+                                             traceId: diagnosticsTraceId,
+                                             level: .info)
             do {
                 switch identifier {
                 case HKQuantityTypeIdentifier.stepCount.rawValue:
@@ -343,28 +487,66 @@ actor DataAgent {
                                                                     context: "Bootstrap fallback \(identifier)")
                     let days = try await applyStepTotals(totals)
                     touchedDays.formUnion(days)
+                    totalSamples += totals.count
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(totals.count),
+                        "processed_days": .int(days.count)
+                    ], error: nil)
                 case HKQuantityTypeIdentifier.heartRate.rawValue:
                     let stats = try await safeFetchNocturnalHeartRateStats(startDate: fallbackStartDate,
                                                                            endDate: fallbackEndDate,
                                                                            context: "Bootstrap fallback \(identifier)")
                     let days = try await applyNocturnalStats(stats)
                     touchedDays.formUnion(days)
+                    totalSamples += stats.count
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(stats.count),
+                        "processed_days": .int(days.count)
+                    ], error: nil)
                 default:
                     let samples = try await healthKit.fetchSamples(for: type, startDate: fallbackStartDate, endDate: fallbackEndDate)
                     let processed = try await processBackfillSamples(samples, type: type)
                     touchedDays.formUnion(processed.days)
+                    totalSamples += processed.processedSamples
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(samples.count),
+                        "processed_sample_count": .int(processed.processedSamples),
+                        "processed_days": .int(processed.days.count)
+                    ], error: nil)
                 }
             } catch {
                 if isProtectedHealthDataInaccessible(error) {
-                    await DebugLogBuffer.shared.append("Bootstrap fallback skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    batchSpan.end(additionalFields: [
+                        "skip_reason": .safeString(.stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                    ], error: nil)
                     continue
                 }
-                await DebugLogBuffer.shared.append("Bootstrap fallback failed for \(identifier): \(error.localizedDescription)")
+                batchSpan.end(additionalFields: [
+                    "skip_reason": .safeString(.stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]))
+                ], error: error)
+                span.end(additionalFields: [
+                    "touched_days": .int(touchedDays.count),
+                    "raw_sample_count": .int(totalSamples)
+                ], error: error)
+                return false
             }
         }
 
-        guard let latestDay = touchedDays.max() else { return false }
-        notifySnapshotUpdate(for: latestDay)
+        guard let latestDay = touchedDays.max() else {
+            span.end(additionalFields: [
+                "touched_days": .int(touchedDays.count),
+                "raw_sample_count": .int(totalSamples)
+            ], error: nil)
+            return false
+        }
+        notifySnapshotUpdate(for: latestDay,
+                             reason: .stage("bootstrap",
+                                            allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
+        span.end(additionalFields: [
+            "touched_days": .int(touchedDays.count),
+            "raw_sample_count": .int(totalSamples),
+            "snapshot_day": .day(latestDay)
+        ], error: nil)
         return true
     }
 
@@ -372,43 +554,57 @@ actor DataAgent {
         switch type {
         case let quantityType as HKQuantityType:
             let quantitySamples = samples.compactMap { $0 as? HKQuantitySample }
-            await DebugLogBuffer.shared.append("Backfill casting summary for \(quantityType.identifier): quantitySamples=\(quantitySamples.count) raw=\(samples.count)")
             guard !quantitySamples.isEmpty else {
-                await DebugLogBuffer.shared.append("Backfill skipped \(quantityType.identifier): no castable HKQuantitySample instances")
+                logDiagnostics(level: .info,
+                               category: .backfill,
+                               name: "data.backfill.skip",
+                               fields: [
+                                   "type": .safeString(.metadata(quantityType.identifier)),
+                                   "reason": .safeString(.stage("no_castable_samples", allowed: ["no_castable_samples"]))
+                               ])
                 return (0, [])
             }
             // Group by day to avoid huge single calls and to log progress.
             let grouped = Dictionary(grouping: quantitySamples) { calendar.startOfDay(for: $0.startDate) }
             var touched: Set<Date> = []
             var processedCount = 0
-            for (day, daySamples) in grouped {
+            for (_, daySamples) in grouped {
                 let days = try await processQuantitySamples(daySamples, type: quantityType)
                 touched.formUnion(days)
                 processedCount += daySamples.count
-                await DebugLogBuffer.shared.append("Backfill day batch \(day) for \(quantityType.identifier): processed=\(daySamples.count) daysTouched=\(days.count)")
             }
             return (processedCount, touched)
 
         case let categoryType as HKCategoryType:
             let categorySamples = samples.compactMap { $0 as? HKCategorySample }
-            await DebugLogBuffer.shared.append("Backfill casting summary for \(categoryType.identifier): categorySamples=\(categorySamples.count) raw=\(samples.count)")
             guard !categorySamples.isEmpty else {
-                await DebugLogBuffer.shared.append("Backfill skipped \(categoryType.identifier): no castable HKCategorySample instances")
+                logDiagnostics(level: .info,
+                               category: .backfill,
+                               name: "data.backfill.skip",
+                               fields: [
+                                   "type": .safeString(.metadata(categoryType.identifier)),
+                                   "reason": .safeString(.stage("no_castable_samples", allowed: ["no_castable_samples"]))
+                               ])
                 return (0, [])
             }
             let grouped = Dictionary(grouping: categorySamples) { calendar.startOfDay(for: $0.startDate) }
             var touched: Set<Date> = []
             var processedCount = 0
-            for (day, daySamples) in grouped {
+            for (_, daySamples) in grouped {
                 let days = try await processCategorySamples(daySamples, type: categoryType)
                 touched.formUnion(days)
                 processedCount += daySamples.count
-                await DebugLogBuffer.shared.append("Backfill day batch \(day) for \(categoryType.identifier): processed=\(daySamples.count) daysTouched=\(days.count)")
             }
             return (processedCount, touched)
 
         default:
-            await DebugLogBuffer.shared.append("Backfill skipped unsupported type \(type.identifier)")
+            logDiagnostics(level: .info,
+                           category: .backfill,
+                           name: "data.backfill.skip",
+                           fields: [
+                               "type": .safeString(.metadata(type.identifier)),
+                               "reason": .safeString(.stage("unsupported_type", allowed: ["unsupported_type"]))
+                           ])
             return (0, [])
         }
     }
@@ -418,14 +614,27 @@ actor DataAgent {
                                  endDate: Date,
                                  phase: String,
                                  targetStartDate: Date,
-                                 markWarmStart: Bool) async -> (days: Set<Date>, totalSamples: Int) {
+                                 markWarmStart: Bool,
+                                 monitor: DiagnosticsStallMonitor? = nil) async -> (days: Set<Date>, totalSamples: Int) {
         guard !types.isEmpty else { return ([], 0) }
         let sorted = types.sorted { $0.identifier < $1.identifier }
         var touchedDays: Set<Date> = []
         var totalSamples = 0
+        var processedTypeCount = 0
         for type in sorted {
-            await DebugLogBuffer.shared.append("Backfill (\(phase)) starting for \(type.identifier) window=\(startDate)→\(endDate)")
             let identifier = type.identifier
+            let batchSpan = Diagnostics.span(category: .backfill,
+                                             name: "data.backfill.batch",
+                                             fields: [
+                                                 "phase": .safeString(.stage(phase, allowed: ["warm-start", "full"])),
+                                                 "type": .safeString(.metadata(identifier)),
+                                                 "batch_start_day": .day(startDate),
+                                                 "batch_end_day": .day(endDate),
+                                                 "target_start_day": .day(targetStartDate),
+                                                 "mark_warm_start": .bool(markWarmStart)
+                                             ],
+                                             traceId: diagnosticsTraceId,
+                                             level: .info)
             do {
                 switch identifier {
                 case HKQuantityTypeIdentifier.stepCount.rawValue:
@@ -435,7 +644,10 @@ actor DataAgent {
                     let processedDays = try await applyStepTotals(totals)
                     touchedDays.formUnion(processedDays)
                     totalSamples += totals.count
-                    await DebugLogBuffer.shared.append("Backfill (\(phase)) processed \(totals.count) day totals for \(identifier) touchedDays=\(processedDays.count)")
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(totals.count),
+                        "processed_days": .int(processedDays.count)
+                    ], error: nil)
                 case HKQuantityTypeIdentifier.heartRate.rawValue:
                     let stats = try await safeFetchNocturnalHeartRateStats(startDate: startDate,
                                                                            endDate: endDate,
@@ -443,21 +655,26 @@ actor DataAgent {
                     let processedDays = try await applyNocturnalStats(stats)
                     touchedDays.formUnion(processedDays)
                     totalSamples += stats.count
-                    await DebugLogBuffer.shared.append("Backfill (\(phase)) processed \(stats.count) nocturnal HR aggregates for \(identifier) touchedDays=\(processedDays.count)")
+                    batchSpan.end(additionalFields: [
+                        "raw_sample_count": .int(stats.count),
+                        "processed_days": .int(processedDays.count)
+                    ], error: nil)
                 default:
                     let samples = try await healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
-                    let earliest = samples.compactMap(\.startDate).min()
-                    let latest = samples.compactMap(\.startDate).max()
-                    await DebugLogBuffer.shared.append("Backfill (\(phase)) fetched \(samples.count) samples for \(identifier); earliest=\(String(describing: earliest)); latest=\(String(describing: latest))")
-
                     var processed: (processedSamples: Int, days: Set<Date>) = (0, [])
                     if !samples.isEmpty {
                         processed = try await processBackfillSamples(samples, type: type)
-                        await DebugLogBuffer.shared.append("Backfill (\(phase)) processed \(processed.processedSamples) samples for \(identifier) touchedDays=\(processed.days.count)")
                         touchedDays.formUnion(processed.days)
                         totalSamples += processed.processedSamples
+                        batchSpan.end(additionalFields: [
+                            "raw_sample_count": .int(samples.count),
+                            "processed_sample_count": .int(processed.processedSamples),
+                            "processed_days": .int(processed.days.count)
+                        ], error: nil)
                     } else {
-                        await DebugLogBuffer.shared.append("Backfill (\(phase)) skipping \(identifier): zero samples fetched")
+                        batchSpan.end(additionalFields: [
+                            "skip_reason": .safeString(.stage("zero_samples", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                        ], error: nil)
                     }
                 }
 
@@ -467,16 +684,25 @@ actor DataAgent {
                     backfillProgress.recordProcessedRange(for: type.identifier,
                                                           startDate: startDate,
                                                           targetStartDate: targetStartDate,
-                                                          calendar: calendar)
+                                                         calendar: calendar)
                 }
                 persistBackfillProgress()
             } catch {
                 if isProtectedHealthDataInaccessible(error) {
-                    await DebugLogBuffer.shared.append("Backfill (\(phase)) skipped for \(identifier): protected data inaccessible (device likely locked).")
+                    batchSpan.end(additionalFields: [
+                        "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                    ], error: nil)
                 } else {
-                    await DebugLogBuffer.shared.append("Backfill (\(phase)) failed for \(identifier): \(error.localizedDescription)")
+                    batchSpan.end(additionalFields: [
+                        "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                    ], error: error)
                 }
             }
+            await monitor?.heartbeat(progressFields: [
+                "phase": .safeString(.stage(phase, allowed: ["warm-start", "full"])),
+                "processed_types": .int(processedTypeCount + 1)
+            ])
+            processedTypeCount += 1
         }
         return (touchedDays, totalSamples)
     }
@@ -511,13 +737,31 @@ actor DataAgent {
     }
 
     private func performBackgroundFullBackfill(grantedTypes: Set<HKSampleType>, targetStartDate: Date) async {
-        await DebugLogBuffer.shared.append("Background backfill starting toward \(targetStartDate)")
+        let phaseSpan = Diagnostics.span(category: .backfill,
+                                         name: "data.backfill.phase",
+                                         fields: [
+                                             "phase": .safeString(.stage("full30d", allowed: ["warmStart7d", "full30d"])),
+                                             "target_start_day": .day(targetStartDate)
+                                         ],
+                                         traceId: diagnosticsTraceId,
+                                         level: .info)
+        let monitor = DiagnosticsStallMonitor(category: .backfill,
+                                              name: "data.backfill.full",
+                                              traceId: diagnosticsTraceId,
+                                              thresholdSeconds: 90,
+                                              initialFields: [
+                                                  "phase": .safeString(.stage("full30d", allowed: ["warmStart7d", "full30d"])),
+                                                  "granted_types": .int(grantedTypes.count)
+                                              ])
+        await monitor.start()
         defer { backgroundBackfillTask = nil }
 
         var iteration = 0
         var batchTouchedDays: Set<Date> = []
         var batchSampleCount = 0
         var batchTypes: [String] = []
+        var totalTouchedDays: Set<Date> = []
+        var totalSamples = 0
         let today = calendar.startOfDay(for: Date())
 
         while !Task.isCancelled {
@@ -541,16 +785,18 @@ actor DataAgent {
                 var batchStart = calendar.date(byAdding: .day, value: -(backgroundBackfillBatchDays - 1), to: batchEnd) ?? targetStartDate
                 if batchStart < targetStartDate { batchStart = targetStartDate }
 
-                await DebugLogBuffer.shared.append("Background backfill batch \(identifier) start=\(batchStart) end=\(batchEnd)")
                 let touched = await performBackfill(for: [type],
                                                     startDate: batchStart,
                                                     endDate: batchEnd,
-                                                    phase: "background",
+                                                    phase: "full",
                                                     targetStartDate: targetStartDate,
-                                                    markWarmStart: false)
+                                                    markWarmStart: false,
+                                                    monitor: monitor)
                 batchTypes.append(identifier)
                 batchSampleCount += touched.totalSamples
+                totalSamples += touched.totalSamples
                 batchTouchedDays.formUnion(touched.days)
+                totalTouchedDays.formUnion(touched.days)
                 madeProgress = true
             }
 
@@ -558,12 +804,31 @@ actor DataAgent {
                 break
             }
             if !madeProgress {
-                await DebugLogBuffer.shared.append("Background backfill paused: no progress made in this iteration")
+                logDiagnostics(level: .warn,
+                               category: .backfill,
+                               name: "data.backfill.phase.pause",
+                               fields: [
+                                   "phase": .safeString(.stage("full30d", allowed: ["warmStart7d", "full30d"])),
+                                   "reason": .safeString(.stage("no_progress", allowed: ["no_progress"]))
+                               ])
                 break
             }
-            await DebugLogBuffer.shared.append("Backfill summary: window=\(batchTouchedDays.min() ?? today)…\(batchTouchedDays.max() ?? today) types=\(batchTypes) days=\(batchTouchedDays.count) samples=\(batchSampleCount)")
+            logDiagnostics(level: .info,
+                           category: .backfill,
+                           name: "data.backfill.phase.iteration",
+                           fields: [
+                               "phase": .safeString(.stage("full30d", allowed: ["warmStart7d", "full30d"])),
+                               "iteration": .int(iteration),
+                               "window_start_day": batchTouchedDays.min().map { .day($0) } ?? .day(today),
+                               "window_end_day": batchTouchedDays.max().map { .day($0) } ?? .day(today),
+                               "types_processed": .int(batchTypes.count),
+                               "touched_days": .int(batchTouchedDays.count),
+                               "raw_sample_count": .int(batchSampleCount)
+                           ])
             if !batchTouchedDays.isEmpty {
-                notifySnapshotUpdate(for: today)
+                notifySnapshotUpdate(for: today,
+                                     reason: .stage("full_backfill",
+                                                    allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
             }
             batchTouchedDays.removeAll()
             batchSampleCount = 0
@@ -573,7 +838,18 @@ actor DataAgent {
             try? await Task.sleep(nanoseconds: 150_000_000)
         }
 
-        await DebugLogBuffer.shared.append("Background backfill finished or no more work needed")
+        await monitor.stop(finalFields: [
+            "touched_days": .int(totalTouchedDays.count),
+            "raw_sample_count": .int(totalSamples),
+            "iterations": .int(iteration)
+        ])
+
+        phaseSpan.end(additionalFields: [
+            "phase": .safeString(.stage("full30d", allowed: ["warmStart7d", "full30d"])),
+            "touched_days": .int(totalTouchedDays.count),
+            "raw_sample_count": .int(totalSamples),
+            "iterations": .int(iteration)
+        ], error: nil)
     }
 
 
@@ -587,10 +863,11 @@ actor DataAgent {
             await DebugLogBuffer.shared.append("enableBackgroundDelivery enabled for \(grantedTypes.map { $0.identifier })")
         } catch HealthKitServiceError.backgroundDeliveryFailed(let type, let underlying) {
             if shouldIgnoreBackgroundDeliveryError(underlying) {
-#if DEBUG
-                print("[PulsumData] Background delivery disabled (missing entitlement) for \(type.identifier).")
-#endif
                 await DebugLogBuffer.shared.append("enableBackgroundDelivery ignored missing entitlement for \(type.identifier)")
+                Diagnostics.log(level: .warn,
+                                category: .healthkit,
+                                name: "data.healthkit.backgroundDelivery.missingEntitlement",
+                                fields: ["type": .safeString(.metadata(type.identifier))])
             } else {
                 throw HealthKitServiceError.backgroundDeliveryFailed(type: type, underlying: underlying)
             }
@@ -630,14 +907,69 @@ actor DataAgent {
         }
     }
 
-    private func logHealthStatus(_ status: HealthAccessStatus) {
-#if DEBUG
-        let grantedIds = status.granted.map(\.identifier).sorted()
-        let deniedIds = status.denied.map(\.identifier).sorted()
-        let pendingIds = status.notDetermined.map(\.identifier).sorted()
-        print("[PulsumDataAgent] Health access status → granted: \(grantedIds), denied: \(deniedIds), pending: \(pendingIds), availability: \(status.availability)")
-#endif
-        Task { await DebugLogBuffer.shared.append("Health access status → granted: \(status.granted.map(\.identifier)), denied: \(status.denied.map(\.identifier)), pending: \(status.notDetermined.map(\.identifier)), availability: \(status.availability)") }
+    private func readAuthorizationProbeResults(forceRefresh: Bool = false) async -> [String: ReadAuthorizationProbeResult] {
+        if !forceRefresh,
+           let cached = cachedReadAccess,
+           Date().timeIntervalSince(cached.timestamp) < readProbeCacheTTL {
+            return cached.results
+        }
+
+        let resultsByType = await healthKit.probeReadAuthorization(for: requiredSampleTypes)
+        var mapped: [String: ReadAuthorizationProbeResult] = [:]
+        for (type, result) in resultsByType {
+            mapped[type.identifier] = result
+        }
+        cachedReadAccess = (timestamp: Date(), results: mapped)
+        return mapped
+    }
+
+    private func invalidateReadAccessCache() {
+        cachedReadAccess = nil
+    }
+
+    private func logHealthStatus(_ status: HealthAccessStatus,
+                                 requestStatus: HKAuthorizationRequestStatus?,
+                                 probeResults: [String: ReadAuthorizationProbeResult]) {
+        var debugLines: [String] = []
+        debugLines.append("Health access status → granted: \(status.granted.map(\.identifier)), denied: \(status.denied.map(\.identifier)), pending: \(status.notDetermined.map(\.identifier)), availability: \(status.availability)")
+        if let requestStatus {
+            debugLines.append("HealthKit requestStatusForAuthorization=\(requestStatus.rawValue)")
+        }
+        if !probeResults.isEmpty {
+            debugLines.append(readProbeSummary(probeResults))
+            let perType = probeResults
+                .map { "\($0.key)=\(probeLabel(for: $0.value))" }
+                .sorted()
+                .joined(separator: ", ")
+            debugLines.append("HealthKit read probe per-type: \(perType)")
+        }
+        for line in debugLines {
+            Task { await DebugLogBuffer.shared.append(line) }
+        }
+        Diagnostics.log(level: .info,
+                        category: .healthkit,
+                        name: "data.healthkit.status",
+                        fields: [
+                            "granted": .int(status.granted.count),
+                            "denied": .int(status.denied.count),
+                            "pending": .int(status.notDetermined.count),
+                            "availability": .safeString(DiagnosticsSafeString.stage(status.availability == .available ? "available" : "unavailable",
+                                                                                    allowed: Set(["available", "unavailable"])))
+                        ],
+                        traceId: diagnosticsTraceId)
+    }
+
+    private func logDiagnostics(level: DiagnosticsLevel,
+                                category: DiagnosticsCategory = .dataAgent,
+                                name: String,
+                                fields: [String: DiagnosticsValue] = [:],
+                                error: Error? = nil) {
+        Diagnostics.log(level: level,
+                        category: category,
+                        name: name,
+                        fields: fields,
+                        traceId: diagnosticsTraceId,
+                        error: error)
     }
 
     private func statusSummary(_ status: HealthAccessStatus) -> String {
@@ -662,6 +994,48 @@ actor DataAgent {
         healthKit.stopObserving(sampleType: type, resetAnchor: resetAnchor)
     }
 
+    private func readProbeSummary(_ results: [String: ReadAuthorizationProbeResult]) -> String {
+        var authorized = 0
+        var denied = 0
+        var pending = 0
+        var protected = 0
+        var errors = 0
+
+        for result in results.values {
+            switch result {
+            case .authorized:
+                authorized += 1
+            case .denied:
+                denied += 1
+            case .notDetermined:
+                pending += 1
+            case .protectedDataUnavailable, .healthDataUnavailable:
+                protected += 1
+            case .error:
+                errors += 1
+            }
+        }
+
+        return "HealthKit read probe summary: authorized=\(authorized) denied=\(denied) pending=\(pending) protected=\(protected) error=\(errors)"
+    }
+
+    private func probeLabel(for result: ReadAuthorizationProbeResult) -> String {
+        switch result {
+        case .authorized:
+            return "authorized"
+        case .denied:
+            return "denied"
+        case .notDetermined:
+            return "notDetermined"
+        case .protectedDataUnavailable:
+            return "protectedDataUnavailable"
+        case .healthDataUnavailable:
+            return "healthDataUnavailable"
+        case let .error(domain, code):
+            return "error(\(domain):\(code))"
+        }
+    }
+
     func latestFeatureVector() async throws -> FeatureVectorSnapshot? {
         let context = self.context
         let result = try await context.perform { () throws -> FeatureComputation? in
@@ -683,7 +1057,8 @@ actor DataAgent {
         let modelFeatures = WellbeingModeling.normalize(features: computation.featureValues,
                                                         imputedFlags: computation.imputedFlags)
         let snapshot = stateEstimator.currentSnapshot(features: modelFeatures)
-        await DebugLogBuffer.shared.append("latestFeatureVector -> date=\(computation.date) wellbeing=\(snapshot.wellbeingScore) features=\(computation.featureValues)")
+        let dayString = DiagnosticsDayFormatter.dayString(from: computation.date)
+        await DebugLogBuffer.shared.append("latestFeatureVector -> day=\(dayString) feature_count=\(computation.featureValues.count)")
         return FeatureVectorSnapshot(date: computation.date,
                                      wellbeingScore: snapshot.wellbeingScore,
                                      contributions: snapshot.contributions,
@@ -696,7 +1071,8 @@ actor DataAgent {
         guard let snapshot = try await latestFeatureVector() else { return nil }
 
         let context = self.context
-        await DebugLogBuffer.shared.append("Computing scoreBreakdown for \(snapshot.date)")
+        let dayString = DiagnosticsDayFormatter.dayString(from: snapshot.date)
+        await DebugLogBuffer.shared.append("Computing scoreBreakdown for day=\(dayString)")
 
         struct BaselinePayload: Sendable {
             let median: Double?
@@ -871,13 +1247,16 @@ actor DataAgent {
     func reprocessDay(date: Date) async throws {
         let day = calendar.startOfDay(for: date)
         try await reprocessDayInternal(day)
-        notifySnapshotUpdate(for: day)
+        notifySnapshotUpdate(for: day,
+                             reason: .stage("reprocess",
+                                            allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
     }
 
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {
         let targetDate = calendar.startOfDay(for: date)
         let context = self.context
-        await DebugLogBuffer.shared.append("Recording subjective inputs for \(targetDate)")
+        let dayString = DiagnosticsDayFormatter.dayString(from: targetDate)
+        await DebugLogBuffer.shared.append("Recording subjective inputs for day=\(dayString)")
         try await context.perform {
             let request = FeatureVector.fetchRequest()
             request.predicate = NSPredicate(format: "date == %@", targetDate as NSDate)
@@ -890,7 +1269,9 @@ actor DataAgent {
             try context.save()
         }
         try await reprocessDayInternal(targetDate)
-        notifySnapshotUpdate(for: targetDate)
+        notifySnapshotUpdate(for: targetDate,
+                             reason: .stage("reprocess",
+                                            allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
     }
 
     // MARK: - Observation
@@ -903,10 +1284,13 @@ actor DataAgent {
             case let .success(update):
                 Task { await self.handle(update: update, sampleType: sampleType) }
             case let .failure(error):
-#if DEBUG
-                print("HealthKit observe error: \(error)")
-#endif
-                Task { await DebugLogBuffer.shared.append("HealthKit observe error for \(sampleType.identifier): \(error.localizedDescription)") }
+                let nsError = error as NSError
+                Task { await DebugLogBuffer.shared.append("HealthKit observe error for \(sampleType.identifier): domain=\(nsError.domain) code=\(nsError.code)") }
+                Diagnostics.log(level: .warn,
+                                category: .healthkit,
+                                name: "data.healthkit.observe.error",
+                                fields: ["type": .safeString(.metadata(sampleType.identifier))],
+                                error: error)
             }
         }
         observers[identifier] = token
@@ -919,12 +1303,10 @@ actor DataAgent {
             case let quantityType as HKQuantityType:
                 let days = try await processQuantitySamples(update.samples.compactMap { $0 as? HKQuantitySample },
                                                             type: quantityType)
-                await DebugLogBuffer.shared.append("Processed quantity samples for \(quantityType.identifier) count=\(update.samples.count) touchedDays=\(days.count)")
                 touchedDays.formUnion(days)
             case let categoryType as HKCategoryType:
                 let days = try await processCategorySamples(update.samples.compactMap { $0 as? HKCategorySample },
                                                             type: categoryType)
-                await DebugLogBuffer.shared.append("Processed category samples for \(categoryType.identifier) count=\(update.samples.count) touchedDays=\(days.count)")
                 touchedDays.formUnion(days)
             default:
                 break
@@ -932,17 +1314,33 @@ actor DataAgent {
             let deletedDays = try await handleDeletedSamples(update.deletedSamples)
             touchedDays.formUnion(deletedDays)
 
+            logDiagnostics(level: .info,
+                           category: .healthkit,
+                           name: "data.healthkit.update",
+                           fields: [
+                               "type": .safeString(.metadata(sampleType.identifier)),
+                               "sample_count": .int(update.samples.count),
+                               "deleted_count": .int(update.deletedSamples.count),
+                               "touched_days": .int(touchedDays.count)
+                           ])
+
             if touchedDays.isEmpty {
-                notifySnapshotUpdate(for: calendar.startOfDay(for: Date()))
+                notifySnapshotUpdate(for: calendar.startOfDay(for: Date()),
+                                     reason: .stage("refresh",
+                                                    allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
             } else {
                 for day in touchedDays {
-                    notifySnapshotUpdate(for: day)
+                    notifySnapshotUpdate(for: day,
+                                         reason: .stage("refresh",
+                                                        allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
                 }
             }
         } catch {
-#if DEBUG
-            print("DataAgent processing error: \(error)")
-#endif
+            Diagnostics.log(level: .error,
+                            category: .dataAgent,
+                            name: "dataAgent.handleUpdate.error",
+                            fields: ["type": .safeString(.metadata(sampleType.identifier))],
+                            error: error)
         }
     }
 
@@ -1196,7 +1594,8 @@ actor DataAgent {
                                                         imputedFlags: computation.imputedFlags)
         let target = WellbeingModeling.target(for: modelFeatures)
         let snapshot = stateEstimator.update(features: modelFeatures, target: target)
-        await DebugLogBuffer.shared.append("Reprocessed day \(day) → wellbeing=\(snapshot.wellbeingScore) features=\(computation.featureValues)")
+        let dayString = DiagnosticsDayFormatter.dayString(from: day)
+        await DebugLogBuffer.shared.append("Reprocessed day \(dayString) -> feature_count=\(computation.featureValues.count)")
         persistEstimatorState(from: snapshot)
 
         try await context.perform {
@@ -1460,11 +1859,13 @@ actor DataAgent {
         return String(data: data, encoding: .utf8)
     }
 
-    private func notifySnapshotUpdate(for date: Date) {
+    private func notifySnapshotUpdate(for date: Date,
+                                      reason: DiagnosticsSafeString = .stage("unknown", allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"])) {
         pendingSnapshotUpdate?.cancel()
         let center = notificationCenter
         let today = calendar.startOfDay(for: Date())
-        pendingSnapshotUpdate = Task { [center] in
+        let trace = diagnosticsTraceId
+        pendingSnapshotUpdate = Task { [weak self, center, trace, today, date, reason] in
             do {
                 try await Task.sleep(nanoseconds: 300_000_000)
             } catch {
@@ -1474,11 +1875,46 @@ actor DataAgent {
             center.post(name: .pulsumScoresUpdated,
                         object: nil,
                         userInfo: [AgentNotificationKeys.date: today])
+            var fields: [String: DiagnosticsValue] = [
+                "reason": .safeString(reason),
+                "snapshot_day": .day(date)
+            ]
+            if let metadata = await self?.latestSnapshotMetadata() {
+                if let day = metadata.dayString {
+                    fields["latest_snapshot_day"] = .safeString(.metadata(day))
+                }
+                if let score = metadata.score {
+                    fields["wellbeing_score"] = .double(score)
+                }
+            }
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.snapshot.published",
+                            fields: fields,
+                            traceId: trace)
         }
     }
 
     private func persistBackfillProgress() {
         backfillStore.saveState(backfillProgress)
+    }
+
+    func diagnosticsBackfillCounts() async -> (warmCompleted: Int, fullCompleted: Int) {
+        let warmCount = backfillProgress.warmStartCompletedTypes.count
+        let fullCount = backfillProgress.fullBackfillCompletedTypes.count
+        return (warmCount, fullCount)
+    }
+
+    func latestSnapshotMetadata() async -> (dayString: String?, score: Double?) {
+        do {
+            if let snapshot = try await latestFeatureVector() {
+                let day = DiagnosticsDayFormatter.dayString(from: snapshot.date)
+                return (day, snapshot.wellbeingScore)
+            }
+        } catch {
+            return (nil, nil)
+        }
+        return (nil, nil)
     }
 
 #if DEBUG

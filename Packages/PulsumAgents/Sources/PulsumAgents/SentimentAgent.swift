@@ -135,7 +135,15 @@ public final class SentimentAgent {
         try await persistJournal(transcript: transcript)
     }
 
-    public func reprocessPendingJournals() async {
+    public func pendingEmbeddingCount() async -> Int {
+        await context.perform { [context] in
+            let request = JournalEntry.fetchRequest()
+            request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
+            return (try? context.count(for: request)) ?? 0
+        }
+    }
+
+    public func reprocessPendingJournals(traceId: UUID? = nil) async {
         let pending: [(objectID: NSManagedObjectID, entryID: UUID, transcript: String)] = (try? await context.perform { [context] in
             let request = JournalEntry.fetchRequest()
             request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
@@ -146,18 +154,45 @@ public final class SentimentAgent {
 
         guard !pending.isEmpty else { return }
 
+        let monitor = DiagnosticsStallMonitor(category: .sentiment,
+                                              name: "sentiment.reprocessPending",
+                                              traceId: traceId,
+                                              thresholdSeconds: 30,
+                                              initialFields: ["pending_count": .int(pending.count)])
+        await monitor.start()
+        Diagnostics.log(level: .info,
+                        category: .sentiment,
+                        name: "sentiment.reprocessPending.begin",
+                        fields: ["pending_count": .int(pending.count)],
+                        traceId: traceId)
+
         var updates: [(objectID: NSManagedObjectID, vectorURL: URL)] = []
+        var succeeded = 0
+        var failed = 0
 
         for item in pending {
             do {
                 let vector = try embeddingService.embedding(for: item.transcript)
                 let url = try persistVector(vector: vector, id: item.entryID)
                 updates.append((objectID: item.objectID, vectorURL: url))
+                succeeded += 1
             } catch {
+                failed += 1
+                Diagnostics.log(level: .warn,
+                                category: .sentiment,
+                                name: "sentiment.embedding.pending",
+                                fields: [
+                                    "pending_count": .int(pending.count),
+                                    "succeeded": .int(succeeded),
+                                    "failed": .int(failed)
+                                ],
+                                traceId: traceId,
+                                error: error)
 #if DEBUG
                 logger.error("Failed to reprocess pending journal embedding: \(error.localizedDescription, privacy: .public)")
 #endif
             }
+            await monitor.heartbeat(progressFields: ["succeeded": .int(succeeded), "failed": .int(failed)])
         }
 
         guard !updates.isEmpty else { return }
@@ -179,10 +214,27 @@ public final class SentimentAgent {
             logger.error("Failed to save reprocessed journal embeddings: \(error.localizedDescription, privacy: .public)")
 #endif
         }
+
+        await monitor.stop(finalFields: ["succeeded": .int(succeeded), "failed": .int(failed)])
+        Diagnostics.log(level: .info,
+                        category: .sentiment,
+                        name: "sentiment.reprocessPending.end",
+                        fields: [
+                            "pending_count": .int(pending.count),
+                            "succeeded": .int(succeeded),
+                            "failed": .int(failed)
+                        ],
+                        traceId: traceId)
     }
 
     private func persistJournal(transcript: String) async throws -> JournalResult {
         let sanitized = PIIRedactor.redact(transcript)
+        let charCount = sanitized.count
+        let span = Diagnostics.span(category: .sentiment,
+                                    name: "sentiment.persistJournal",
+                                    fields: [
+                                        "transcript_chars": .int(charCount)
+                                    ])
         
         // Use async Foundation Models sentiment analysis
         let sentiment = await sentimentService.sentiment(for: sanitized)
@@ -200,18 +252,34 @@ public final class SentimentAgent {
 #if DEBUG
                 logger.error("Failed to persist journal embedding: \(error.localizedDescription, privacy: .public)")
 #endif
+                Diagnostics.log(level: .warn,
+                                category: .sentiment,
+                                name: "sentiment.embedding.pending",
+                                fields: [
+                                    "pending": .bool(true),
+                                    "transcript_chars": .int(charCount)
+                                ],
+                                error: error)
             }
         } catch {
             embeddingPending = true
 #if DEBUG
             logger.error("Embedding unavailable for journal: \(error.localizedDescription, privacy: .public)")
 #endif
+            Diagnostics.log(level: .warn,
+                            category: .sentiment,
+                            name: "sentiment.embedding.pending",
+                            fields: [
+                                "pending": .bool(true),
+                                "transcript_chars": .int(charCount)
+                            ],
+                            error: error)
         }
 
         let pendingFlag = embeddingPending
         let finalVectorURL = vectorURL
 
-        return try await context.perform { [context, calendar] () -> JournalResult in
+        let result = try await context.perform { [context, calendar] () -> JournalResult in
             let entry = JournalEntry(context: context)
             entry.id = entryID
             entry.date = Date()
@@ -237,6 +305,10 @@ public final class SentimentAgent {
                                  vectorURL: finalVectorURL,
                                  embeddingPending: pendingFlag)
         }
+        span.end(additionalFields: [
+            "embedding_pending": .bool(embeddingPending)
+        ], error: nil)
+        return result
     }
 
     nonisolated private static func encodeSensitiveFlags(embeddingPending: Bool) -> String? {

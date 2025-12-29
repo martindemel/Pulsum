@@ -3,6 +3,7 @@ import Foundation
 import FoundationModels
 #endif
 import PulsumML
+import PulsumTypes
 
 @MainActor
 public final class SafetyAgent {
@@ -39,14 +40,20 @@ public final class SafetyAgent {
                     adjusted = result
                 }
                 let decision = makeDecision(from: adjusted)
-#if DEBUG
-                print("[PulsumSafety] FM classification: \(adjusted) -> allowCloud=\(decision.allowCloud)")
-#endif
+                Diagnostics.log(level: .info,
+                                category: .safety,
+                                name: "safety.fm.classification",
+                                fields: [
+                                    "classification": .safeString(.metadata("\(adjusted)")),
+                                    "allow_cloud": .bool(decision.allowCloud)
+                                ])
                 return decision
             } catch {
-                #if DEBUG
-                print("Foundation Models safety classification failed: \(error)")
-                #endif
+                Diagnostics.log(level: .warn,
+                                category: .safety,
+                                name: "safety.fm.error",
+                                fields: [:],
+                                error: error)
                 // Fall back to existing classifier
             }
         }
@@ -54,9 +61,13 @@ public final class SafetyAgent {
         // Use existing SafetyLocal as fallback
         let result = fallbackClassifier.classify(text: text)
         let decision = makeDecision(from: result)
-#if DEBUG
-        print("[PulsumSafety] Local classification: \(result) -> allowCloud=\(decision.allowCloud)")
-#endif
+        Diagnostics.log(level: .info,
+                        category: .safety,
+                        name: "safety.local.classification",
+                        fields: [
+                            "classification": .safeString(.metadata("\(result)")),
+                            "allow_cloud": .bool(decision.allowCloud)
+                        ])
         return decision
     }
 

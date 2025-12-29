@@ -460,6 +460,8 @@ struct SettingsScreen: View {
                         )
                     }
 
+                    diagnosticsSection
+
 #if DEBUG
                     if viewModel.diagnosticsVisible {
                         DiagnosticsPanel(routeHistory: viewModel.routeHistory,
@@ -535,6 +537,88 @@ struct SettingsScreen: View {
 #if canImport(UIKit)
         UIPasteboard.general.string = text
 #endif
+    }
+
+    private var diagnosticsSection: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+            HStack {
+                Text("Diagnostics")
+                    .font(.pulsumHeadline)
+                    .foregroundStyle(Color.pulsumTextPrimary)
+                Spacer()
+                Text(viewModel.diagnosticsConfig.enabled ? "On" : "Off")
+                    .font(.pulsumCaption)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+            }
+
+            Text("Session ID: \(viewModel.diagnosticsSessionId.uuidString)")
+                .font(.pulsumCaption2)
+                .foregroundStyle(Color.pulsumTextSecondary)
+                .textSelection(.enabled)
+
+            Toggle("Enable diagnostics", isOn: Binding(get: {
+                viewModel.diagnosticsConfig.enabled
+            }, set: { enabled in
+                viewModel.updateDiagnosticsEnabled(enabled)
+            }))
+
+            Toggle("Persist to disk", isOn: Binding(get: {
+                viewModel.diagnosticsConfig.persistToDisk
+            }, set: { persist in
+                viewModel.updateDiagnosticsPersistence(persist)
+            }))
+
+            Toggle("Mirror to OSLog", isOn: Binding(get: {
+                viewModel.diagnosticsConfig.mirrorToOSLog
+            }, set: { mirror in
+                viewModel.updateDiagnosticsOSLog(mirror)
+            }))
+
+            Toggle("Enable signposts", isOn: Binding(get: {
+                viewModel.diagnosticsConfig.enableSignposts
+            }, set: { enable in
+                viewModel.updateDiagnosticsSignposts(enable)
+            }))
+
+            HStack(spacing: PulsumSpacing.md) {
+                Button {
+                    Task { await viewModel.exportDiagnosticsReport() }
+                } label: {
+                    if viewModel.isExportingDiagnostics {
+                        ProgressView()
+                    } else {
+                        Text("Export diagnostics report")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+
+                if let url = viewModel.diagnosticsExportURL {
+                    ShareLink("Share", item: url)
+                        .buttonStyle(.bordered)
+                }
+            }
+
+            Button(role: .destructive) {
+                Task { await viewModel.clearDiagnostics() }
+            } label: {
+                Text("Clear diagnostics")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.bordered)
+
+            Text("May include sensitive metadata (counts/dates). Does not include journal text or raw HealthKit samples.")
+                .font(.pulsumCaption2)
+                .foregroundStyle(Color.pulsumTextSecondary)
+        }
+        .padding(PulsumSpacing.lg)
+        .background(Color.pulsumCardWhite)
+        .cornerRadius(PulsumRadius.xl)
+        .shadow(
+            color: PulsumShadow.small.color,
+            radius: PulsumShadow.small.radius,
+            x: PulsumShadow.small.x,
+            y: PulsumShadow.small.y
+        )
     }
 
     @ViewBuilder

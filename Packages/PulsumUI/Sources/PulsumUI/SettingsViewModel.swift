@@ -4,6 +4,9 @@ import PulsumAgents
 import HealthKit
 import PulsumTypes
 import PulsumServices
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 @Observable
@@ -42,6 +45,10 @@ final class SettingsViewModel {
     private var awaitingToastAfterRequest: Bool = false
     private var didApplyInitialStatus: Bool = false
     var debugLogSnapshot: String = ""
+    var diagnosticsConfig: DiagnosticsConfig = Diagnostics.currentConfig()
+    var diagnosticsSessionId: UUID = Diagnostics.sessionId
+    var diagnosticsExportURL: URL?
+    var isExportingDiagnostics = false
 
     // GPT-5 API Status
     private(set) var gptAPIStatus: String = "Missing API key"
@@ -66,6 +73,7 @@ final class SettingsViewModel {
 #if DEBUG
         setupDiagnosticsObservers()
 #endif
+        refreshDiagnosticsConfig()
     }
 
     func bind(orchestrator: AgentOrchestrator) {
@@ -84,6 +92,7 @@ final class SettingsViewModel {
             isGPTAPIWorking = false
         }
         refreshHealthAccessStatus()
+        refreshDiagnosticsConfig()
     }
 
     func refreshFoundationStatus() {
@@ -156,6 +165,61 @@ final class SettingsViewModel {
     func refreshConsent(_ value: Bool) {
         consentGranted = value
         lastConsentUpdated = Date()
+    }
+
+    func refreshDiagnosticsConfig() {
+        diagnosticsConfig = Diagnostics.currentConfig()
+        diagnosticsSessionId = Diagnostics.sessionId
+    }
+
+    func updateDiagnosticsEnabled(_ enabled: Bool) {
+        diagnosticsConfig.enabled = enabled
+        Diagnostics.updateConfig(diagnosticsConfig)
+    }
+
+    func updateDiagnosticsPersistence(_ persist: Bool) {
+        diagnosticsConfig.persistToDisk = persist
+        Diagnostics.updateConfig(diagnosticsConfig)
+    }
+
+    func updateDiagnosticsOSLog(_ mirror: Bool) {
+        diagnosticsConfig.mirrorToOSLog = mirror
+        Diagnostics.updateConfig(diagnosticsConfig)
+    }
+
+    func updateDiagnosticsSignposts(_ enable: Bool) {
+        diagnosticsConfig.enableSignposts = enable
+        Diagnostics.updateConfig(diagnosticsConfig)
+    }
+
+    func exportDiagnosticsReport() async {
+        isExportingDiagnostics = true
+        defer { isExportingDiagnostics = false }
+        let config = diagnosticsConfig
+        let debugTail = await DebugLogBuffer.shared.snapshot()
+            .split(separator: "\n")
+            .map(String.init)
+        let debugTailLines = Array(debugTail.suffix(config.logTailLinesForExport))
+        let persisted = await Diagnostics.persistedLogTail(maxLines: config.logTailLinesForExport)
+        let combined = Array((debugTailLines + persisted).suffix(config.logTailLinesForExport))
+        let snapshot = await orchestrator?.diagnosticsSnapshot() ?? DiagnosticsSnapshot()
+        let context = DiagnosticsReportContext(appVersion: Self.appVersion(),
+                                               buildNumber: Self.buildNumber(),
+                                               deviceModel: Self.deviceModel(),
+                                               osVersion: Self.osVersion(),
+                                               locale: Locale.current.identifier,
+                                               sessionId: diagnosticsSessionId,
+                                               diagnosticsEnabled: config.enabled,
+                                               persistenceEnabled: config.persistToDisk)
+        diagnosticsExportURL = try? DiagnosticsReportBuilder.buildReport(context: context,
+                                                                         snapshot: snapshot,
+                                                                         logTail: combined)
+    }
+
+    func clearDiagnostics() async {
+        await Diagnostics.clearDiagnostics()
+        debugLogSnapshot = ""
+        diagnosticsExportURL = nil
     }
 
     @MainActor
@@ -295,6 +359,30 @@ final class SettingsViewModel {
         let denied = status.denied.map(\.identifier).sorted().joined(separator: ", ")
         let pending = status.notDetermined.map(\.identifier).sorted().joined(separator: ", ")
         return "Granted: [\(granted)] | Denied: [\(denied)] | Pending: [\(pending)] | Availability: \(status.availability)"
+    }
+
+    private static func appVersion() -> String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    }
+
+    private static func buildNumber() -> String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+    }
+
+    private static func deviceModel() -> String {
+        #if canImport(UIKit)
+        return UIDevice.current.model
+        #else
+        return "mac"
+        #endif
+    }
+
+    private static func osVersion() -> String {
+        #if canImport(UIKit)
+        return UIDevice.current.systemVersion
+        #else
+        return ProcessInfo.processInfo.operatingSystemVersionString
+        #endif
     }
 
 #if DEBUG

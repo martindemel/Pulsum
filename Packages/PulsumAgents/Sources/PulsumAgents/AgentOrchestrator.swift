@@ -73,6 +73,7 @@ struct TopicSignalResolver {
 
 protocol DataAgentProviding: AnyObject, Sendable {
     func start() async throws
+    func setDiagnosticsTraceId(_ traceId: UUID?) async
     func latestFeatureVector() async throws -> FeatureVectorSnapshot?
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws
     func scoreBreakdown() async throws -> ScoreBreakdown?
@@ -80,6 +81,8 @@ protocol DataAgentProviding: AnyObject, Sendable {
     func currentHealthAccessStatus() async -> HealthAccessStatus
     func requestHealthAccess() async throws -> HealthAccessStatus
     func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus
+    func diagnosticsBackfillCounts() async -> (warmCompleted: Int, fullCompleted: Int)
+    func latestSnapshotMetadata() async -> (dayString: String?, score: Double?)
 }
 
 extension DataAgent: DataAgentProviding {}
@@ -96,7 +99,8 @@ protocol SentimentAgentProviding: AnyObject {
     var speechStream: AsyncThrowingStream<SpeechSegment, Error>? { get }
     func updateTranscript(_ transcript: String)
     func latestTranscriptSnapshot() -> String
-    func reprocessPendingJournals() async
+    func reprocessPendingJournals(traceId: UUID?) async
+    func pendingEmbeddingCount() async -> Int
 }
 
 extension SentimentAgent: SentimentAgentProviding {}
@@ -245,12 +249,65 @@ public final class AgentOrchestrator {
         await DebugLogBuffer.shared.snapshot()
     }
 
-    public func start() async throws {
+    public func start(traceId: UUID? = nil) async throws {
+        let span = Diagnostics.span(category: .orchestrator,
+                                    name: "orchestrator.start",
+                                    fields: ["afm_available": .bool(afmAvailable)],
+                                    traceId: traceId)
         do {
-            try await coachAgent.prepareLibraryIfNeeded()
-            try await dataAgent.start()
-            await refreshOnDeviceModelAvailabilityAndRetryDeferredWork()
+            let librarySpan = Diagnostics.span(category: .library,
+                                               name: "orchestrator.start.prepareLibrary",
+                                               traceId: traceId,
+                                               level: .info)
+            do {
+                try await coachAgent.prepareLibraryIfNeeded()
+                librarySpan.end(error: nil)
+            } catch {
+                librarySpan.end(error: error)
+                throw error
+            }
+
+            await dataAgent.setDiagnosticsTraceId(traceId)
+            let dataSpan = Diagnostics.span(category: .dataAgent,
+                                            name: "orchestrator.start.dataAgent",
+                                            traceId: traceId)
+            do {
+                try await dataAgent.start()
+                dataSpan.end(error: nil)
+            } catch {
+                dataSpan.end(error: error)
+                throw error
+            }
+
+            let refreshSpan = Diagnostics.span(category: .orchestrator,
+                                               name: "orchestrator.start.refreshDeferred",
+                                               traceId: traceId)
+            await refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: traceId)
+            refreshSpan.end(error: nil)
+            let healthStatus = await dataAgent.currentHealthAccessStatus()
+            let embeddingsAvailable = embeddingService.availabilityMode(trigger: "start") == .available
+            let pendingJournals = await sentimentAgent.pendingEmbeddingCount()
+            let backfillCounts = await dataAgent.diagnosticsBackfillCounts()
+            let checkpointFields: [String: DiagnosticsValue] = [
+                "health_granted": .int(healthStatus.granted.count),
+                "health_denied": .int(healthStatus.denied.count),
+                "health_pending": .int(healthStatus.notDetermined.count),
+                "health_available": .safeString(.stage(healthStatus.availability == .available ? "available" : "unavailable",
+                                                       allowed: ["available", "unavailable"])),
+                "embeddings_available": .bool(embeddingsAvailable),
+                "pending_journals": .int(pendingJournals),
+                "backfill_warm_completed": .int(backfillCounts.warmCompleted),
+                "backfill_full_completed": .int(backfillCounts.fullCompleted),
+                "library_deferred": .bool(coachAgent.libraryImportDeferred)
+            ]
+            Diagnostics.log(level: .info,
+                            category: .orchestrator,
+                            name: "timeline.firstRun.checkpoint",
+                            fields: checkpointFields,
+                            traceId: traceId)
+            span.end(additionalFields: checkpointFields, error: nil)
         } catch let healthError as HealthKitServiceError {
+            span.end(additionalFields: [:], error: healthError)
             switch healthError {
             case .healthDataUnavailable:
                 throw OrchestratorStartupError.healthDataUnavailable
@@ -259,6 +316,9 @@ public final class AgentOrchestrator {
             default:
                 throw healthError
             }
+        } catch {
+            span.end(additionalFields: [:], error: error)
+            throw error
         }
     }
 
@@ -275,12 +335,18 @@ public final class AgentOrchestrator {
     }
 
     /// Re-probes on-device embedding availability and retries any deferred work (pending journal embeddings, library indexing).
-    public func refreshOnDeviceModelAvailabilityAndRetryDeferredWork() async {
+    public func refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: UUID? = nil) async {
         embeddingService.invalidateAvailabilityCache()
-        let mode = await embeddingService.refreshAvailability(force: true)
+        let mode = await embeddingService.refreshAvailability(force: true, trigger: "retry_deferred")
+        Diagnostics.log(level: .info,
+                        category: .embeddings,
+                        name: "embeddings.availability.changed",
+                        fields: ["state": .safeString(.stage(mode == .available ? "available" : "unavailable",
+                                                             allowed: ["available", "unavailable"]))],
+                        traceId: traceId)
         guard mode == .available else { return }
-        await sentimentAgent.reprocessPendingJournals()
-        await coachAgent.retryDeferredLibraryImport()
+        await sentimentAgent.reprocessPendingJournals(traceId: traceId)
+        await coachAgent.retryDeferredLibraryImport(traceId: traceId)
     }
 
     /// Begins voice journal recording and returns immediately after starting audio capture.
@@ -431,9 +497,39 @@ public final class AgentOrchestrator {
         try await dataAgent.scoreBreakdown()
     }
 
+    public func diagnosticsSnapshot() async -> DiagnosticsSnapshot {
+        let healthStatus = await dataAgent.currentHealthAccessStatus()
+        let embeddingsAvailable = embeddingService.availabilityMode(trigger: "snapshot") == .available
+        let pendingJournals = await sentimentAgent.pendingEmbeddingCount()
+        let backfillCounts = await dataAgent.diagnosticsBackfillCounts()
+        let latest = await dataAgent.latestSnapshotMetadata()
+        return DiagnosticsSnapshot(
+            healthGrantedCount: healthStatus.granted.count,
+            healthDeniedCount: healthStatus.denied.count,
+            healthPendingCount: healthStatus.notDetermined.count,
+            healthAvailability: DiagnosticsSafeString.stage(
+                healthStatus.availability == .available ? "available" : "unavailable",
+                allowed: ["available", "unavailable"]
+            ),
+            embeddingsAvailable: embeddingsAvailable,
+            pendingJournalsCount: pendingJournals,
+            backfillWarmCompleted: backfillCounts.warmCompleted,
+            backfillFullCompleted: backfillCounts.fullCompleted,
+            deferredLibraryImport: coachAgent.libraryImportDeferred,
+            lastSnapshotDay: latest.dayString,
+            wellbeingScore: latest.score
+        )
+    }
+
     public func chat(userInput: String, consentGranted: Bool) async throws -> String {
         let sanitizedInput = PIIRedactor.redact(userInput)
-        logger.debug("Chat request received. Consent: \(consentGranted, privacy: .public), input: \(sanitizedInput.prefix(160), privacy: .public)")
+        Diagnostics.log(level: .info,
+                        category: .coach,
+                        name: "coach.chat.request",
+                        fields: [
+                            "consent": .bool(consentGranted),
+                            "input_chars": .int(userInput.count)
+                        ])
 
         guard let snapshot = try await dataAgent.latestFeatureVector() else {
             logger.info("No feature vector snapshot available; returning warmup prompt.")
@@ -452,7 +548,13 @@ public final class AgentOrchestrator {
                      consentGranted: Bool,
                      snapshotOverride: FeatureVectorSnapshot) async -> String {
         let sanitizedInput = PIIRedactor.redact(userInput)
-        logger.debug("Chat request (override). Consent: \(consentGranted, privacy: .public), input: \(sanitizedInput.prefix(160), privacy: .public)")
+        Diagnostics.log(level: .debug,
+                        category: .coach,
+                        name: "coach.chat.request.override",
+                        fields: [
+                            "consent": .bool(consentGranted),
+                            "input_chars": .int(userInput.count)
+                        ])
         return await performChat(userInput: userInput,
                                  sanitizedInput: sanitizedInput,
                                  snapshot: snapshotOverride,
@@ -472,10 +574,10 @@ public final class AgentOrchestrator {
         switch safety.classification {
         case .safe:
             classification = "safe"
-        case .caution(let reason):
-            classification = "caution: \(String(PIIRedactor.redact(reason).prefix(120)))"
-        case .crisis(let reason):
-            classification = "crisis: \(String(PIIRedactor.redact(reason).prefix(120)))"
+        case .caution:
+            classification = "caution"
+        case .crisis:
+            classification = "crisis"
         }
         logger.debug("Safety decision → allowCloud: \(safety.allowCloud, privacy: .public), classification: \(classification, privacy: .public)")
 
@@ -510,7 +612,7 @@ public final class AgentOrchestrator {
         var topSignal: String
         do {
             let gateDecision = try await topicGate.classify(sanitizedInput)
-            logger.debug("Topic gate → isOnTopic: \(gateDecision.isOnTopic, privacy: .public), confidence: \(String(format: "%.2f", gateDecision.confidence), privacy: .public), topic: \(gateDecision.topic ?? "none", privacy: .public), reason: \(String(gateDecision.reason.prefix(100)), privacy: .public)")
+            logger.debug("Topic gate → isOnTopic: \(gateDecision.isOnTopic, privacy: .public), confidence: \(String(format: "%.2f", gateDecision.confidence), privacy: .public), topic: \(gateDecision.topic ?? "none", privacy: .public)")
 
             if !gateDecision.isOnTopic {
                 logger.notice("Topic gate blocked off-topic request. Returning redirect message.")
@@ -548,7 +650,8 @@ public final class AgentOrchestrator {
 
             logger.debug("Intent mapping → topic: \(topic ?? "none", privacy: .public), topSignal: \(topSignal, privacy: .public)")
         } catch {
-            logger.error("Topic gate failed: \(error.localizedDescription, privacy: .public). Failing closed.")
+            let nsError = error as NSError
+            logger.error("Topic gate failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public). Failing closed.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → redirect", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
             return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
         }
@@ -589,7 +692,8 @@ public final class AgentOrchestrator {
                                                                 groundingFloor: 0.40)
                 return payload.coachReply
             }
-            logger.error("Coverage evaluation failed: \(error.localizedDescription, privacy: .public). Falling back to redirect.")
+            let nsError = error as NSError
+            logger.error("Coverage evaluation failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public). Falling back to redirect.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unknown → redirect", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
             return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
         }
@@ -661,7 +765,27 @@ public final class AgentOrchestrator {
                                       median: Double?,
                                       count: Int?,
                                       context: String) {
-        print(line)
+        var fields: [String: DiagnosticsValue] = [
+            "context": .safeString(.stage(context, allowed: ["live", "override"]))
+        ]
+        if let decision {
+            let kind: String
+            switch decision.kind {
+            case .strong: kind = "strong"
+            case .soft: kind = "soft"
+            case .fail: kind = "fail"
+            }
+            fields["coverage_kind"] = .safeString(.stage(kind, allowed: ["strong", "soft", "fail"]))
+            fields["coverage_reason"] = .safeString(.metadata(decision.reason))
+            fields["coverage_threshold"] = .double(decision.thresholdUsed)
+        }
+        if let top { fields["top"] = .double(top) }
+        if let median { fields["median"] = .double(median) }
+        if let count { fields["match_count"] = .int(count) }
+        Diagnostics.log(level: .info,
+                        category: .coach,
+                        name: "coach.route",
+                        fields: fields)
 #if DEBUG
         var info: [String: Any] = [
             "route": line,

@@ -243,6 +243,7 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     private func authorizeAllTypes(_ stub: HealthKitServiceStub) {
         for type in HealthKitService.orderedReadSampleTypes {
             stub.authorizationStatuses[type.identifier] = .sharingAuthorized
+            stub.readProbeResults[type.identifier] = .authorized
         }
     }
 

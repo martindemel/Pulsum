@@ -386,8 +386,7 @@ public final class LLMGateway {
                                                rationale: PIIRedactor.redact(context.rationale),
                                                zScoreSummary: context.zScoreSummary,
                                                candidateMoments: context.candidateMoments)
-        logger.debug("Generating coach response. Consent: \(consentGranted, privacy: .public), input: \(String(sanitizedContext.userToneHints.prefix(80)), privacy: .public), topSignal: \(sanitizedContext.topSignal, privacy: .public)")
-        logger.debug("Context rationale: \(String(sanitizedContext.rationale.prefix(200)), privacy: .public), scores: \(String(sanitizedContext.zScoreSummary.prefix(200)), privacy: .public)")
+        logger.debug("Generating coach response. Consent: \(consentGranted, privacy: .public), tone_chars: \(sanitizedContext.userToneHints.count, privacy: .public), rationale_chars: \(sanitizedContext.rationale.count, privacy: .public), score_chars: \(sanitizedContext.zScoreSummary.count, privacy: .public), topSignal: \(sanitizedContext.topSignal, privacy: .public), candidates: \(candidateMoments.count, privacy: .public)")
         if consentGranted {
             do {
                 let apiKey = try resolveAPIKey()
@@ -411,7 +410,8 @@ public final class LLMGateway {
             } catch {
                 // WALL 2 failure: schema validation failed or grounding too low
                 // Fail-closed: fallback to on-device Foundation Models
-                logger.error("Cloud phrasing failed (schema validation/grounding): \(error.localizedDescription, privacy: .public). Falling back to on-device generator.")
+                let nsError = error as NSError
+                logger.error("Cloud phrasing failed (schema validation/grounding). domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public). Falling back to on-device generator.")
                 notifyCloudError(error.localizedDescription)
             }
         }
@@ -764,8 +764,9 @@ public final class GPT5Client: CloudLLMClient {
         do {
             phrasing = try JSONDecoder().decode(CoachPhrasing.self, from: jsonData)
         } catch {
-            logger.error("Failed to decode CoachPhrasing schema: \(error.localizedDescription, privacy: .public)")
-            throw LLMGatewayError.cloudGenerationFailed("Schema validation failed: \(error.localizedDescription)")
+            let nsError = error as NSError
+            logger.error("Failed to decode CoachPhrasing schema. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
+            throw LLMGatewayError.cloudGenerationFailed("Schema validation failed: \(nsError.domain)#\(nsError.code)")
         }
 
         guard phrasing.isOnTopic else {

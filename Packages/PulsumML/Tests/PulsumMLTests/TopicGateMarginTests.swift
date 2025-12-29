@@ -28,17 +28,11 @@ struct TopicGateMarginTests {
 
         for text in onTopic {
             let scores = try await provider.debugScores(for: text)
-#if DEBUG
-            print("[TopicGate margin] on-topic \(text) → domain=\(String(format: "%.3f", scores.domain)) ood=\(String(format: "%.3f", scores.ood)) margin=\(String(format: "%.3f", scores.margin))")
-#endif
             #expect(scores.margin >= 0.12)
         }
 
         for text in offTopic {
             let scores = try await provider.debugScores(for: text)
-#if DEBUG
-            print("[TopicGate margin] off-topic \(text) → domain=\(String(format: "%.3f", scores.domain)) ood=\(String(format: "%.3f", scores.ood)) margin=\(String(format: "%.3f", scores.margin))")
-#endif
             #expect(scores.margin < 0.12)
         }
     }

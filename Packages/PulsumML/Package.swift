@@ -13,10 +13,15 @@ let package = Package(
             targets: ["PulsumML"]
         )
     ],
-    dependencies: [],
+    dependencies: [
+        .package(path: "../PulsumTypes")
+    ],
     targets: [
         .target(
             name: "PulsumML",
+            dependencies: [
+                "PulsumTypes"
+            ],
             path: "Sources",
             exclude: [
                 "PulsumML/AFM/README_FoundationModels.md",

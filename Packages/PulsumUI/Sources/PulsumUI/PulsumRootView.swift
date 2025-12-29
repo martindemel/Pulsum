@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import Foundation
 import PulsumAgents
+import PulsumTypes
 
 public struct PulsumRootView: View {
     @State private var viewModel = AppViewModel()
@@ -22,7 +23,20 @@ public struct PulsumRootView: View {
         }
         .task { viewModel.start() }
         .onChange(of: viewModel.startupState) { _, newValue in
-            print("[PulsumRootView] startupState ->", String(describing: newValue))
+            let label: String
+            switch newValue {
+            case .idle: label = "idle"
+            case .loading: label = "loading"
+            case .ready: label = "ready"
+            case .failed: label = "failed"
+            case .blocked: label = "blocked"
+            }
+            Diagnostics.log(level: .info,
+                            category: .ui,
+                            name: "ui.startupState.changed",
+                            fields: [
+                                "state": .safeString(.stage(label, allowed: ["idle", "loading", "ready", "failed", "blocked"]))
+                            ])
         }
     }
 

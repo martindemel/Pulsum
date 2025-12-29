@@ -59,6 +59,10 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
     private let fileManager: SendableFileManager
     private var fm: FileManager { fileManager.value }
     private let logger = Logger(subsystem: "ai.pulsum", category: "BackfillStateStore")
+    private func logError(_ message: String, error: Error) {
+        let nsError = error as NSError
+        logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
+    }
 
     init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
          fileManager: FileManager = .default) {
@@ -82,7 +86,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
                 }
                 return state
             } catch {
-                logger.error("Failed to load backfill state: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to load backfill state.", error: error)
                 return nil
             }
         }
@@ -96,7 +100,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
                 applyFileProtection()
                 excludeFromBackup()
             } catch {
-                logger.error("Failed to persist backfill state: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to persist backfill state.", error: error)
             }
         }
     }
@@ -110,14 +114,14 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
                 try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
 #endif
             } catch {
-                logger.error("Failed to prepare backfill state directory: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to prepare backfill state directory.", error: error)
             }
         } else {
 #if os(iOS)
             do {
                 try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
             } catch {
-                logger.error("Failed to update backfill state directory protection: \(error.localizedDescription, privacy: .public)")
+                logError("Failed to update backfill state directory protection.", error: error)
             }
 #endif
         }
@@ -128,7 +132,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
         do {
             try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
         } catch {
-            logger.error("Failed to set file protection on backfill state: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to set file protection on backfill state.", error: error)
         }
 #endif
     }
@@ -140,7 +144,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
         do {
             try mutableURL.setResourceValues(values)
         } catch {
-            logger.error("Failed to mark backfill state as backup-excluded: \(error.localizedDescription, privacy: .public)")
+            logError("Failed to mark backfill state as backup-excluded.", error: error)
         }
     }
 }

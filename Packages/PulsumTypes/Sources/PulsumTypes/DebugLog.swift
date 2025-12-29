@@ -21,8 +21,19 @@ public actor DebugLogBuffer {
         }
     }
 
+    public func appendFormattedLine(_ line: String) {
+        lines.append(line)
+        if lines.count > maxLines {
+            lines.removeFirst(lines.count - maxLines)
+        }
+    }
+
     public func snapshot() -> String {
         lines.joined(separator: "\n")
+    }
+
+    public func clear() {
+        lines.removeAll()
     }
 
 #if DEBUG

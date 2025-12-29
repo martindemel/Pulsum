@@ -150,9 +150,10 @@ public final class DataStack {
             do {
                 try url.setResourceValues(resourceValues)
             } catch {
-                logger.error("Failed to exclude \(url.path, privacy: .public) from backup: \(error.localizedDescription, privacy: .public)")
+                let nsError = error as NSError
+                logger.error("Failed to exclude \(url.path, privacy: .public) from backup. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
                 if issue == nil {
-                    issue = BackupSecurityIssue(url: url, reason: error.localizedDescription)
+                    issue = BackupSecurityIssue(url: url, reason: "domain=\(nsError.domain) code=\(nsError.code)")
                 }
             }
         }

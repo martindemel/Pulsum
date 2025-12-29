@@ -59,6 +59,7 @@ final class Gate2_OrchestratorLLMKeyAPITests: XCTestCase {
 // MARK: - Test doubles
 
 private actor DataAgentStub: DataAgentProviding {
+    func setDiagnosticsTraceId(_ traceId: UUID?) async {}
     func start() async throws {}
     func latestFeatureVector() async throws -> FeatureVectorSnapshot? { nil }
     func recordSubjectiveInputs(date: Date,
@@ -79,6 +80,12 @@ private actor DataAgentStub: DataAgentProviding {
     }
     func restartIngestionAfterPermissionsChange() async throws -> HealthAccessStatus {
         await currentHealthAccessStatus()
+    }
+    func diagnosticsBackfillCounts() async -> (warmCompleted: Int, fullCompleted: Int) {
+        (warmCompleted: 0, fullCompleted: 0)
+    }
+    func latestSnapshotMetadata() async -> (dayString: String?, score: Double?) {
+        (dayString: nil, score: nil)
     }
 }
 
@@ -104,7 +111,8 @@ private final class SentimentAgentStub: SentimentAgentProviding {
     func stopRecording() {}
     func updateTranscript(_ transcript: String) {}
     func latestTranscriptSnapshot() -> String { "" }
-    func reprocessPendingJournals() async {}
+    func reprocessPendingJournals(traceId: UUID?) async {}
+    func pendingEmbeddingCount() async -> Int { 0 }
 }
 
 private struct TopicGateStub: TopicGateProviding {

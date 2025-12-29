@@ -369,6 +369,16 @@ actor VectorIndex {
         return Array(allMatches.sorted { $0.score < $1.score }.prefix(topK))
     }
 
+    func stats() -> (shards: Int, items: Int) {
+        var total = 0
+        for index in 0..<shardCount {
+            if let shard = try? shard(forShardIndex: index) {
+                total += shard.metadata.count
+            }
+        }
+        return (shardCount, total)
+    }
+
     private func shard(for id: String) throws -> VectorIndexShard {
         let shardIndex = abs(id.hashValue) % shardCount
         return try shard(forShardIndex: shardIndex)

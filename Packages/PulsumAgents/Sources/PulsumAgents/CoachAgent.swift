@@ -7,6 +7,7 @@ import os
 import PulsumData
 import PulsumML
 import PulsumServices
+import PulsumTypes
 
 @MainActor
 public final class CoachAgent {
@@ -40,6 +41,10 @@ public final class CoachAgent {
         self.ranker = RecRanker(state: rankerStore.loadState())
     }
 
+    public var libraryImportDeferred: Bool {
+        libraryEmbeddingsDeferred
+    }
+
     public func prepareLibraryIfNeeded() async throws {
         guard shouldIngestLibrary else { return }
         if hasPreparedLibrary && !libraryEmbeddingsDeferred { return }
@@ -57,61 +62,113 @@ public final class CoachAgent {
         }
     }
 
-    public func retryDeferredLibraryImport() async {
+    public func retryDeferredLibraryImport(traceId: UUID? = nil) async {
         guard shouldIngestLibrary else { return }
         if !libraryEmbeddingsDeferred && hasPreparedLibrary { return }
+        let span = Diagnostics.span(category: .library,
+                                    name: "library.import.retry",
+                                    fields: ["deferred": .bool(libraryEmbeddingsDeferred)],
+                                    traceId: traceId)
         do {
             try await prepareLibraryIfNeeded()
+            Diagnostics.log(level: .info,
+                            category: .library,
+                            name: "library.import.retry.end",
+                            fields: ["deferred": .bool(libraryEmbeddingsDeferred)],
+                            traceId: traceId)
+            span.end(error: nil)
         } catch {
-            logger.error("Deferred library import retry failed: \(error.localizedDescription, privacy: .public)")
+            let nsError = error as NSError
+            logger.error("Deferred library import retry failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
+            Diagnostics.log(level: .warn,
+                            category: .library,
+                            name: "library.import.retry.failed",
+                            fields: ["deferred": .bool(true)],
+                            traceId: traceId,
+                            error: error)
+            span.end(error: error)
         }
     }
 
     public func recommendationCards(for snapshot: FeatureVectorSnapshot,
                                     consentGranted: Bool) async throws -> [RecommendationCard] {
-        try await prepareLibraryIfNeeded()
-        lastRecommendationNotice = nil
-
-        let query = buildQuery(from: snapshot)
-        let matches: [VectorMatch]
+        let span = Diagnostics.span(category: .coach,
+                                    name: "coach.recommendations",
+                                    fields: ["consent": .bool(consentGranted)],
+                                    level: .info)
+        var route = "library"
+        var candidateCount = 0
         do {
-            matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
-        } catch let embeddingError as EmbeddingError where embeddingError == .generatorUnavailable {
-            libraryEmbeddingsDeferred = true
-            lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
-            return await fallbackRecommendations(snapshot: snapshot, topic: nil)
-        }
-        guard !matches.isEmpty else {
-            if libraryEmbeddingsDeferred {
+            try await prepareLibraryIfNeeded()
+            lastRecommendationNotice = nil
+
+            let query = buildQuery(from: snapshot)
+            let matches: [VectorMatch]
+            do {
+                matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
+            } catch let embeddingError as EmbeddingError where embeddingError == .generatorUnavailable {
+                libraryEmbeddingsDeferred = true
                 lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
+                route = "fallback_embeddings_unavailable"
+                let cards = await fallbackRecommendations(snapshot: snapshot, topic: nil)
+                candidateCount = cards.count
+                span.end(additionalFields: [
+                    "route": .safeString(.stage(route, allowed: ["library", "fallback_embeddings_unavailable", "fallback_no_matches"])),
+                    "candidate_count": .int(candidateCount)
+                ], error: nil)
+                return cards
             }
-            return await fallbackRecommendations(snapshot: snapshot, topic: nil)
-        }
-
-        let scoreLookup = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0.score) })
-        let moments = try await fetchMicroMoments(ids: Array(scoreLookup.keys))
-
-        var candidates: [CardCandidate] = []
-        for moment in moments {
-            guard let distance = scoreLookup[moment.id] else { continue }
-            if let candidate = await makeCandidate(moment: moment,
-                                                   distance: distance,
-                                                   snapshot: snapshot) {
-                candidates.append(candidate)
+            guard !matches.isEmpty else {
+                if libraryEmbeddingsDeferred {
+                    lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
+                }
+                route = "fallback_no_matches"
+                let cards = await fallbackRecommendations(snapshot: snapshot, topic: nil)
+                candidateCount = cards.count
+                span.end(additionalFields: [
+                    "route": .safeString(.stage(route, allowed: ["library", "fallback_embeddings_unavailable", "fallback_no_matches"])),
+                    "candidate_count": .int(candidateCount)
+                ], error: nil)
+                return cards
             }
-        }
 
-        guard !candidates.isEmpty else { return [] }
+            let scoreLookup = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0.score) })
+            let moments = try await fetchMicroMoments(ids: Array(scoreLookup.keys))
 
-        let rankedFeatures = ranker.rank(candidates.map { $0.features })
-        lastRankedFeatures = rankedFeatures
-        var rankedCards: [RecommendationCard] = []
-        for feature in rankedFeatures {
-            guard let candidate = candidates.first(where: { $0.features.id == feature.id }) else { continue }
-            rankedCards.append(candidate.card)
-            if rankedCards.count == 3 { break }
+            var candidates: [CardCandidate] = []
+            for moment in moments {
+                guard let distance = scoreLookup[moment.id] else { continue }
+                if let candidate = await makeCandidate(moment: moment,
+                                                       distance: distance,
+                                                       snapshot: snapshot) {
+                    candidates.append(candidate)
+                }
+            }
+
+            guard !candidates.isEmpty else { return [] }
+
+            let rankedFeatures = ranker.rank(candidates.map { $0.features })
+            lastRankedFeatures = rankedFeatures
+            var rankedCards: [RecommendationCard] = []
+            for feature in rankedFeatures {
+                guard let candidate = candidates.first(where: { $0.features.id == feature.id }) else { continue }
+                rankedCards.append(candidate.card)
+                if rankedCards.count == 3 { break }
+            }
+            candidateCount = rankedCards.count
+            span.end(additionalFields: [
+                "route": .safeString(.stage(route, allowed: ["library", "fallback_embeddings_unavailable", "fallback_no_matches"])),
+                "candidate_count": .int(candidateCount),
+                "matches_considered": .int(matches.count)
+            ], error: nil)
+            return rankedCards
+        } catch {
+            span.end(additionalFields: [
+                "route": .safeString(.stage(route, allowed: ["library", "fallback_embeddings_unavailable", "fallback_no_matches"])),
+                "candidate_count": .int(candidateCount)
+            ], error: error)
+            throw error
         }
-        return rankedCards
     }
 
     public func chatResponse(userInput: String,
@@ -121,7 +178,13 @@ public final class CoachAgent {
                              topSignal: String,
                              groundingFloor: Double) async -> CoachReplyPayload {
         let sanitizedInput = PIIRedactor.redact(userInput)
-        logger.debug("Preparing chat response. Consent: \(consentGranted, privacy: .public), input: \(String(sanitizedInput.prefix(160)), privacy: .public)")
+        Diagnostics.log(level: .info,
+                        category: .coach,
+                        name: "coach.chat.prepare",
+                        fields: [
+                            "consent": .bool(consentGranted),
+                            "input_chars": .int(userInput.count)
+                        ])
         let rationale = snapshot.contributions.sorted { abs($0.value) > abs($1.value) }
             .prefix(3)
             .map { "\($0.key): \(String(format: "%.2f", $0.value))" }
@@ -142,7 +205,6 @@ public final class CoachAgent {
                                       rationale: rationale,
                                       zScoreSummary: summary,
                                       candidateMoments: candidateMoments)
-        logger.debug("LLM context built. Top signal: \(context.topSignal, privacy: .public), intentTopic: \(intentTopic ?? "none", privacy: .public), rationale: \(context.rationale, privacy: .public), zScores: \(String(context.zScoreSummary.prefix(200)), privacy: .public)")
         return await llmGateway.generateCoachResponse(context: context,
                                                      intentTopic: intentTopic,
                                                      candidateMoments: candidateMoments,
@@ -177,7 +239,16 @@ public final class CoachAgent {
             event.completedAt = accepted ? Date() : nil
             try context.save()
         }
-        await applyFeedback(for: momentId, accepted: accepted)
+        let feedback = await applyFeedback(for: momentId, accepted: accepted)
+        Diagnostics.log(level: .info,
+                        category: .coach,
+                        name: accepted ? "coach.feedback.accept" : "coach.feedback.dismiss",
+                        fields: [
+                            "moment_id": .safeString(.metadata(momentId)),
+                            "weights_changed": .int(feedback?.changedCount ?? 0),
+                            "learning_rate_bucket": .safeString(.stage(feedback?.learningRateBucket ?? "unknown",
+                                                                       allowed: ["coldstart", "learning", "stable", "unknown"]))
+                        ])
     }
 
     public func momentTitle(for id: String) async -> String? {
@@ -477,10 +548,10 @@ public final class CoachAgent {
         return 1 - (elapsed / cooldown)
     }
 
-    private func applyFeedback(for momentId: String, accepted: Bool) async {
-        guard let target = lastRankedFeatures.first(where: { $0.id == momentId }) else { return }
+    private func applyFeedback(for momentId: String, accepted: Bool) async -> (changedCount: Int, learningRateBucket: String)? {
+        guard let target = lastRankedFeatures.first(where: { $0.id == momentId }) else { return nil }
         let comparators = lastRankedFeatures.filter { $0.id != momentId }
-        guard !comparators.isEmpty else { return }
+        guard !comparators.isEmpty else { return nil }
 
         for candidate in comparators {
             if accepted {
@@ -493,6 +564,18 @@ public final class CoachAgent {
         let history = await acceptanceHistory(for: momentId)
         ranker.updateLearningRate(basedOn: history)
         persistRankerState()
+        return (changedCount: comparators.count, learningRateBucket: learningRateBucket(for: history.sampleCount))
+    }
+
+    private func learningRateBucket(for sampleCount: Int) -> String {
+        switch sampleCount {
+        case ..<3:
+            return "coldstart"
+        case 3..<10:
+            return "learning"
+        default:
+            return "stable"
+        }
     }
 
     private func acceptanceHistory(for momentId: String) async -> AcceptanceHistory {

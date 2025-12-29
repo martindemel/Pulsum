@@ -17,6 +17,11 @@ let package = Package(
         .target(
             name: "PulsumTypes",
             path: "Sources"
+        ),
+        .testTarget(
+            name: "PulsumTypesTests",
+            dependencies: ["PulsumTypes"],
+            path: "Tests"
         )
     ]
 )

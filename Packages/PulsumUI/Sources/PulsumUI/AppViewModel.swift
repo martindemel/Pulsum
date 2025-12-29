@@ -51,6 +51,7 @@ final class AppViewModel {
     @ObservationIgnored private var scoreRefreshObserver: NSObjectProtocol?
     #if canImport(UIKit)
     @ObservationIgnored private var appActiveObserver: NSObjectProtocol?
+    @ObservationIgnored private var appBackgroundObserver: NSObjectProtocol?
     #endif
 
     var startupState: StartupState = .idle
@@ -67,11 +68,34 @@ final class AppViewModel {
     let coachViewModel: CoachViewModel
     let pulseViewModel: PulseViewModel
     let settingsViewModel: SettingsViewModel
+    private let startupTraceId = UUID()
+    private var didEmitFirstRunStart = false
+    private var didEmitFirstRunEnd = false
+    private let firstLaunch: Bool
+    private let sessionInfo: (version: String, build: String)
+    private let firstRunReasonAllowlist: Set<String> = [
+        "blocked",
+        "ready",
+        "failed",
+        "health_unavailable",
+        "background_delivery_ignored",
+        "embeddings_pending",
+        "health_backfill_running",
+        "library_index_deferred",
+        "journal_embeddings_pending",
+        "unknown"
+    ]
 
     init() {
         Task { await DebugLogBuffer.shared.append("AppViewModel.init invoked") }
         let consent = consentStore.loadConsent()
         self.consentGranted = consent
+        self.sessionInfo = AppViewModel.makeVersionInfo()
+        let launchKey = "ai.pulsum.hasLaunched"
+        let defaults = UserDefaults.standard
+        let hasLaunched = defaults.bool(forKey: launchKey)
+        self.firstLaunch = !hasLaunched
+        defaults.set(true, forKey: launchKey)
 
         let coachVM = CoachViewModel()
         let pulseVM = PulseViewModel()
@@ -107,75 +131,142 @@ final class AppViewModel {
         appActiveObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
                                                                    object: nil,
                                                                    queue: .main) { [weak self] _ in
+            Diagnostics.log(level: .info,
+                            category: .app,
+                            name: "app.lifecycle.didBecomeActive",
+                            traceId: self?.startupTraceId)
             self?.refreshOnForeground()
         }
+        appBackgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                                                                       object: nil,
+                                                                       queue: .main) { [weak self] _ in
+            Diagnostics.log(level: .info,
+                            category: .app,
+                            name: "app.lifecycle.didEnterBackground",
+                            traceId: self?.startupTraceId)
+        }
         #endif
+
+        logSessionStart()
     }
 
     func start() {
         guard startupState == .idle else { return }
+        emitFirstRunStartIfNeeded()
         if let issue = PulsumData.backupSecurityIssue {
             let location = issue.url.lastPathComponent
             startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")
             Task { await DebugLogBuffer.shared.append("Startup blocked: \(issue.reason)") }
+            emitFirstRunEnd(fields: [
+                "reason": .safeString(.stage("blocked",
+                                             allowed: firstRunReasonAllowlist)),
+                "directory": .safeString(.metadata(location))
+            ])
             return
         }
         startupState = .loading
         Task { [weak self] in
             guard let self else { return }
             do {
-                print("[Pulsum] Attempting to make orchestrator")
-                await DebugLogBuffer.shared.append("Creating orchestrator")
+                Diagnostics.log(level: .info,
+                                category: .app,
+                                name: "app.orchestrator.create.begin",
+                                traceId: startupTraceId)
                 let orchestrator = try PulsumAgents.makeOrchestrator()
-                print("[Pulsum] Orchestrator created")
-                await DebugLogBuffer.shared.append("Orchestrator created")
+                Diagnostics.log(level: .info,
+                                category: .app,
+                                name: "app.orchestrator.create.end",
+                                traceId: startupTraceId)
                 self.orchestrator = orchestrator
                 self.coachViewModel.bind(orchestrator: orchestrator, consentProvider: { [weak self] in
                     self?.consentGranted ?? false
                 })
-                print("[Pulsum] CoachViewModel bound")
                 self.pulseViewModel.bind(orchestrator: orchestrator)
-                print("[Pulsum] PulseViewModel bound")
                 self.settingsViewModel.bind(orchestrator: orchestrator)
                 self.settingsViewModel.refreshFoundationStatus()
-                Task { await DebugLogBuffer.shared.append("Orchestrator bound to UI view models") }
-                print("[Pulsum] SettingsViewModel bound and foundation status refreshed")
+                Diagnostics.log(level: .info,
+                                category: .ui,
+                                name: "timeline.firstRun.checkpoint",
+                                fields: [
+                                    "stage": .safeString(.stage("orchestrator_bound", allowed: ["orchestrator_bound"]))
+                                ],
+                                traceId: startupTraceId)
                 self.startupState = .ready
-                print("[Pulsum] Startup state set to ready")
 
                 Task { [weak self] in
                     guard let self else { return }
+                    let startSpan = Diagnostics.span(category: .orchestrator,
+                                                     name: "orchestrator.start.call",
+                                                     traceId: startupTraceId)
                     do {
-                        print("[Pulsum] Starting orchestrator start()")
-                        await DebugLogBuffer.shared.append("Starting orchestrator.start()")
-                        try await orchestrator.start()
-                        print("[Pulsum] Orchestrator start() completed")
+                        try await orchestrator.start(traceId: startupTraceId)
+                        startSpan.end(error: nil)
                         self.settingsViewModel.refreshHealthAccessStatus()
                         await self.coachViewModel.refreshRecommendations()
-                        print("[Pulsum] Recommendations refreshed")
+                        if let deferred = analysisDeferredFields(from: await orchestrator.diagnosticsSnapshot()) {
+                            var fields = deferred.fields
+                            fields["reason"] = .safeString(deferred.reason)
+                            Diagnostics.log(level: .info,
+                                            category: .ui,
+                                            name: "ui.analysis.deferred",
+                                            fields: fields,
+                                            traceId: startupTraceId)
+                            emitFirstRunEnd(fields: fields)
+                        } else {
+                            emitFirstRunEnd(fields: [
+                                "reason": .safeString(.stage("ready",
+                                                             allowed: firstRunReasonAllowlist))
+                            ])
+                        }
                         await DebugLogBuffer.shared.append("Orchestrator start complete; recommendations refreshed")
                     } catch {
-                        print("[Pulsum] Orchestrator start failed: \(error)")
-                        await DebugLogBuffer.shared.append("Orchestrator start failed: \(error.localizedDescription)")
+                        Diagnostics.log(level: .error,
+                                        category: .app,
+                                        name: "orchestrator.start.failed",
+                                        traceId: startupTraceId,
+                                        error: error)
+                        startSpan.end(error: error)
+                        await DebugLogBuffer.shared.append("Orchestrator start failed")
                         if let startupError = error as? OrchestratorStartupError {
                             switch startupError {
                             case .healthDataUnavailable:
                                 await DebugLogBuffer.shared.append("HealthDataUnavailable during start")
+                                emitFirstRunEnd(fields: [
+                                    "reason": .safeString(.stage("health_unavailable",
+                                                                 allowed: firstRunReasonAllowlist))
+                                ])
                                 return
                             case let .healthBackgroundDeliveryMissing(underlying):
                                 if shouldIgnoreBackgroundDeliveryError(underlying) {
-                                    await DebugLogBuffer.shared.append("Background delivery missing but ignored: \(underlying.localizedDescription)")
+                                    await DebugLogBuffer.shared.append("Background delivery missing but ignored")
+                                    emitFirstRunEnd(fields: [
+                                        "reason": .safeString(.stage("background_delivery_ignored",
+                                                                     allowed: firstRunReasonAllowlist)),
+                                        "background_delivery_missing": .bool(true)
+                                    ])
                                     return
                                 }
                             }
                         }
                         self.startupState = .failed(error.localizedDescription)
+                        emitFirstRunEnd(fields: [
+                            "reason": .safeString(.stage("failed",
+                                                         allowed: firstRunReasonAllowlist))
+                        ], error: error)
                     }
                 }
             } catch {
-                print("[Pulsum] Failed to create orchestrator: \(error)")
-                await DebugLogBuffer.shared.append("Failed to create orchestrator: \(error.localizedDescription)")
+                Diagnostics.log(level: .error,
+                                category: .app,
+                                name: "app.orchestrator.create.failed",
+                                traceId: startupTraceId,
+                                error: error)
+                await DebugLogBuffer.shared.append("Failed to create orchestrator")
                 self.startupState = .failed(error.localizedDescription)
+                emitFirstRunEnd(fields: [
+                    "reason": .safeString(.stage("failed",
+                                                 allowed: firstRunReasonAllowlist))
+                ], error: error)
             }
         }
     }
@@ -219,13 +310,114 @@ final class AppViewModel {
     private func refreshOnForeground() {
         guard startupState == .ready, let orchestrator else { return }
         Task {
-            await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork()
+            await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: startupTraceId)
         }
+    }
+
+    @MainActor
+    deinit {
+        if let scoreRefreshObserver {
+            NotificationCenter.default.removeObserver(scoreRefreshObserver)
+        }
+        #if canImport(UIKit)
+        if let appActiveObserver {
+            NotificationCenter.default.removeObserver(appActiveObserver)
+        }
+        if let appBackgroundObserver {
+            NotificationCenter.default.removeObserver(appBackgroundObserver)
+        }
+        #endif
     }
 }
 
 private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
     (error as NSError).localizedDescription.contains("Missing com.apple.developer.healthkit.background-delivery")
+}
+
+private extension AppViewModel {
+    func logSessionStart() {
+        let locale = Locale.current.identifier
+        #if canImport(UIKit)
+        let deviceModel = UIDevice.current.model
+        let osVersion = UIDevice.current.systemVersion
+        let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        #else
+        let deviceModel = "mac"
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
+        let lowPower = false
+        #endif
+        Diagnostics.log(level: .info,
+                        category: .app,
+                        name: "app.session.start",
+                        fields: [
+                            "app_version": .safeString(.metadata(sessionInfo.version)),
+                            "build_number": .safeString(.metadata(sessionInfo.build)),
+                            "device_model": .safeString(.metadata(deviceModel)),
+                            "os_version": .safeString(.metadata(osVersion)),
+                            "locale": .safeString(.metadata(locale)),
+                            "low_power_mode": .bool(lowPower),
+                            "first_launch": .bool(firstLaunch)
+                        ],
+                        traceId: startupTraceId)
+    }
+
+    static func makeVersionInfo() -> (String, String) {
+        let bundle = Bundle.main
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        return (version, build)
+    }
+
+    func analysisDeferredFields(from snapshot: DiagnosticsSnapshot) -> (reason: DiagnosticsSafeString, fields: [String: DiagnosticsValue])? {
+        let reasonAllowlist: Set<String> = ["embeddings_pending", "health_backfill_running", "library_index_deferred", "journal_embeddings_pending", "unknown"]
+        let embeddingsAvailable = snapshot.embeddingsAvailable ?? false
+        let pendingJournals = snapshot.pendingJournalsCount ?? 0
+        let warmCompleted = snapshot.backfillWarmCompleted ?? 0
+        let fullCompleted = snapshot.backfillFullCompleted ?? 0
+        let deferredLibraryImport = snapshot.deferredLibraryImport ?? false
+        let expectedTypes = snapshot.healthGrantedCount ?? 0
+        let baseFields: [String: DiagnosticsValue] = [
+            "pending_journals": .int(pendingJournals),
+            "backfill_warm_completed": .int(warmCompleted),
+            "backfill_full_completed": .int(fullCompleted),
+            "embeddings_available": .bool(embeddingsAvailable),
+            "deferred_library_import": .bool(deferredLibraryImport)
+        ]
+        if !embeddingsAvailable {
+            return (.stage("embeddings_pending", allowed: reasonAllowlist), baseFields)
+        }
+        if pendingJournals > 0 {
+            return (.stage("journal_embeddings_pending", allowed: reasonAllowlist), baseFields)
+        }
+        if deferredLibraryImport {
+            return (.stage("library_index_deferred", allowed: reasonAllowlist), baseFields)
+        }
+        if warmCompleted < expectedTypes || fullCompleted < expectedTypes {
+            return (.stage("health_backfill_running", allowed: reasonAllowlist), baseFields)
+        }
+        return nil
+    }
+
+    func emitFirstRunStartIfNeeded() {
+        guard !didEmitFirstRunStart else { return }
+        Diagnostics.log(level: .info,
+                        category: .app,
+                        name: "timeline.firstRun.start",
+                        traceId: startupTraceId)
+        didEmitFirstRunStart = true
+    }
+
+    func emitFirstRunEnd(fields: [String: DiagnosticsValue], error: Error? = nil) {
+        guard !didEmitFirstRunEnd else { return }
+        let level: DiagnosticsLevel = error == nil ? .info : .error
+        Diagnostics.log(level: level,
+                        category: .app,
+                        name: "timeline.firstRun.end",
+                        fields: fields,
+                        traceId: startupTraceId,
+                        error: error)
+        didEmitFirstRunEnd = true
+    }
 }
 
 @MainActor
