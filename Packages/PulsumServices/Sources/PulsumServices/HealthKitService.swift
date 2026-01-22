@@ -157,6 +157,7 @@ public final class HealthKitService: @unchecked Sendable {
     private let anchorStore: HealthKitAnchorStore
     private let calendar = Calendar(identifier: .gregorian)
     private let processingQueue = DispatchQueue(label: "ai.pulsum.healthkit.service")
+    private let initialAnchorWindowDays = 2
 
     private var activeObserverQueries: [HKSampleType: HKObserverQuery] = [:]
     private var activeAnchoredQueries: [HKSampleType: HKAnchoredObjectQuery] = [:]
@@ -317,37 +318,48 @@ public final class HealthKitService: @unchecked Sendable {
         var interval = DateComponents()
         interval.day = 1
         let anchorDate = calendar.startOfDay(for: startDate)
+        let healthStore = self.healthStore
+        let handle = HealthKitQueryHandle<[Date: Int]>()
 
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Date: Int], Error>) in
-            let query = HKStatisticsCollectionQuery(quantityType: quantityType,
-                                                    quantitySamplePredicate: predicate,
-                                                    options: .cumulativeSum,
-                                                    anchorDate: anchorDate,
-                                                    intervalComponents: interval)
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[Date: Int], Error>) in
+                let coordinator = HealthKitQueryCoordinator<[Date: Int]>(continuation: continuation)
+                handle.set(coordinator)
 
-            query.initialResultsHandler = { [calendar] _, collection, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
+                let query = HKStatisticsCollectionQuery(quantityType: quantityType,
+                                                        quantitySamplePredicate: predicate,
+                                                        options: .cumulativeSum,
+                                                        anchorDate: anchorDate,
+                                                        intervalComponents: interval)
+
+                coordinator.setQuery(query)
+
+                query.initialResultsHandler = { [calendar] _, collection, error in
+                    if let error {
+                        coordinator.resumeFailure(error)
+                        return
+                    }
+
+                    guard let collection else {
+                        coordinator.resumeSuccess([:])
+                        return
+                    }
+
+                    var results: [Date: Int] = [:]
+                    collection.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                        guard let sum = statistics.sumQuantity() else { return }
+                        let day = calendar.startOfDay(for: statistics.startDate)
+                        results[day] = Int(sum.doubleValue(for: HKUnit.count()))
+                    }
+
+                    coordinator.resumeSuccess(results)
                 }
 
-                guard let collection else {
-                    continuation.resume(returning: [:])
-                    return
-                }
-
-                var results: [Date: Int] = [:]
-                collection.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
-                    guard let sum = statistics.sumQuantity() else { return }
-                    let day = calendar.startOfDay(for: statistics.startDate)
-                    results[day] = Int(sum.doubleValue(for: HKUnit.count()))
-                }
-
-                continuation.resume(returning: results)
+                healthStore.execute(query)
             }
-
-            self.healthStore.execute(query)
-        }
+        }, onCancel: {
+            handle.cancel(healthStore: healthStore)
+        })
     }
 
     public func fetchNocturnalHeartRateStats(startDate: Date, endDate: Date) async throws -> [Date: (avgBPM: Double, minBPM: Double?)] {
@@ -360,6 +372,7 @@ public final class HealthKitService: @unchecked Sendable {
 
         var day = calendar.startOfDay(for: startDate)
         let endBoundary = calendar.startOfDay(for: endDate)
+        let healthStore = self.healthStore
 
         while day < endDate {
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
@@ -370,25 +383,45 @@ public final class HealthKitService: @unchecked Sendable {
             let windowEnd = min(nightEnd, endDate)
             if windowStart < windowEnd {
                 let predicate = HKQuery.predicateForSamples(withStart: windowStart, end: windowEnd, options: .strictStartDate)
-                let stats = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Double, Double?)?, Error>) in
-                    let query = HKStatisticsQuery(quantityType: quantityType,
-                                                  quantitySamplePredicate: predicate,
-                                                  options: [.discreteAverage, .discreteMin]) { _, statistics, error in
-                        if let error {
-                            continuation.resume(throwing: error)
-                            return
+                let handle = HealthKitQueryHandle<(Double, Double?)?>()
+
+                let stats = try await withTaskCancellationHandler(operation: {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Double, Double?)?, Error>) in
+                        let coordinator = HealthKitQueryCoordinator<(Double, Double?)?>(continuation: continuation)
+                        handle.set(coordinator)
+
+                        let query = HKStatisticsQuery(quantityType: quantityType,
+                                                      quantitySamplePredicate: predicate,
+                                                      options: [.discreteAverage, .discreteMin]) { _, statistics, error in
+                            if let error {
+                                if let hkError = error as? HKError, hkError.code == .errorNoData {
+                                    coordinator.resumeSuccess(nil)
+                                    return
+                                }
+                                let nsError = error as NSError
+                                if nsError.domain == HKError.errorDomain,
+                                   nsError.code == HKError.Code.errorNoData.rawValue {
+                                    coordinator.resumeSuccess(nil)
+                                    return
+                                }
+                                coordinator.resumeFailure(error)
+                                return
+                            }
+                            guard let statistics, let average = statistics.averageQuantity() else {
+                                coordinator.resumeSuccess(nil)
+                                return
+                            }
+                            let unit = HKUnit.count().unitDivided(by: .minute())
+                            let avg = average.doubleValue(for: unit)
+                            let min = statistics.minimumQuantity()?.doubleValue(for: unit)
+                            coordinator.resumeSuccess((avg, min))
                         }
-                        guard let statistics, let average = statistics.averageQuantity() else {
-                            continuation.resume(returning: nil)
-                            return
-                        }
-                        let unit = HKUnit.count().unitDivided(by: .minute())
-                        let avg = average.doubleValue(for: unit)
-                        let min = statistics.minimumQuantity()?.doubleValue(for: unit)
-                        continuation.resume(returning: (avg, min))
+                        coordinator.setQuery(query)
+                        healthStore.execute(query)
                     }
-                    self.healthStore.execute(query)
-                }
+                }, onCancel: {
+                    handle.cancel(healthStore: healthStore)
+                })
 
                 if let stats {
                     results[day] = (avgBPM: stats.0, minBPM: stats.1)
@@ -408,21 +441,33 @@ public final class HealthKitService: @unchecked Sendable {
             throw HealthKitServiceError.healthDataUnavailable
         }
 
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKSample], Error>) in
-            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [.strictStartDate])
-            let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
-            let query = HKSampleQuery(sampleType: sampleType,
-                                      predicate: predicate,
-                                      limit: HKObjectQueryNoLimit,
-                                      sortDescriptors: [sortDescriptor]) { _, samples, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: samples ?? [])
+        let healthStore = self.healthStore
+        let handle = HealthKitQueryHandle<[HKSample]>()
+
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKSample], Error>) in
+                let coordinator = HealthKitQueryCoordinator<[HKSample]>(continuation: continuation)
+                handle.set(coordinator)
+
+                let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [.strictStartDate])
+                let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+                let query = HKSampleQuery(sampleType: sampleType,
+                                          predicate: predicate,
+                                          limit: HKObjectQueryNoLimit,
+                                          sortDescriptors: [sortDescriptor]) { _, samples, error in
+                    if let error {
+                        coordinator.resumeFailure(error)
+                    } else {
+                        coordinator.resumeSuccess(samples ?? [])
+                    }
                 }
+
+                coordinator.setQuery(query)
+                healthStore.execute(query)
             }
-            self.healthStore.execute(query)
-        }
+        }, onCancel: {
+            handle.cancel(healthStore: healthStore)
+        })
     }
 
 
@@ -482,8 +527,18 @@ public final class HealthKitService: @unchecked Sendable {
             self?.activeObserverQueries[sampleType] = observer
         }
 
-        // Initial fetch
-        executeAnchoredQuery(for: sampleType, predicateBox: predicateBox, updateHandler: updateHandler, completion: nil)
+        let hasAnchor = anchorStore.anchor(for: sampleType.identifier) != nil
+        if predicateBox.value != nil || hasAnchor {
+            executeAnchoredQuery(for: sampleType, predicateBox: predicateBox, updateHandler: updateHandler, completion: nil)
+        } else {
+            Diagnostics.log(level: .info,
+                            category: .healthkit,
+                            name: "healthkit.observe.initialFetch.skipped",
+                            fields: [
+                                "type": .safeString(.metadata(sampleType.identifier)),
+                                "reason": .safeString(.stage("no_anchor", allowed: ["no_anchor"]))
+                            ])
+        }
 
         return observer
     }
@@ -521,8 +576,22 @@ public final class HealthKitService: @unchecked Sendable {
                                       completion: (@Sendable () -> Void)?) {
         processingQueue.async { [weak self] in
             guard let self else { completion?(); return }
-            let predicate = predicateBox.value
             let currentAnchor = self.anchorStore.anchor(for: sampleType.identifier)
+            var predicate = predicateBox.value
+            if predicate == nil, currentAnchor == nil {
+                let endDate = Date()
+                let windowDays = self.initialAnchorWindowDays
+                let startDate = self.calendar.date(byAdding: .day, value: -windowDays, to: endDate)
+                    ?? endDate.addingTimeInterval(-Double(windowDays) * 86_400)
+                predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: [.strictStartDate])
+                Diagnostics.log(level: .info,
+                                category: .healthkit,
+                                name: "healthkit.anchored.initialBounded",
+                                fields: [
+                                    "type": .safeString(.metadata(sampleType.identifier)),
+                                    "window_days": .int(windowDays)
+                                ])
+            }
             let query = HKAnchoredObjectQuery(type: sampleType,
                                              predicate: predicate,
                                              anchor: currentAnchor,
@@ -590,6 +659,75 @@ public protocol HealthKitServicing: AnyObject, Sendable {
 extension HealthKitService: HealthKitServicing {}
 
 extension HealthKitService.AnchoredUpdate: @unchecked Sendable {}
+
+private final class HealthKitQueryHandle<Result: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var coordinator: HealthKitQueryCoordinator<Result>?
+
+    func set(_ coordinator: HealthKitQueryCoordinator<Result>) {
+        lock.lock()
+        self.coordinator = coordinator
+        lock.unlock()
+    }
+
+    func cancel(healthStore: HKHealthStore) {
+        lock.lock()
+        let coordinator = coordinator
+        lock.unlock()
+        coordinator?.cancel(healthStore: healthStore)
+    }
+}
+
+private final class HealthKitQueryCoordinator<Result: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resumed = false
+    private var query: HKQuery?
+    private let continuation: CheckedContinuation<Result, Error>
+
+    init(continuation: CheckedContinuation<Result, Error>) {
+        self.continuation = continuation
+    }
+
+    func setQuery(_ query: HKQuery) {
+        lock.lock()
+        self.query = query
+        lock.unlock()
+    }
+
+    func resumeSuccess(_ result: Result) {
+        lock.lock()
+        guard !resumed else { lock.unlock(); return }
+        resumed = true
+        lock.unlock()
+        continuation.resume(returning: result)
+    }
+
+    func resumeFailure(_ error: Error) {
+        lock.lock()
+        guard !resumed else { lock.unlock(); return }
+        resumed = true
+        lock.unlock()
+        continuation.resume(throwing: error)
+    }
+
+    func cancel(healthStore: HKHealthStore) {
+        let query: HKQuery?
+        lock.lock()
+        query = self.query
+        let shouldResume = !resumed
+        if !resumed {
+            resumed = true
+        }
+        lock.unlock()
+
+        if let query {
+            healthStore.stop(query)
+        }
+        if shouldResume {
+            continuation.resume(throwing: CancellationError())
+        }
+    }
+}
 
 private struct CompletionBox: @unchecked Sendable {
     let handler: HKObserverQueryCompletionHandler

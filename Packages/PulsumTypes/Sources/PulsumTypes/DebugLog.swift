@@ -32,6 +32,12 @@ public actor DebugLogBuffer {
         lines.joined(separator: "\n")
     }
 
+    public func tail(maxLines: Int) -> [String] {
+        guard maxLines > 0 else { return [] }
+        if lines.count <= maxLines { return lines }
+        return Array(lines.suffix(maxLines))
+    }
+
     public func clear() {
         lines.removeAll()
     }

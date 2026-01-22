@@ -82,6 +82,7 @@ swift test --package-path Packages/PulsumAgents
 
 # Run specific test via xcodebuild
 xcodebuild test -scheme PulsumAgents -destination 'platform=iOS Simulator,name=iPhone 15'
+xcodebuild test -scheme PulsumUI -destination 'platform=iOS Simulator,name=iPhone 15'
 ```
 
 ### Clean Build (when encountering Foundation Models issues)

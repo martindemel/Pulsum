@@ -9,6 +9,7 @@ public struct DiagnosticsReportContext: Sendable {
     public let sessionId: UUID
     public let diagnosticsEnabled: Bool
     public let persistenceEnabled: Bool
+    public let sessionsIncluded: [String]?
 
     public init(appVersion: String,
                 buildNumber: String,
@@ -17,7 +18,8 @@ public struct DiagnosticsReportContext: Sendable {
                 locale: String,
                 sessionId: UUID,
                 diagnosticsEnabled: Bool,
-                persistenceEnabled: Bool) {
+                persistenceEnabled: Bool,
+                sessionsIncluded: [String]? = nil) {
         self.appVersion = appVersion
         self.buildNumber = buildNumber
         self.deviceModel = deviceModel
@@ -26,6 +28,7 @@ public struct DiagnosticsReportContext: Sendable {
         self.sessionId = sessionId
         self.diagnosticsEnabled = diagnosticsEnabled
         self.persistenceEnabled = persistenceEnabled
+        self.sessionsIncluded = sessionsIncluded
     }
 }
 
@@ -72,7 +75,6 @@ public enum DiagnosticsReportBuilder {
                                    snapshot: DiagnosticsSnapshot,
                                    logTail: [String]) throws -> URL {
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        let safeTimestamp = timestamp.replacingOccurrences(of: ":", with: "-")
         var sections: [String] = []
         sections.append("Pulsum Diagnostics Report")
         sections.append("Generated: \(timestamp)")
@@ -86,6 +88,9 @@ public enum DiagnosticsReportBuilder {
         sections.append("session_id=\(context.sessionId.uuidString)")
         sections.append("diagnostics_enabled=\(context.diagnosticsEnabled)")
         sections.append("persistence_enabled=\(context.persistenceEnabled)")
+        if let sessions = context.sessionsIncluded, !sessions.isEmpty {
+            sections.append("sessions_included=\(sessions.joined(separator: ","))")
+        }
 
         sections.append("")
         sections.append("[Snapshot]")
@@ -132,8 +137,8 @@ public enum DiagnosticsReportBuilder {
         }
 
         let content = sections.joined(separator: "\n")
-        let directory = DiagnosticsLogger.diagnosticsDirectory()
-        let url = directory.appendingPathComponent("PulsumDiagnostics-\(safeTimestamp).txt")
+        let directory = DiagnosticsPaths.exportsDirectory()
+        let url = directory.appendingPathComponent("PulsumDiagnostics-Latest.txt")
         guard let data = content.data(using: .utf8) else {
             throw NSError(domain: "PulsumDiagnostics", code: -1)
         }

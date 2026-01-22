@@ -25,6 +25,7 @@
 		945EC89F2E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
 		945EC8A02E8AD321001CCF2E /* PulsumServices in Frameworks */ = {isa = PBXBuildFile; productRef = 789E650BC257425BBE5CEDCB /* PulsumServices */; };
 		945EC8A12E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
+		F3A4B5C6D7E8090A1B2C3D4E /* PulsumTypes in Frameworks */ = {isa = PBXBuildFile; productRef = E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +84,11 @@
 			path = PulsumUITests;
 			sourceTree = "<group>";
 		};
+		9A7E0B7E2F7C4B2F00A1B2C3 /* Packages/PulsumUI/Tests/PulsumUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Packages/PulsumUI/Tests/PulsumUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,6 +113,7 @@
 				945EC8982E8AD321001CCF2E /* PulsumUI in Frameworks */,
 				945EC89C2E8AD321001CCF2E /* PulsumML in Frameworks */,
 				945EC89A2E8AD321001CCF2E /* PulsumData in Frameworks */,
+				F3A4B5C6D7E8090A1B2C3D4E /* PulsumTypes in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -153,6 +160,7 @@
 			children = (
 				PULSUM_CONFIG_XCCONFIG /* Config.xcconfig */,
 				163A3F3C451B4A0D810BEBDC /* PrivacyInfo.xcprivacy */,
+				9A7E0B7E2F7C4B2F00A1B2C3 /* Packages/PulsumUI/Tests/PulsumUITests */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -182,6 +190,7 @@
 				A53933ECCEA4440495B0FCB3 /* PulsumData */,
 				789E650BC257425BBE5CEDCB /* PulsumServices */,
 				0F767ADA6BE24721A5249B90 /* PulsumML */,
+				E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */,
 			);
 			productName = Pulsum;
 			productReference = 941192802E8A01FF0078B278 /* Pulsum.app */;
@@ -202,6 +211,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				941192952E8A01FF0078B278 /* PulsumTests */,
+				9A7E0B7E2F7C4B2F00A1B2C3 /* Packages/PulsumUI/Tests/PulsumUITests */,
 			);
 			name = PulsumTests;
 			packageProductDependencies = (
@@ -281,6 +291,7 @@
 				8B350B6393B14442A408462B /* XCLocalSwiftPackageReference "Packages/PulsumData" */,
 				AC96D4BBAB3448A2A2619700 /* XCLocalSwiftPackageReference "Packages/PulsumServices" */,
 				300FFDA27B1942B2BBA23181 /* XCLocalSwiftPackageReference "Packages/PulsumML" */,
+				D1A2B3C4D5E6F70809101112 /* XCLocalSwiftPackageReference "Packages/PulsumTypes" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 941192812E8A01FF0078B278 /* Products */;
@@ -718,6 +729,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/PulsumServices;
 		};
+		D1A2B3C4D5E6F70809101112 /* XCLocalSwiftPackageReference "Packages/PulsumTypes" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PulsumTypes;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -745,6 +760,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 34D4537F967F427A8CC60E41 /* XCLocalSwiftPackageReference "Packages/PulsumUI" */;
 			productName = PulsumUI;
+		};
+		E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1A2B3C4D5E6F70809101112 /* XCLocalSwiftPackageReference "Packages/PulsumTypes" */;
+			productName = PulsumTypes;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

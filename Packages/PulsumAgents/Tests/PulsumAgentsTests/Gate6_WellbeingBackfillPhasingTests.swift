@@ -11,8 +11,8 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     func testWarmStartBackfillsFastWindowAndProducesSnapshot() async throws {
         let stub = HealthKitServiceStub()
-        authorizeAllTypes(stub)
-        populateSamples(stub, days: 35)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.populateSamples(stub, days: 35, calendar: calendar)
         let store = BackfillStateStoreSpy()
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
@@ -49,8 +49,8 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     func testAggregatedStepsAndNocturnalHRUseStatisticsQueries() async throws {
         let stub = HealthKitServiceStub()
-        authorizeAllTypes(stub)
-        populateSamples(stub, days: 10)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.populateSamples(stub, days: 10, calendar: calendar)
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
@@ -69,8 +69,8 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     func testRequestHealthAccessReturnsBeforeWarmStartCompletes() async throws {
         let stub = HealthKitServiceStub()
         stub.fetchDelayNanoseconds = 200_000_000
-        authorizeAllTypes(stub)
-        populateSamples(stub, days: 35)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.populateSamples(stub, days: 35, calendar: calendar)
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
@@ -99,8 +99,8 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     func testBackgroundBackfillExpandsCoverageAndPersistsAcrossSessions() async throws {
         let stub = HealthKitServiceStub()
-        authorizeAllTypes(stub)
-        populateSamples(stub, days: 35)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.populateSamples(stub, days: 35, calendar: calendar)
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
@@ -141,8 +141,8 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     func testBootstrapFallbackFindsOlderDataWhenRecentWindowIsEmpty() async throws {
         let stub = HealthKitServiceStub()
-        authorizeAllTypes(stub)
-        populateSamples(stub, days: 5)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.populateSamples(stub, days: 5, calendar: calendar)
 
         // Remove samples from the last two days so the 2-day bootstrap window is empty.
         let today = calendar.startOfDay(for: Date())
@@ -169,8 +169,8 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     func testSleepDebtMissingDataIsImputedButScoreStillComputes() async throws {
         let stub = HealthKitServiceStub()
-        authorizeAllTypes(stub)
-        populateSamples(stub, days: 5)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.populateSamples(stub, days: 5, calendar: calendar)
         stub.fetchedSamples[HKCategoryTypeIdentifier.sleepAnalysis.rawValue] = []
         let store = BackfillStateStoreSpy()
 
@@ -188,7 +188,7 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     @MainActor
     func testOverlappingBackfillDoesNotInflateSleepTotals() async throws {
         let stub = HealthKitServiceStub()
-        authorizeAllTypes(stub)
+        TestHealthKitSampleSeeder.authorizeAllTypes(stub)
         let container = TestCoreDataStack.makeContainer()
         let store = BackfillStateStoreSpy()
         let agent = DataAgent(healthKit: stub,
@@ -240,13 +240,6 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func authorizeAllTypes(_ stub: HealthKitServiceStub) {
-        for type in HealthKitService.orderedReadSampleTypes {
-            stub.authorizationStatuses[type.identifier] = .sharingAuthorized
-            stub.readProbeResults[type.identifier] = .authorized
-        }
-    }
-
     @MainActor
     private func fetchMetrics(for day: Date, container: NSPersistentContainer) throws -> DailyMetrics? {
         let request = DailyMetrics.fetchRequest()
@@ -262,67 +255,6 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         return try? decoder.decode(TestDailyFlags.self, from: payload)
     }
 
-    private func populateSamples(_ stub: HealthKitServiceStub, days: Int) {
-        let today = calendar.startOfDay(for: Date())
-        for offset in 0..<days {
-            let dayStart = calendar.date(byAdding: .day, value: -offset, to: today)!
-            let sleepStart = calendar.date(byAdding: .hour, value: 22, to: dayStart)!
-            let sleepEnd = calendar.date(byAdding: .hour, value: 32, to: dayStart) ?? dayStart.addingTimeInterval(32 * 3600)
-            for type in HealthKitService.orderedReadSampleTypes {
-                switch type {
-                case let quantity as HKQuantityType:
-                    appendQuantitySample(type: quantity, dayStart: dayStart, sleepStart: sleepStart, sleepEnd: sleepEnd, offset: offset, stub: stub)
-                case let category as HKCategoryType:
-                    let sleep = HKCategorySample(type: category,
-                                                 value: HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                                                 start: sleepStart,
-                                                 end: sleepEnd)
-                    append(sample: sleep, to: stub, identifier: category.identifier)
-                default:
-                    break
-                }
-            }
-        }
-    }
-
-    private func appendQuantitySample(type: HKQuantityType,
-                                      dayStart: Date,
-                                      sleepStart: Date,
-                                      sleepEnd: Date,
-                                      offset: Int,
-                                      stub: HealthKitServiceStub) {
-        let identifier = type.identifier
-        switch identifier {
-        case HKQuantityTypeIdentifier.heartRateVariabilitySDNN.rawValue:
-            let quantity = HKQuantity(unit: HKUnit.secondUnit(with: .milli), doubleValue: 50 + Double(offset % 5))
-            let sample = HKQuantitySample(type: type, quantity: quantity, start: sleepStart, end: sleepStart.addingTimeInterval(60))
-            append(sample: sample, to: stub, identifier: identifier)
-        case HKQuantityTypeIdentifier.heartRate.rawValue:
-            let quantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: 58 + Double(offset % 3))
-            let sample = HKQuantitySample(type: type, quantity: quantity, start: sleepStart.addingTimeInterval(3600), end: sleepStart.addingTimeInterval(3660))
-            append(sample: sample, to: stub, identifier: identifier)
-        case HKQuantityTypeIdentifier.restingHeartRate.rawValue:
-            let quantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: 55 + Double(offset % 2))
-            let sample = HKQuantitySample(type: type, quantity: quantity, start: dayStart.addingTimeInterval(9 * 3600), end: dayStart.addingTimeInterval(9 * 3600 + 60))
-            append(sample: sample, to: stub, identifier: identifier)
-        case HKQuantityTypeIdentifier.respiratoryRate.rawValue:
-            let quantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: 14 + Double(offset % 2))
-            let sample = HKQuantitySample(type: type, quantity: quantity, start: sleepStart.addingTimeInterval(7200), end: sleepStart.addingTimeInterval(7260))
-            append(sample: sample, to: stub, identifier: identifier)
-        case HKQuantityTypeIdentifier.stepCount.rawValue:
-            let quantity = HKQuantity(unit: HKUnit.count(), doubleValue: 6000 + Double(offset * 10))
-            let sample = HKQuantitySample(type: type, quantity: quantity, start: dayStart.addingTimeInterval(12 * 3600), end: dayStart.addingTimeInterval(13 * 3600))
-            append(sample: sample, to: stub, identifier: identifier)
-        default:
-            break
-        }
-    }
-
-    private func append(sample: HKSample, to stub: HealthKitServiceStub, identifier: String) {
-        var existing = stub.fetchedSamples[identifier] ?? []
-        existing.append(sample)
-        stub.fetchedSamples[identifier] = existing
-    }
 
     private func totalRequests(for stub: HealthKitServiceStub) -> Int {
         stub.fetchRequests.count + stub.dailyStepTotalsRequests.count + stub.nocturnalStatsRequests.count
