@@ -10,6 +10,9 @@ final class DiagnosticsLoggerTests: XCTestCase {
         #else
         await DebugLogBuffer.shared.clear()
         #endif
+        let exportsDir = DiagnosticsPaths.exportsDirectory()
+        try? FileManager.default.removeItem(at: exportsDir)
+        _ = DiagnosticsPaths.exportsDirectory()
         var config = DiagnosticsConfig.default()
         config.enabled = true
         config.persistToDisk = true
@@ -52,7 +55,7 @@ final class DiagnosticsLoggerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 400_000_000)
         await Diagnostics.flushPersistence()
 
-        let diagnosticsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("Diagnostics")
+        let diagnosticsDir = DiagnosticsPaths.logsDirectory()
         let files = try FileManager.default.contentsOfDirectory(at: diagnosticsDir, includingPropertiesForKeys: [.isExcludedFromBackupKey], options: [.skipsHiddenFiles])
         let logFiles = files.filter { $0.lastPathComponent.hasPrefix("diagnostics.log") }
         XCTAssertLessThanOrEqual(logFiles.count, 2)
@@ -70,7 +73,8 @@ final class DiagnosticsLoggerTests: XCTestCase {
                                                locale: "en_US",
                                                sessionId: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
                                                diagnosticsEnabled: true,
-                                               persistenceEnabled: true)
+                                               persistenceEnabled: true,
+                                               sessionsIncluded: nil)
         let snapshot = DiagnosticsSnapshot(healthGrantedCount: 2,
                                            healthDeniedCount: 1,
                                            healthPendingCount: 0,
@@ -91,8 +95,8 @@ final class DiagnosticsLoggerTests: XCTestCase {
         XCTAssertTrue(contents.contains("health_granted=2"))
         XCTAssertTrue(contents.contains("last_snapshot_day=2025-10-10"))
         XCTAssertTrue(contents.contains("sample log"))
-        let diagnosticsDir = DiagnosticsLogger.diagnosticsDirectory()
-        XCTAssertEqual(url.deletingLastPathComponent(), diagnosticsDir)
+        let exportsDir = DiagnosticsPaths.exportsDirectory()
+        XCTAssertEqual(url.deletingLastPathComponent(), exportsDir)
         let values = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
         XCTAssertEqual(values.isExcludedFromBackup, true)
 #if os(iOS)
@@ -128,12 +132,56 @@ final class DiagnosticsLoggerTests: XCTestCase {
         XCTAssertFalse(snapshot.lowercased().contains(compact.lowercased()))
         XCTAssertFalse(snapshot.lowercased().contains(alphanumericsOnly.lowercased()))
 
-        let diagnosticsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!.appendingPathComponent("Diagnostics")
+        let diagnosticsDir = DiagnosticsPaths.logsDirectory()
         if let content = try? String(contentsOf: diagnosticsDir.appendingPathComponent("diagnostics.log")) {
             let haystack = content.lowercased()
             XCTAssertFalse(haystack.contains(unsafe.lowercased()))
             XCTAssertFalse(haystack.contains(compact.lowercased()))
             XCTAssertFalse(haystack.contains(alphanumericsOnly.lowercased()))
         }
+    }
+
+    func testPersistedTailOrdersOldestToNewestIgnoringExports() async throws {
+        let logsDir = DiagnosticsPaths.logsDirectory()
+        try? FileManager.default.removeItem(at: logsDir)
+        _ = DiagnosticsPaths.logsDirectory()
+
+        let log2 = logsDir.appendingPathComponent("diagnostics.log.2")
+        let log1 = logsDir.appendingPathComponent("diagnostics.log.1")
+        let log0 = logsDir.appendingPathComponent("diagnostics.log")
+        try "old-1\nold-2\n".write(to: log2, atomically: true, encoding: .utf8)
+        try "mid-1\n".write(to: log1, atomically: true, encoding: .utf8)
+        try "new-1\nnew-2\n".write(to: log0, atomically: true, encoding: .utf8)
+
+        let unrelated = logsDir.appendingPathComponent("PulsumDiagnostics-Old.txt")
+        try "should-be-ignored".write(to: unrelated, atomically: true, encoding: .utf8)
+
+        let tail = await Diagnostics.persistedLogTail(maxLines: 10)
+        XCTAssertEqual(tail, ["old-1", "old-2", "mid-1", "new-1", "new-2"])
+        XCTAssertFalse(tail.contains("should-be-ignored"))
+    }
+
+    func testExportReportOverwritesLatestInExportsDirectory() throws {
+        let context = DiagnosticsReportContext(appVersion: "1.0.0",
+                                               buildNumber: "100",
+                                               deviceModel: "TestDevice",
+                                               osVersion: "17.0",
+                                               locale: "en_US",
+                                               sessionId: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                                               diagnosticsEnabled: true,
+                                               persistenceEnabled: true,
+                                               sessionsIncluded: nil)
+        let firstURL = try DiagnosticsReportBuilder.buildReport(context: context,
+                                                                snapshot: DiagnosticsSnapshot(),
+                                                                logTail: ["first-log-line"])
+        let secondURL = try DiagnosticsReportBuilder.buildReport(context: context,
+                                                                 snapshot: DiagnosticsSnapshot(),
+                                                                 logTail: ["second-log-line"])
+        XCTAssertEqual(firstURL, secondURL)
+        let exportsDir = DiagnosticsPaths.exportsDirectory()
+        XCTAssertEqual(secondURL.deletingLastPathComponent(), exportsDir)
+        let contents = try String(contentsOf: secondURL)
+        XCTAssertTrue(contents.contains("second-log-line"))
+        XCTAssertFalse(contents.contains("first-log-line"))
     }
 }

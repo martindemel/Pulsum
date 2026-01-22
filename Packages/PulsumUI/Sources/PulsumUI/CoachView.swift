@@ -203,10 +203,14 @@ struct InsightsScreen: View {
                 MessageBubble(icon: "exclamationmark.triangle", text: message, tint: Color.pulsumWarning)
             }
 
-            if let wellbeingNotice {
-                MessageBubble(icon: wellbeingNotice.icon,
-                              text: wellbeingNotice.text,
-                              tint: wellbeingNotice.tint)
+            if let message = viewModel.recommendationsSoftTimeoutMessage {
+                MessageBubble(icon: "clock.arrow.circlepath", text: message, tint: Color.pulsumBlueSoft)
+            }
+
+            if let notice = viewModel.wellbeingNotice {
+                MessageBubble(icon: notice.icon,
+                              text: notice.text,
+                              tint: notice.tone == .warning ? Color.pulsumWarning : Color.pulsumBlueSoft)
             }
 
             if !consentGranted {
@@ -241,31 +245,7 @@ struct InsightsScreen: View {
         }
     }
 
-    private var wellbeingNotice: (icon: String, text: String, tint: Color)? {
-        switch viewModel.wellbeingState {
-        case let .noData(reason):
-            return ("exclamationmark.triangle",
-                    wellbeingNoDataMessage(for: reason),
-                    Color.pulsumWarning)
-        case .error:
-            return ("exclamationmark.triangle",
-                    "We couldn't compute your wellbeing score yet. Try again after enabling Health access or adding data.",
-                    Color.pulsumWarning)
-        default:
-            return nil
-        }
-    }
-
-    private func wellbeingNoDataMessage(for reason: WellbeingNoDataReason) -> String {
-        switch reason {
-        case .healthDataUnavailable:
-            return "Health data isn't available on this device. Try on a device with Health access."
-        case .permissionsDeniedOrPending:
-            return "Health permissions are needed to personalize picks. Enable Health data in Settings."
-        case .insufficientSamples:
-            return "We're waiting for enough Health data to personalize your picks."
-        }
-    }
+    
 }
 
 private struct MessageBubble: View {

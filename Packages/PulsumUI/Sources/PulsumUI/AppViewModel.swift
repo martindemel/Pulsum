@@ -46,7 +46,7 @@ final class AppViewModel {
         }
     }
 
-    private let consentStore = ConsentStore()
+    private let consentStore: ConsentStore
     @ObservationIgnored private(set) var orchestrator: AgentOrchestrator?
     @ObservationIgnored private var scoreRefreshObserver: NSObjectProtocol?
     #if canImport(UIKit)
@@ -85,22 +85,28 @@ final class AppViewModel {
         "journal_embeddings_pending",
         "unknown"
     ]
+#if DEBUG
+    private var isRunningUnderXCTest: Bool {
+        let env = ProcessInfo.processInfo.environment
+        return env.keys.contains("XCTestConfigurationFilePath") || env.keys.contains("XCTestBundlePath")
+    }
+#endif
 
-    init() {
-        Task { await DebugLogBuffer.shared.append("AppViewModel.init invoked") }
+    init(consentStore: ConsentStore = ConsentStore(),
+         userDefaults: UserDefaults = .standard,
+         sessionInfo: (version: String, build: String) = AppViewModel.makeVersionInfo()) {
         let consent = consentStore.loadConsent()
-        self.consentGranted = consent
-        self.sessionInfo = AppViewModel.makeVersionInfo()
         let launchKey = "ai.pulsum.hasLaunched"
-        let defaults = UserDefaults.standard
-        let hasLaunched = defaults.bool(forKey: launchKey)
-        self.firstLaunch = !hasLaunched
-        defaults.set(true, forKey: launchKey)
-
+        let hasLaunched = userDefaults.bool(forKey: launchKey)
         let coachVM = CoachViewModel()
         let pulseVM = PulseViewModel()
         let settingsVM = SettingsViewModel(initialConsent: consent)
 
+        self.consentStore = consentStore
+        self.consentGranted = consent
+        self.sessionInfo = sessionInfo
+        self.firstLaunch = !hasLaunched
+        userDefaults.set(true, forKey: launchKey)
         self.coachViewModel = coachVM
         self.pulseViewModel = pulseVM
         self.settingsViewModel = settingsVM
@@ -148,10 +154,17 @@ final class AppViewModel {
         #endif
 
         logSessionStart()
+        Task { await DebugLogBuffer.shared.append("AppViewModel.init invoked") }
     }
 
     func start() {
         guard startupState == .idle else { return }
+#if DEBUG
+        if isRunningUnderXCTest {
+            startupState = .ready
+            return
+        }
+#endif
         emitFirstRunStartIfNeeded()
         if let issue = PulsumData.backupSecurityIssue {
             let location = issue.url.lastPathComponent
@@ -422,11 +435,17 @@ private extension AppViewModel {
 
 @MainActor
 struct ConsentStore {
-    private let context = PulsumData.viewContext
+    private let contextProvider: () -> NSManagedObjectContext
     private static let recordID = "default"
-    private let consentVersion: String = {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-    }()
+    private let consentVersion: String
+
+    init(contextProvider: @escaping () -> NSManagedObjectContext = { PulsumData.viewContext },
+         consentVersion: String = ConsentStore.defaultConsentVersion()) {
+        self.contextProvider = contextProvider
+        self.consentVersion = consentVersion
+    }
+
+    private var context: NSManagedObjectContext { contextProvider() }
 
     func loadConsent() -> Bool {
         let request = UserPrefs.fetchRequest()
@@ -483,5 +502,9 @@ struct ConsentStore {
             }
             record.revokedAt = timestamp
         }
+    }
+
+    private static func defaultConsentVersion() -> String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
     }
 }

@@ -50,6 +50,40 @@ public struct ScoreBreakdown: Sendable {
     public let generalNotes: [String]
 }
 
+enum SnapshotPlaceholder {
+    static let imputedFlagKey = "snapshot_placeholder"
+
+    static func isPlaceholder(_ flags: [String: Bool]) -> Bool {
+        flags[imputedFlagKey] == true
+    }
+
+    static func isPlaceholder(_ snapshot: FeatureVectorSnapshot) -> Bool {
+        isPlaceholder(snapshot.imputedFlags)
+    }
+}
+
+struct DataAgentBootstrapPolicy: Sendable {
+    let bootstrapTimeoutSeconds: Double
+    let heartRateTimeoutSeconds: Double
+    let backfillTimeoutSeconds: Double
+    let placeholderDeadlineSeconds: Double
+    let retryDelaySeconds: Double
+    let retryTimeoutSeconds: Double
+    let retryMaxAttempts: Int
+    let retryMaxElapsedSeconds: Double
+
+    static let `default` = DataAgentBootstrapPolicy(
+        bootstrapTimeoutSeconds: 3,
+        heartRateTimeoutSeconds: 3,
+        backfillTimeoutSeconds: 5,
+        placeholderDeadlineSeconds: 5,
+        retryDelaySeconds: 4,
+        retryTimeoutSeconds: 10,
+        retryMaxAttempts: 2,
+        retryMaxElapsedSeconds: 60
+    )
+}
+
 actor DataAgent {
     private let healthKit: any HealthKitServicing
     private let calendar = Calendar(identifier: .gregorian)
@@ -64,6 +98,12 @@ actor DataAgent {
     private var backfillProgress: BackfillProgress
     private var pendingSnapshotUpdate: Task<Void, Never>?
     private var backgroundBackfillTask: Task<Void, Never>?
+    private let bootstrapPolicy: DataAgentBootstrapPolicy
+    private var bootstrapWatchdogTask: Task<Void, Never>?
+    private var bootstrapRetryTask: Task<Void, Never>?
+    private var bootstrapRetryAttempt = 0
+    private var bootstrapRetryStart: Date?
+    private var pendingBootstrapRetryIdentifiers: Set<String> = []
     private var cachedReadAccess: (timestamp: Date, results: [String: ReadAuthorizationProbeResult])?
     private let readProbeCacheTTL: TimeInterval = 30
     private var diagnosticsTraceId: UUID?
@@ -81,10 +121,12 @@ actor DataAgent {
          container: NSPersistentContainer = PulsumData.container,
          notificationCenter: NotificationCenter = .default,
          estimatorStore: EstimatorStateStoring = EstimatorStateStore(),
-         backfillStore: BackfillStateStoring = BackfillStateStore()) {
+         backfillStore: BackfillStateStoring = BackfillStateStore(),
+         bootstrapPolicy: DataAgentBootstrapPolicy = .default) {
         self.healthKit = healthKit
         self.estimatorStore = estimatorStore
         self.backfillStore = backfillStore
+        self.bootstrapPolicy = bootstrapPolicy
         self.stateEstimator = StateEstimator()
         self.context = container.newBackgroundContext()
         self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
@@ -118,9 +160,6 @@ actor DataAgent {
         let span = Diagnostics.span(category: .dataAgent,
                                     name: "data.start",
                                     traceId: diagnosticsTraceId)
-        let initialStatus = await currentHealthAccessStatus()
-        try await configureObservation(for: initialStatus, resetRevokedAnchors: false)
-
         // Always re-request to refresh HealthKit's internal state; authorized paths return immediately.
         do {
             try await healthKit.requestAuthorization()
@@ -140,8 +179,9 @@ actor DataAgent {
         }
 
         let refreshedStatus = await currentHealthAccessStatus()
-        try await configureObservation(for: refreshedStatus, resetRevokedAnchors: true)
+        scheduleBootstrapWatchdog(for: refreshedStatus)
         await bootstrapFirstScore(for: refreshedStatus)
+        try await configureObservation(for: refreshedStatus, resetRevokedAnchors: true)
         scheduleBackfill(for: refreshedStatus)
         span.end(error: nil)
     }
@@ -160,8 +200,9 @@ actor DataAgent {
         invalidateReadAccessCache()
         let status = await currentHealthAccessStatus()
         await DebugLogBuffer.shared.append("restartIngestionAfterPermissionsChange status: \(statusSummary(status))")
-        try await configureObservation(for: status, resetRevokedAnchors: true)
+        scheduleBootstrapWatchdog(for: status)
         await bootstrapFirstScore(for: status)
+        try await configureObservation(for: status, resetRevokedAnchors: true)
         scheduleBackfill(for: status)
         return status
     }
@@ -172,8 +213,9 @@ actor DataAgent {
         invalidateReadAccessCache()
         let status = await currentHealthAccessStatus()
         await DebugLogBuffer.shared.append("requestHealthAccess refreshed status: \(statusSummary(status))")
-        try await configureObservation(for: status, resetRevokedAnchors: true)
+        scheduleBootstrapWatchdog(for: status)
         await bootstrapFirstScore(for: status)
+        try await configureObservation(for: status, resetRevokedAnchors: true)
         scheduleBackfill(for: status)
         return status
     }
@@ -218,6 +260,40 @@ actor DataAgent {
                                         availability: .available)
         logHealthStatus(status, requestStatus: requestStatus, probeResults: probeResults)
         return status
+    }
+
+    private func scheduleBootstrapWatchdog(for status: HealthAccessStatus) {
+        bootstrapWatchdogTask?.cancel()
+        guard case .available = status.availability else { return }
+        let deadlineSeconds = bootstrapPolicy.placeholderDeadlineSeconds
+        let traceId = diagnosticsTraceId
+        bootstrapWatchdogTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(max(0, deadlineSeconds) * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            do {
+                if let _ = try await self.latestFeatureVector() {
+                    return
+                }
+            } catch {
+                return
+            }
+            let created = await self.ensurePlaceholderSnapshot(for: Date(),
+                                                               reason: .stage("bootstrap",
+                                                                              allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]),
+                                                               trigger: "watchdog")
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.bootstrap.watchdog.triggered",
+                            fields: [
+                                "deadline_seconds": .double(deadlineSeconds),
+                                "placeholder_created": .bool(created)
+                            ],
+                            traceId: traceId)
+        }
     }
 
     private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
@@ -329,8 +405,30 @@ actor DataAgent {
     }
 
     private func bootstrapFirstScore(for status: HealthAccessStatus) async {
-        guard case .available = status.availability else { return }
-        guard !status.granted.isEmpty else { return }
+        guard case .available = status.availability else {
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.bootstrap.end",
+                            fields: [
+                                "reason": .safeString(.stage("health_unavailable", allowed: ["health_unavailable", "no_granted"])),
+                                "has_snapshot": .bool(false),
+                                "no_feature_vector": .bool(true)
+                            ],
+                            traceId: diagnosticsTraceId)
+            return
+        }
+        guard !status.granted.isEmpty else {
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.bootstrap.end",
+                            fields: [
+                                "reason": .safeString(.stage("no_granted", allowed: ["health_unavailable", "no_granted"])),
+                                "has_snapshot": .bool(false),
+                                "no_feature_vector": .bool(true)
+                            ],
+                            traceId: diagnosticsTraceId)
+            return
+        }
         let today = calendar.startOfDay(for: Date())
         guard let start = calendar.date(byAdding: .day, value: -(bootstrapWindowDays - 1), to: today) else { return }
         let types = status.granted.sorted { $0.identifier < $1.identifier }
@@ -342,8 +440,54 @@ actor DataAgent {
                                                  "end_day": .day(today)
                                              ],
                                              traceId: diagnosticsTraceId)
+        let fetchTimeoutSeconds = bootstrapPolicy.bootstrapTimeoutSeconds
+        let heartRateTimeoutSeconds = bootstrapPolicy.heartRateTimeoutSeconds
         var touchedDays = Set<Date>()
         var totalSamples = 0
+        var outcomes: [String: BootstrapBatchResult] = [:]
+        var retryIdentifiers: Set<String> = []
+        var snapshotDay: Date?
+        var placeholderPublished = false
+        var endError: Error?
+        var allFailed = false
+
+        func recordOutcome(_ identifier: String, result: BootstrapBatchResult) {
+            outcomes[identifier] = result
+            if result == .timeout || result == .error {
+                retryIdentifiers.insert(identifier)
+            }
+        }
+
+        defer {
+            let successCount = outcomes.values.filter { $0 == .success }.count
+            let emptyCount = outcomes.values.filter { $0 == .empty }.count
+            let timeoutCount = outcomes.values.filter { $0 == .timeout }.count
+            let errorCount = outcomes.values.filter { $0 == .error }.count
+            let cancelledCount = outcomes.values.filter { $0 == .cancelled }.count
+            var fields: [String: DiagnosticsValue] = [
+                "touched_days": .int(touchedDays.count),
+                "raw_sample_count": .int(totalSamples),
+                "type_success_count": .int(successCount),
+                "type_empty_count": .int(emptyCount),
+                "type_timeout_count": .int(timeoutCount),
+                "type_error_count": .int(errorCount),
+                "type_cancelled_count": .int(cancelledCount),
+                "all_failed": .bool(allFailed),
+                "placeholder_published": .bool(placeholderPublished),
+                "has_snapshot": .bool(snapshotDay != nil),
+                "no_feature_vector": .bool(snapshotDay == nil)
+            ]
+            if let snapshotDay {
+                fields["snapshot_day"] = .day(snapshotDay)
+            }
+            bootstrapSpan.end(additionalFields: fields, error: endError)
+            Diagnostics.log(level: endError == nil ? .info : .error,
+                            category: .dataAgent,
+                            name: "data.bootstrap.end",
+                            fields: fields,
+                            traceId: diagnosticsTraceId,
+                            error: endError)
+        }
 
         for type in types {
             let identifier = type.identifier
@@ -359,48 +503,155 @@ actor DataAgent {
             do {
                 switch identifier {
                 case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totals = try await safeFetchDailyStepTotals(startDate: start,
+                    let totalsResult: HardTimeoutResult<[Date: Int]>
+                    do {
+                        totalsResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
+                            try await self.safeFetchDailyStepTotals(startDate: start,
                                                                     endDate: today,
                                                                     context: "Bootstrap \(identifier)")
-                    let days = try await applyStepTotals(totals)
-                    touchedDays.formUnion(days)
-                    totalSamples += totals.count
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(totals.count),
-                        "processed_days": .int(days.count)
-                    ], error: nil)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            endBootstrapBatch(batchSpan,
+                                              result: .empty,
+                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                            recordOutcome(identifier, result: .empty)
+                            continue
+                        }
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                          error: error)
+                        recordOutcome(identifier, result: .error)
+                        continue
+                    }
+
+                    switch totalsResult {
+                    case .timedOut:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
+                        recordOutcome(identifier, result: .timeout)
+                    case .value(let totals):
+                        let days = try await applyStepTotals(totals)
+                        touchedDays.formUnion(days)
+                        totalSamples += totals.count
+                        let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
+                        endBootstrapBatch(batchSpan,
+                                          result: result,
+                                          rawCount: totals.count,
+                                          processedDays: days.count)
+                        recordOutcome(identifier, result: result)
+                    }
                 case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let stats = try await safeFetchNocturnalHeartRateStats(startDate: start,
-                                                                           endDate: today,
-                                                                           context: "Bootstrap \(identifier)")
-                    let days = try await applyNocturnalStats(stats)
-                    touchedDays.formUnion(days)
-                    totalSamples += stats.count
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(stats.count),
-                        "processed_days": .int(days.count)
-                    ], error: nil)
+                    let hrResult = await fetchHeartRateStatsWithTimeout(startDate: start,
+                                                                        endDate: today,
+                                                                        context: "Bootstrap \(identifier)",
+                                                                        timeoutSeconds: heartRateTimeoutSeconds)
+                    switch hrResult.result {
+                    case .success:
+                        do {
+                            let days = try await applyNocturnalStats(hrResult.stats)
+                            touchedDays.formUnion(days)
+                            totalSamples += hrResult.stats.count
+                            endBootstrapBatch(batchSpan,
+                                              result: .success,
+                                              rawCount: hrResult.stats.count,
+                                              processedDays: days.count)
+                            recordOutcome(identifier, result: .success)
+                        } catch {
+                            endBootstrapBatch(batchSpan,
+                                              result: .error,
+                                              rawCount: hrResult.stats.count,
+                                              processedDays: hrResult.stats.count,
+                                              error: error)
+                            recordOutcome(identifier, result: .error)
+                        }
+                    case .empty:
+                        endBootstrapBatch(batchSpan,
+                                          result: .empty,
+                                          rawCount: 0,
+                                          processedDays: 0)
+                        recordOutcome(identifier, result: .empty)
+                    case .timeout:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(heartRateTimeoutSeconds * 1_000))
+                        recordOutcome(identifier, result: .timeout)
+                    case .error:
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          error: hrResult.error)
+                        recordOutcome(identifier, result: .error)
+                    case .cancelled:
+                        endBootstrapBatch(batchSpan,
+                                          result: .cancelled,
+                                          rawCount: 0,
+                                          processedDays: 0)
+                        recordOutcome(identifier, result: .cancelled)
+                    }
                 default:
-                    let samples = try await healthKit.fetchSamples(for: type, startDate: start, endDate: today)
-                    let processed = try await processBackfillSamples(samples, type: type)
-                    touchedDays.formUnion(processed.days)
-                    totalSamples += processed.processedSamples
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(samples.count),
-                        "processed_sample_count": .int(processed.processedSamples),
-                        "processed_days": .int(processed.days.count)
-                    ], error: nil)
+                    let samplesResult: HardTimeoutResult<[HKSample]>
+                    do {
+                        samplesResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
+                            try await self.healthKit.fetchSamples(for: type, startDate: start, endDate: today)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            endBootstrapBatch(batchSpan,
+                                              result: .empty,
+                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                            recordOutcome(identifier, result: .empty)
+                            continue
+                        }
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                          error: error)
+                        recordOutcome(identifier, result: .error)
+                        continue
+                    }
+
+                    switch samplesResult {
+                    case .timedOut:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
+                        recordOutcome(identifier, result: .timeout)
+                    case .value(let samples):
+                        let processed = try await processBackfillSamples(samples, type: type)
+                        touchedDays.formUnion(processed.days)
+                        totalSamples += processed.processedSamples
+                        let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
+                        endBootstrapBatch(batchSpan,
+                                          result: result,
+                                          rawCount: samples.count,
+                                          processedCount: processed.processedSamples,
+                                          processedDays: processed.days.count)
+                        recordOutcome(identifier, result: result)
+                    }
                 }
             } catch {
                 if isProtectedHealthDataInaccessible(error) {
-                    batchSpan.end(additionalFields: [
-                        "skip_reason": .safeString(.stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                    ], error: nil)
+                    endBootstrapBatch(batchSpan,
+                                      result: .empty,
+                                      skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                    recordOutcome(identifier, result: .empty)
                     continue
                 }
-                batchSpan.end(additionalFields: [
-                    "skip_reason": .safeString(.stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]))
-                ], error: error)
+                endBootstrapBatch(batchSpan,
+                                  result: .error,
+                                  skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                  error: error)
+                recordOutcome(identifier, result: .error)
             }
         }
         notifySnapshotUpdate(for: today,
@@ -408,20 +659,27 @@ actor DataAgent {
                                             allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
 
         do {
-            if let _ = try await latestFeatureVector() {
-                bootstrapSpan.end(additionalFields: [
-                    "touched_days": .int(touchedDays.count),
-                    "raw_sample_count": .int(totalSamples),
-                    "snapshot_day": .day(today)
-                ], error: nil)
+            if let snapshot = try await latestRealFeatureVector() {
+                snapshotDay = snapshot.date
                 return
             }
         } catch {
-            bootstrapSpan.end(additionalFields: [
-                "touched_days": .int(touchedDays.count),
-                "raw_sample_count": .int(totalSamples),
-                "snapshot_day": .day(today)
-            ], error: error)
+            endError = error
+        }
+
+        allFailed = !outcomes.isEmpty && outcomes.values.allSatisfy { $0 == .timeout || $0 == .error }
+        if allFailed {
+            placeholderPublished = await ensurePlaceholderSnapshot(for: today,
+                                                                   reason: .stage("bootstrap",
+                                                                                  allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]),
+                                                                   trigger: "bootstrap_failures")
+        }
+
+        if !retryIdentifiers.isEmpty {
+            scheduleBootstrapRetry(for: retryIdentifiers,
+                                   startDate: start,
+                                   endDate: today,
+                                   trigger: "bootstrap_failures")
         }
 
         let fallbackEnd = calendar.date(byAdding: .day, value: 1, to: today) ?? today
@@ -434,11 +692,22 @@ actor DataAgent {
                                  reason: .stage("bootstrap",
                                                 allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
         }
-        bootstrapSpan.end(additionalFields: [
-            "touched_days": .int(touchedDays.count),
-            "raw_sample_count": .int(totalSamples),
-            "snapshot_day": .day(today)
-        ], error: nil)
+
+        do {
+            if let snapshot = try await latestRealFeatureVector() {
+                snapshotDay = snapshot.date
+                return
+            }
+        } catch {
+            endError = error
+        }
+
+        if snapshotDay == nil && !placeholderPublished {
+            placeholderPublished = await ensurePlaceholderSnapshot(for: today,
+                                                                   reason: .stage("bootstrap",
+                                                                                  allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]),
+                                                                   trigger: "bootstrap_complete")
+        }
     }
 
     private func scheduleBackfill(for status: HealthAccessStatus) {
@@ -447,6 +716,402 @@ actor DataAgent {
         backgroundBackfillTask = Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
             await self.backfillHistoricalSamplesIfNeeded(for: status)
+        }
+    }
+
+    private func scheduleBootstrapRetry(for identifiers: Set<String>,
+                                        startDate: Date,
+                                        endDate: Date,
+                                        trigger: String) {
+        guard !identifiers.isEmpty else { return }
+        pendingBootstrapRetryIdentifiers.formUnion(identifiers)
+
+        let now = Date()
+        if bootstrapRetryStart == nil {
+            bootstrapRetryStart = now
+        }
+        if let retryStart = bootstrapRetryStart,
+           now.timeIntervalSince(retryStart) > bootstrapPolicy.retryMaxElapsedSeconds {
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.bootstrap.retry.skipped",
+                            fields: [
+                                "reason": .safeString(.stage("max_elapsed", allowed: ["max_elapsed", "max_attempts"])),
+                                "attempt": .int(bootstrapRetryAttempt)
+                            ],
+                            traceId: diagnosticsTraceId)
+            return
+        }
+
+        let nextAttempt = bootstrapRetryAttempt + 1
+        guard nextAttempt <= bootstrapPolicy.retryMaxAttempts else {
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.bootstrap.retry.skipped",
+                            fields: [
+                                "reason": .safeString(.stage("max_attempts", allowed: ["max_elapsed", "max_attempts"])),
+                                "attempt": .int(bootstrapRetryAttempt)
+                            ],
+                            traceId: diagnosticsTraceId)
+            return
+        }
+
+        guard bootstrapRetryTask == nil else { return }
+        bootstrapRetryAttempt = nextAttempt
+        let attempt = nextAttempt
+        let delaySeconds = bootstrapPolicy.retryDelaySeconds * pow(2.0, Double(attempt - 1))
+        let timeoutSeconds = bootstrapPolicy.retryTimeoutSeconds + Double(attempt - 1) * 2
+        let traceId = diagnosticsTraceId
+
+        Diagnostics.log(level: .info,
+                        category: .dataAgent,
+                        name: "data.bootstrap.retry.scheduled",
+                        fields: [
+                            "attempt": .int(attempt),
+                            "type_count": .int(identifiers.count),
+                            "delay_seconds": .double(delaySeconds),
+                            "timeout_seconds": .double(timeoutSeconds),
+                            "window_start_day": .day(startDate),
+                            "window_end_day": .day(endDate),
+                            "trigger": .safeString(.stage(trigger,
+                                                          allowed: ["bootstrap_timeout", "bootstrap_failures", "retry_timeout", "unknown"]))
+                        ],
+                        traceId: traceId)
+
+        bootstrapRetryTask = Task.detached(priority: .background) { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(max(0, delaySeconds) * 1_000_000_000))
+            } catch {
+                return
+            }
+            await self?.performBootstrapRetry(attempt: attempt,
+                                              timeoutSeconds: timeoutSeconds,
+                                              startDate: startDate,
+                                              endDate: endDate)
+        }
+    }
+
+    private func performBootstrapRetry(attempt: Int,
+                                       timeoutSeconds: Double,
+                                       startDate: Date,
+                                       endDate: Date) async {
+        let identifiers = pendingBootstrapRetryIdentifiers
+        pendingBootstrapRetryIdentifiers.removeAll()
+        let types = identifiers.compactMap { sampleTypesByIdentifier[$0] }.sorted { $0.identifier < $1.identifier }
+        guard !types.isEmpty else {
+            bootstrapRetryTask = nil
+            return
+        }
+
+        let span = Diagnostics.span(category: .dataAgent,
+                                    name: "data.bootstrap.retry",
+                                    fields: [
+                                        "attempt": .int(attempt),
+                                        "type_count": .int(types.count),
+                                        "window_start_day": .day(startDate),
+                                        "window_end_day": .day(endDate),
+                                        "timeout_seconds": .double(timeoutSeconds)
+                                    ],
+                                    traceId: diagnosticsTraceId,
+                                    level: .info)
+
+        var touchedDays = Set<Date>()
+        var totalSamples = 0
+        var outcomes: [String: BootstrapBatchResult] = [:]
+        var timedOutIdentifiers: Set<String> = []
+
+        func recordOutcome(_ identifier: String, result: BootstrapBatchResult) {
+            outcomes[identifier] = result
+            if result == .timeout {
+                timedOutIdentifiers.insert(identifier)
+            }
+        }
+
+        for type in types {
+            let identifier = type.identifier
+            let batchSpan = Diagnostics.span(category: .dataAgent,
+                                             name: "data.bootstrap.retry.batch",
+                                             fields: [
+                                                 "type": .safeString(.metadata(identifier)),
+                                                 "batch_start_day": .day(startDate),
+                                                 "batch_end_day": .day(endDate),
+                                                 "attempt": .int(attempt)
+                                             ],
+                                             traceId: diagnosticsTraceId,
+                                             level: .info)
+            do {
+                switch identifier {
+                case HKQuantityTypeIdentifier.stepCount.rawValue:
+                    let totalsResult: HardTimeoutResult<[Date: Int]>
+                    do {
+                        totalsResult = try await withHardTimeout(seconds: timeoutSeconds) {
+                            try await self.safeFetchDailyStepTotals(startDate: startDate,
+                                                                    endDate: endDate,
+                                                                    context: "Bootstrap retry \(identifier)")
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            endBootstrapBatch(batchSpan,
+                                              result: .empty,
+                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                            recordOutcome(identifier, result: .empty)
+                            continue
+                        }
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                          error: error)
+                        recordOutcome(identifier, result: .error)
+                        continue
+                    }
+
+                    switch totalsResult {
+                    case .timedOut:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(timeoutSeconds * 1_000))
+                        recordOutcome(identifier, result: .timeout)
+                    case .value(let totals):
+                        let days = try await applyStepTotals(totals)
+                        touchedDays.formUnion(days)
+                        totalSamples += totals.count
+                        let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
+                        endBootstrapBatch(batchSpan,
+                                          result: result,
+                                          rawCount: totals.count,
+                                          processedDays: days.count)
+                        recordOutcome(identifier, result: result)
+                    }
+                case HKQuantityTypeIdentifier.heartRate.rawValue:
+                    let hrResult = await fetchHeartRateStatsWithTimeout(startDate: startDate,
+                                                                        endDate: endDate,
+                                                                        context: "Bootstrap retry \(identifier)",
+                                                                        timeoutSeconds: timeoutSeconds)
+                    switch hrResult.result {
+                    case .success:
+                        do {
+                            let days = try await applyNocturnalStats(hrResult.stats)
+                            touchedDays.formUnion(days)
+                            totalSamples += hrResult.stats.count
+                            endBootstrapBatch(batchSpan,
+                                              result: .success,
+                                              rawCount: hrResult.stats.count,
+                                              processedDays: days.count)
+                            recordOutcome(identifier, result: .success)
+                        } catch {
+                            endBootstrapBatch(batchSpan,
+                                              result: .error,
+                                              rawCount: hrResult.stats.count,
+                                              processedDays: hrResult.stats.count,
+                                              error: error)
+                            recordOutcome(identifier, result: .error)
+                        }
+                    case .empty:
+                        endBootstrapBatch(batchSpan,
+                                          result: .empty,
+                                          rawCount: 0,
+                                          processedDays: 0)
+                        recordOutcome(identifier, result: .empty)
+                    case .timeout:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(timeoutSeconds * 1_000))
+                        recordOutcome(identifier, result: .timeout)
+                    case .error:
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          error: hrResult.error)
+                        recordOutcome(identifier, result: .error)
+                    case .cancelled:
+                        endBootstrapBatch(batchSpan,
+                                          result: .cancelled,
+                                          rawCount: 0,
+                                          processedDays: 0)
+                        recordOutcome(identifier, result: .cancelled)
+                    }
+                default:
+                    let samplesResult: HardTimeoutResult<[HKSample]>
+                    do {
+                        samplesResult = try await withHardTimeout(seconds: timeoutSeconds) {
+                            try await self.healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            endBootstrapBatch(batchSpan,
+                                              result: .empty,
+                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                            recordOutcome(identifier, result: .empty)
+                            continue
+                        }
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                          error: error)
+                        recordOutcome(identifier, result: .error)
+                        continue
+                    }
+
+                    switch samplesResult {
+                    case .timedOut:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(timeoutSeconds * 1_000))
+                        recordOutcome(identifier, result: .timeout)
+                    case .value(let samples):
+                        let processed = try await processBackfillSamples(samples, type: type)
+                        touchedDays.formUnion(processed.days)
+                        totalSamples += processed.processedSamples
+                        let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
+                        endBootstrapBatch(batchSpan,
+                                          result: result,
+                                          rawCount: samples.count,
+                                          processedCount: processed.processedSamples,
+                                          processedDays: processed.days.count)
+                        recordOutcome(identifier, result: result)
+                    }
+                }
+            } catch {
+                if isProtectedHealthDataInaccessible(error) {
+                    endBootstrapBatch(batchSpan,
+                                      result: .empty,
+                                      skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                    recordOutcome(identifier, result: .empty)
+                    continue
+                }
+                endBootstrapBatch(batchSpan,
+                                  result: .error,
+                                  skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                  error: error)
+                recordOutcome(identifier, result: .error)
+            }
+        }
+
+        if let latestDay = touchedDays.max() {
+            notifySnapshotUpdate(for: latestDay,
+                                 reason: .stage("bootstrap",
+                                                allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
+        }
+
+        let hasSnapshot: Bool
+        do {
+            hasSnapshot = (try await latestRealFeatureVector()) != nil
+        } catch {
+            hasSnapshot = false
+        }
+
+        let successCount = outcomes.values.filter { $0 == .success }.count
+        let emptyCount = outcomes.values.filter { $0 == .empty }.count
+        let timeoutCount = outcomes.values.filter { $0 == .timeout }.count
+        let errorCount = outcomes.values.filter { $0 == .error }.count
+        let cancelledCount = outcomes.values.filter { $0 == .cancelled }.count
+        let fields: [String: DiagnosticsValue] = [
+            "attempt": .int(attempt),
+            "touched_days": .int(touchedDays.count),
+            "raw_sample_count": .int(totalSamples),
+            "type_success_count": .int(successCount),
+            "type_empty_count": .int(emptyCount),
+            "type_timeout_count": .int(timeoutCount),
+            "type_error_count": .int(errorCount),
+            "type_cancelled_count": .int(cancelledCount),
+            "has_snapshot": .bool(hasSnapshot)
+        ]
+        span.end(additionalFields: fields, error: nil)
+        Diagnostics.log(level: .info,
+                        category: .dataAgent,
+                        name: "data.bootstrap.retry.end",
+                        fields: fields,
+                        traceId: diagnosticsTraceId)
+
+        if hasSnapshot {
+            bootstrapRetryAttempt = 0
+            bootstrapRetryStart = nil
+        }
+
+        bootstrapRetryTask = nil
+
+        if !timedOutIdentifiers.isEmpty {
+            scheduleBootstrapRetry(for: timedOutIdentifiers,
+                                   startDate: startDate,
+                                   endDate: endDate,
+                                   trigger: "retry_timeout")
+        }
+    }
+
+    @discardableResult
+    private func ensurePlaceholderSnapshot(for date: Date,
+                                           reason: DiagnosticsSafeString,
+                                           trigger: String) async -> Bool {
+        do {
+            if let _ = try await latestRealFeatureVector() {
+                return false
+            }
+        } catch {
+            return false
+        }
+
+        let day = calendar.startOfDay(for: date)
+        do {
+            let context = self.context
+            let created = try await context.perform { () throws -> Bool in
+                let request = FeatureVector.fetchRequest()
+                request.predicate = NSPredicate(format: "date == %@", day as NSDate)
+                request.fetchLimit = 1
+                if let existing = try context.fetch(request).first {
+                    let bundle = DataAgent.materializeFeatures(from: existing)
+                    if SnapshotPlaceholder.isPlaceholder(bundle.imputed) {
+                        return false
+                    }
+                    return false
+                }
+                let vector = FeatureVector(context: context)
+                vector.date = day
+                var zeroFeatures: [String: Double] = [:]
+                for key in FeatureBundle.requiredKeys {
+                    zeroFeatures[key] = 0
+                }
+                DataAgent.apply(features: zeroFeatures, to: vector)
+                let imputed: [String: Bool] = [SnapshotPlaceholder.imputedFlagKey: true]
+                vector.imputedFlags = DataAgent.encodeFeatureMetadata(imputed: imputed,
+                                                                      contributions: [:],
+                                                                      wellbeing: 0)
+                if context.hasChanges {
+                    try context.save()
+                }
+                return true
+            }
+            if created {
+                notifySnapshotUpdate(for: day, reason: reason)
+                Diagnostics.log(level: .info,
+                                category: .dataAgent,
+                                name: "data.snapshot.placeholder",
+                                fields: [
+                                    "trigger": .safeString(.stage(trigger,
+                                                                  allowed: ["watchdog", "bootstrap_failures", "bootstrap_complete", "bootstrap_timeout", "unknown"])),
+                                    "snapshot_day": .day(day)
+                                ],
+                                traceId: diagnosticsTraceId)
+            }
+            return created
+        } catch {
+            Diagnostics.log(level: .error,
+                            category: .dataAgent,
+                            name: "data.snapshot.placeholder.failed",
+                            fields: [
+                                "trigger": .safeString(.stage(trigger,
+                                                              allowed: ["watchdog", "bootstrap_failures", "bootstrap_complete", "bootstrap_timeout", "unknown"])),
+                                "snapshot_day": .day(day)
+                            ],
+                            traceId: diagnosticsTraceId,
+                            error: error)
+            return false
         }
     }
 
@@ -466,6 +1131,8 @@ actor DataAgent {
                                     level: .info)
         var touchedDays: Set<Date> = []
         var totalSamples = 0
+        let fetchTimeoutSeconds = bootstrapPolicy.bootstrapTimeoutSeconds
+        let heartRateTimeoutSeconds = bootstrapPolicy.heartRateTimeoutSeconds
         let types = status.granted.sorted { $0.identifier < $1.identifier }
 
         for type in types {
@@ -482,48 +1149,143 @@ actor DataAgent {
             do {
                 switch identifier {
                 case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totals = try await safeFetchDailyStepTotals(startDate: fallbackStartDate,
+                    let totalsResult: HardTimeoutResult<[Date: Int]>
+                    do {
+                        totalsResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
+                            try await self.safeFetchDailyStepTotals(startDate: fallbackStartDate,
                                                                     endDate: fallbackEndDate,
                                                                     context: "Bootstrap fallback \(identifier)")
-                    let days = try await applyStepTotals(totals)
-                    touchedDays.formUnion(days)
-                    totalSamples += totals.count
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(totals.count),
-                        "processed_days": .int(days.count)
-                    ], error: nil)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            endBootstrapBatch(batchSpan,
+                                              result: .empty,
+                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                            continue
+                        }
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                          error: error)
+                        continue
+                    }
+
+                    switch totalsResult {
+                    case .timedOut:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
+                    case .value(let totals):
+                        let days = try await applyStepTotals(totals)
+                        touchedDays.formUnion(days)
+                        totalSamples += totals.count
+                        let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
+                        endBootstrapBatch(batchSpan,
+                                          result: result,
+                                          rawCount: totals.count,
+                                          processedDays: days.count)
+                    }
                 case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let stats = try await safeFetchNocturnalHeartRateStats(startDate: fallbackStartDate,
-                                                                           endDate: fallbackEndDate,
-                                                                           context: "Bootstrap fallback \(identifier)")
-                    let days = try await applyNocturnalStats(stats)
-                    touchedDays.formUnion(days)
-                    totalSamples += stats.count
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(stats.count),
-                        "processed_days": .int(days.count)
-                    ], error: nil)
+                    let hrResult = await fetchHeartRateStatsWithTimeout(startDate: fallbackStartDate,
+                                                                        endDate: fallbackEndDate,
+                                                                        context: "Bootstrap fallback \(identifier)",
+                                                                        timeoutSeconds: heartRateTimeoutSeconds)
+                    switch hrResult.result {
+                    case .success:
+                        do {
+                            let days = try await applyNocturnalStats(hrResult.stats)
+                            touchedDays.formUnion(days)
+                            totalSamples += hrResult.stats.count
+                            endBootstrapBatch(batchSpan,
+                                              result: .success,
+                                              rawCount: hrResult.stats.count,
+                                              processedDays: days.count)
+                        } catch {
+                            endBootstrapBatch(batchSpan,
+                                              result: .error,
+                                              rawCount: hrResult.stats.count,
+                                              processedDays: hrResult.stats.count,
+                                              error: error)
+                        }
+                    case .empty:
+                        endBootstrapBatch(batchSpan,
+                                          result: .empty,
+                                          rawCount: 0,
+                                          processedDays: 0)
+                    case .timeout:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(heartRateTimeoutSeconds * 1_000))
+                    case .error:
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          error: hrResult.error)
+                    case .cancelled:
+                        endBootstrapBatch(batchSpan,
+                                          result: .cancelled,
+                                          rawCount: 0,
+                                          processedDays: 0)
+                    }
                 default:
-                    let samples = try await healthKit.fetchSamples(for: type, startDate: fallbackStartDate, endDate: fallbackEndDate)
-                    let processed = try await processBackfillSamples(samples, type: type)
-                    touchedDays.formUnion(processed.days)
-                    totalSamples += processed.processedSamples
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(samples.count),
-                        "processed_sample_count": .int(processed.processedSamples),
-                        "processed_days": .int(processed.days.count)
-                    ], error: nil)
+                    let samplesResult: HardTimeoutResult<[HKSample]>
+                    do {
+                        samplesResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
+                            try await self.healthKit.fetchSamples(for: type, startDate: fallbackStartDate, endDate: fallbackEndDate)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            endBootstrapBatch(batchSpan,
+                                              result: .empty,
+                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
+                            continue
+                        }
+                        endBootstrapBatch(batchSpan,
+                                          result: .error,
+                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                          error: error)
+                        span.end(additionalFields: [
+                            "touched_days": .int(touchedDays.count),
+                            "raw_sample_count": .int(totalSamples)
+                        ], error: error)
+                        return false
+                    }
+
+                    switch samplesResult {
+                    case .timedOut:
+                        endBootstrapBatch(batchSpan,
+                                          result: .timeout,
+                                          rawCount: 0,
+                                          processedDays: 0,
+                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
+                    case .value(let samples):
+                        let processed = try await processBackfillSamples(samples, type: type)
+                        touchedDays.formUnion(processed.days)
+                        totalSamples += processed.processedSamples
+                        let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
+                        endBootstrapBatch(batchSpan,
+                                          result: result,
+                                          rawCount: samples.count,
+                                          processedCount: processed.processedSamples,
+                                          processedDays: processed.days.count)
+                    }
                 }
             } catch {
                 if isProtectedHealthDataInaccessible(error) {
-                    batchSpan.end(additionalFields: [
-                        "skip_reason": .safeString(.stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                    ], error: nil)
+                    endBootstrapBatch(batchSpan,
+                                      result: .empty,
+                                      skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
                     continue
                 }
-                batchSpan.end(additionalFields: [
-                    "skip_reason": .safeString(.stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]))
-                ], error: error)
+                endBootstrapBatch(batchSpan,
+                                  result: .error,
+                                  skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
+                                  error: error)
                 span.end(additionalFields: [
                     "touched_days": .int(touchedDays.count),
                     "raw_sample_count": .int(totalSamples)
@@ -618,6 +1380,7 @@ actor DataAgent {
                                  monitor: DiagnosticsStallMonitor? = nil) async -> (days: Set<Date>, totalSamples: Int) {
         guard !types.isEmpty else { return ([], 0) }
         let sorted = types.sorted { $0.identifier < $1.identifier }
+        let backfillTimeoutSeconds = bootstrapPolicy.backfillTimeoutSeconds
         var touchedDays: Set<Date> = []
         var totalSamples = 0
         var processedTypeCount = 0
@@ -638,43 +1401,117 @@ actor DataAgent {
             do {
                 switch identifier {
                 case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totals = try await safeFetchDailyStepTotals(startDate: startDate,
+                    let totalsResult: HardTimeoutResult<[Date: Int]>
+                    do {
+                        totalsResult = try await withHardTimeout(seconds: backfillTimeoutSeconds) {
+                            try await self.safeFetchDailyStepTotals(startDate: startDate,
                                                                     endDate: endDate,
                                                                     context: "Backfill (\(phase)) \(identifier)")
-                    let processedDays = try await applyStepTotals(totals)
-                    touchedDays.formUnion(processedDays)
-                    totalSamples += totals.count
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(totals.count),
-                        "processed_days": .int(processedDays.count)
-                    ], error: nil)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: nil)
+                        } else {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: error)
+                        }
+                        continue
+                    }
+                    switch totalsResult {
+                    case .timedOut:
+                        batchSpan.end(additionalFields: [
+                            "result": .safeString(.stage("timeout", allowed: ["timeout"])),
+                            "timeout_ms": .int(Int(backfillTimeoutSeconds * 1_000))
+                        ], error: nil)
+                    case .value(let totals):
+                        let processedDays = try await applyStepTotals(totals)
+                        touchedDays.formUnion(processedDays)
+                        totalSamples += totals.count
+                        batchSpan.end(additionalFields: [
+                            "raw_sample_count": .int(totals.count),
+                            "processed_days": .int(processedDays.count)
+                        ], error: nil)
+                    }
                 case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let stats = try await safeFetchNocturnalHeartRateStats(startDate: startDate,
-                                                                           endDate: endDate,
-                                                                           context: "Backfill (\(phase)) \(identifier)")
-                    let processedDays = try await applyNocturnalStats(stats)
-                    touchedDays.formUnion(processedDays)
-                    totalSamples += stats.count
-                    batchSpan.end(additionalFields: [
-                        "raw_sample_count": .int(stats.count),
-                        "processed_days": .int(processedDays.count)
-                    ], error: nil)
+                    let statsResult: HardTimeoutResult<[Date: (avgBPM: Double, minBPM: Double?)]>
+                    do {
+                        statsResult = try await withHardTimeout(seconds: backfillTimeoutSeconds) {
+                            try await self.safeFetchNocturnalHeartRateStats(startDate: startDate,
+                                                                            endDate: endDate,
+                                                                            context: "Backfill (\(phase)) \(identifier)")
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: nil)
+                        } else {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: error)
+                        }
+                        continue
+                    }
+
+                    switch statsResult {
+                    case .timedOut:
+                        batchSpan.end(additionalFields: [
+                            "result": .safeString(.stage("timeout", allowed: ["timeout"])),
+                            "timeout_ms": .int(Int(backfillTimeoutSeconds * 1_000))
+                        ], error: nil)
+                    case .value(let stats):
+                        let processedDays = try await applyNocturnalStats(stats)
+                        touchedDays.formUnion(processedDays)
+                        totalSamples += stats.count
+                        batchSpan.end(additionalFields: [
+                            "raw_sample_count": .int(stats.count),
+                            "processed_days": .int(processedDays.count)
+                        ], error: nil)
+                    }
                 default:
-                    let samples = try await healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
-                    var processed: (processedSamples: Int, days: Set<Date>) = (0, [])
-                    if !samples.isEmpty {
-                        processed = try await processBackfillSamples(samples, type: type)
-                        touchedDays.formUnion(processed.days)
-                        totalSamples += processed.processedSamples
+                    let samplesResult: HardTimeoutResult<[HKSample]>
+                    do {
+                        samplesResult = try await withHardTimeout(seconds: backfillTimeoutSeconds) {
+                            try await self.healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
+                        }
+                    } catch {
+                        if isProtectedHealthDataInaccessible(error) {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: nil)
+                        } else {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: error)
+                        }
+                        continue
+                    }
+
+                    switch samplesResult {
+                    case .timedOut:
                         batchSpan.end(additionalFields: [
-                            "raw_sample_count": .int(samples.count),
-                            "processed_sample_count": .int(processed.processedSamples),
-                            "processed_days": .int(processed.days.count)
+                            "result": .safeString(.stage("timeout", allowed: ["timeout"])),
+                            "timeout_ms": .int(Int(backfillTimeoutSeconds * 1_000))
                         ], error: nil)
-                    } else {
-                        batchSpan.end(additionalFields: [
-                            "skip_reason": .safeString(.stage("zero_samples", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                        ], error: nil)
+                    case .value(let samples):
+                        var processed: (processedSamples: Int, days: Set<Date>) = (0, [])
+                        if !samples.isEmpty {
+                            processed = try await processBackfillSamples(samples, type: type)
+                            touchedDays.formUnion(processed.days)
+                            totalSamples += processed.processedSamples
+                            batchSpan.end(additionalFields: [
+                                "raw_sample_count": .int(samples.count),
+                                "processed_sample_count": .int(processed.processedSamples),
+                                "processed_days": .int(processed.days.count)
+                            ], error: nil)
+                        } else {
+                            batchSpan.end(additionalFields: [
+                                "skip_reason": .safeString(.stage("zero_samples", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
+                            ], error: nil)
+                        }
                     }
                 }
 
@@ -1037,17 +1874,38 @@ actor DataAgent {
     }
 
     func latestFeatureVector() async throws -> FeatureVectorSnapshot? {
+        try await latestFeatureVector(includePlaceholder: true)
+    }
+
+    private func latestRealFeatureVector() async throws -> FeatureVectorSnapshot? {
+        try await latestFeatureVector(includePlaceholder: false)
+    }
+
+    private func latestFeatureVector(includePlaceholder: Bool) async throws -> FeatureVectorSnapshot? {
         let context = self.context
         let result = try await context.perform { () throws -> FeatureComputation? in
             let request = FeatureVector.fetchRequest()
             request.sortDescriptors = [NSSortDescriptor(key: #keyPath(FeatureVector.date), ascending: false)]
-            request.fetchLimit = 1
-            guard let latest = try context.fetch(request).first else { return nil }
-            let bundle = DataAgent.materializeFeatures(from: latest)
-            return FeatureComputation(date: latest.date,
-                                      featureValues: bundle.values,
-                                      imputedFlags: bundle.imputed,
-                                      featureVectorObjectID: latest.objectID)
+            request.fetchLimit = 5
+            let vectors = try context.fetch(request)
+            guard !vectors.isEmpty else { return nil }
+
+            var placeholderCandidate: FeatureComputation?
+            for vector in vectors {
+                let bundle = DataAgent.materializeFeatures(from: vector)
+                let computation = FeatureComputation(date: vector.date,
+                                                     featureValues: bundle.values,
+                                                     imputedFlags: bundle.imputed,
+                                                     featureVectorObjectID: vector.objectID)
+                if SnapshotPlaceholder.isPlaceholder(bundle.imputed) {
+                    if includePlaceholder, placeholderCandidate == nil {
+                        placeholderCandidate = computation
+                    }
+                    continue
+                }
+                return computation
+            }
+            return includePlaceholder ? placeholderCandidate : nil
         }
 
         guard let computation = result else {
@@ -1058,7 +1916,8 @@ actor DataAgent {
                                                         imputedFlags: computation.imputedFlags)
         let snapshot = stateEstimator.currentSnapshot(features: modelFeatures)
         let dayString = DiagnosticsDayFormatter.dayString(from: computation.date)
-        await DebugLogBuffer.shared.append("latestFeatureVector -> day=\(dayString) feature_count=\(computation.featureValues.count)")
+        let placeholder = SnapshotPlaceholder.isPlaceholder(computation.imputedFlags)
+        await DebugLogBuffer.shared.append("latestFeatureVector -> day=\(dayString) feature_count=\(computation.featureValues.count) placeholder=\(placeholder)")
         return FeatureVectorSnapshot(date: computation.date,
                                      wellbeingScore: snapshot.wellbeingScore,
                                      contributions: snapshot.contributions,
@@ -1068,7 +1927,7 @@ actor DataAgent {
     }
 
     func scoreBreakdown() async throws -> ScoreBreakdown? {
-        guard let snapshot = try await latestFeatureVector() else { return nil }
+        guard let snapshot = try await latestRealFeatureVector() else { return nil }
 
         let context = self.context
         let dayString = DiagnosticsDayFormatter.dayString(from: snapshot.date)
@@ -1632,12 +2491,84 @@ actor DataAgent {
         do {
             return try await healthKit.fetchNocturnalHeartRateStats(startDate: startDate, endDate: endDate)
         } catch {
+            if let hkError = error as? HKError, hkError.code == .errorNoData {
+                await DebugLogBuffer.shared.append("\(context): no heart-rate data available; returning empty stats.")
+                return [:]
+            }
+            let nsError = error as NSError
+            if nsError.domain == HKError.errorDomain,
+               nsError.code == HKError.Code.errorNoData.rawValue {
+                await DebugLogBuffer.shared.append("\(context): no heart-rate data available; returning empty stats.")
+                return [:]
+            }
             if isProtectedHealthDataInaccessible(error) {
                 await DebugLogBuffer.shared.append("\(context): protected data inaccessible (device likely locked); returning empty nocturnal HR stats.")
                 return [:]
             }
             throw error
         }
+    }
+
+    private enum BootstrapBatchResult: String {
+        case success
+        case empty
+        case timeout
+        case error
+        case cancelled
+    }
+
+    private func fetchHeartRateStatsWithTimeout(startDate: Date,
+                                                endDate: Date,
+                                                context: String,
+                                                timeoutSeconds: Double) async -> (result: BootstrapBatchResult, stats: [Date: (avgBPM: Double, minBPM: Double?)], error: Error?) {
+        do {
+            let timed = try await withHardTimeout(seconds: timeoutSeconds) {
+                try await self.safeFetchNocturnalHeartRateStats(startDate: startDate,
+                                                                endDate: endDate,
+                                                                context: context)
+            }
+            switch timed {
+            case .timedOut:
+                await DebugLogBuffer.shared.append("\(context): heart-rate fetch timed out after \(timeoutSeconds)s; treating as empty.")
+                return (.timeout, [:], nil)
+            case .value(let stats):
+                if stats.isEmpty {
+                    return (.empty, [:], nil)
+                }
+                return (.success, stats, nil)
+            }
+        } catch {
+            return (.error, [:], error)
+        }
+    }
+
+    private func endBootstrapBatch(_ span: DiagnosticsSpanToken,
+                                   result: BootstrapBatchResult,
+                                   rawCount: Int = 0,
+                                   processedCount: Int? = nil,
+                                   processedDays: Int? = nil,
+                                   timeoutMs: Int? = nil,
+                                   skipReason: DiagnosticsSafeString? = nil,
+                                   error: Error? = nil) {
+        var fields: [String: DiagnosticsValue] = [
+            "result": .safeString(.stage(result.rawValue,
+                                         allowed: ["success", "empty", "timeout", "error", "cancelled"])),
+            "raw_sample_count": .int(rawCount)
+        ]
+        if let processedCount {
+            fields["processed_sample_count"] = .int(processedCount)
+        }
+        if let processedDays {
+            fields["processed_days"] = .int(processedDays)
+        }
+        if let timeoutMs {
+            fields["timeout_ms"] = .int(timeoutMs)
+        }
+        if let skipReason {
+            fields["skip_reason"] = .safeString(skipReason)
+        }
+
+        span.end(additionalFields: fields, error: error)
     }
 
     private func isProtectedHealthDataInaccessible(_ error: Error) -> Bool {
@@ -1879,13 +2810,14 @@ actor DataAgent {
                 "reason": .safeString(reason),
                 "snapshot_day": .day(date)
             ]
-            if let metadata = await self?.latestSnapshotMetadata() {
-                if let day = metadata.dayString {
+            if let details = await self?.latestSnapshotDiagnostics() {
+                if let day = details.dayString {
                     fields["latest_snapshot_day"] = .safeString(.metadata(day))
                 }
-                if let score = metadata.score {
+                if let score = details.score {
                     fields["wellbeing_score"] = .double(score)
                 }
+                fields["placeholder"] = .bool(details.placeholder)
             }
             Diagnostics.log(level: .info,
                             category: .dataAgent,
@@ -1906,15 +2838,20 @@ actor DataAgent {
     }
 
     func latestSnapshotMetadata() async -> (dayString: String?, score: Double?) {
+        let details = await latestSnapshotDiagnostics()
+        return (details.dayString, details.score)
+    }
+
+    private func latestSnapshotDiagnostics() async -> (dayString: String?, score: Double?, placeholder: Bool) {
         do {
             if let snapshot = try await latestFeatureVector() {
                 let day = DiagnosticsDayFormatter.dayString(from: snapshot.date)
-                return (day, snapshot.wellbeingScore)
+                return (day, snapshot.wellbeingScore, SnapshotPlaceholder.isPlaceholder(snapshot))
             }
         } catch {
-            return (nil, nil)
+            return (nil, nil, false)
         }
-        return (nil, nil)
+        return (nil, nil, false)
     }
 
 #if DEBUG

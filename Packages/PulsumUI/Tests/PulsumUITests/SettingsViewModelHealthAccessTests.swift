@@ -66,10 +66,13 @@ private actor HealthStatusDataAgentStub: DataAgentProviding {
     }
 
     func start() async throws {}
+    func setDiagnosticsTraceId(_ traceId: UUID?) async {}
     func latestFeatureVector() async throws -> FeatureVectorSnapshot? { nil }
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {}
     func scoreBreakdown() async throws -> ScoreBreakdown? { nil }
     func reprocessDay(date: Date) async throws {}
+    func diagnosticsBackfillCounts() async -> (warmCompleted: Int, fullCompleted: Int) { (0, 0) }
+    func latestSnapshotMetadata() async -> (dayString: String?, score: Double?) { (nil, nil) }
 
     func currentHealthAccessStatus() async -> HealthAccessStatus {
         statuses.first ?? HealthAccessStatus(required: [],
@@ -112,6 +115,8 @@ private final class SentimentAgentStub: SentimentAgentProviding {
     func stopRecording() {}
     func updateTranscript(_ transcript: String) {}
     func latestTranscriptSnapshot() -> String { "" }
+    func reprocessPendingJournals(traceId: UUID?) async {}
+    func pendingEmbeddingCount() async -> Int { 0 }
 }
 
 private struct TopicGateStub: TopicGateProviding {

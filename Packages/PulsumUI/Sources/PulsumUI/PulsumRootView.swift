@@ -5,9 +5,15 @@ import PulsumAgents
 import PulsumTypes
 
 public struct PulsumRootView: View {
-    @State private var viewModel = AppViewModel()
+    @State private var viewModel: AppViewModel
 
-    public init() {}
+    public init() {
+        _viewModel = State(initialValue: AppViewModel())
+    }
+
+    init(viewModel: AppViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     public var body: some View {
         ZStack {
@@ -145,7 +151,8 @@ struct MainContainerView: View {
         .sheet(isPresented: $viewModel.isPresentingSettings) {
             SettingsScreen(
                 viewModel: viewModel.settingsViewModel,
-                wellbeingState: viewModel.coachViewModel.wellbeingState
+                wellbeingState: viewModel.coachViewModel.wellbeingState,
+                snapshotKind: viewModel.coachViewModel.snapshotKind
             )
         }
         .overlay {
@@ -200,8 +207,12 @@ struct MainContainerView: View {
         case .loading:
             WellbeingScoreLoadingCard()
         case let .noData(reason):
-            WellbeingNoDataCard(reason: reason) {
-                Task { await viewModel.settingsViewModel.requestHealthKitAuthorization() }
+            if viewModel.coachViewModel.snapshotKind == .placeholder, reason == .insufficientSamples {
+                WellbeingPlaceholderCard()
+            } else {
+                WellbeingNoDataCard(reason: reason) {
+                    Task { await viewModel.settingsViewModel.requestHealthKitAuthorization() }
+                }
             }
         case let .error(message):
             WellbeingErrorCard(message: message) {

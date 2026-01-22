@@ -22,6 +22,7 @@ public final class CoachAgent {
     private var hasPreparedLibrary = false
     private var libraryEmbeddingsDeferred = false
     private var lastRecommendationNotice: String?
+    private var libraryPreparationTask: Task<Void, Error>?
     private let logger = Logger(subsystem: "com.pulsum", category: "CoachAgent")
 
     public init(container: NSPersistentContainer = PulsumData.container,
@@ -47,24 +48,26 @@ public final class CoachAgent {
 
     public func prepareLibraryIfNeeded() async throws {
         guard shouldIngestLibrary else { return }
+        if let inFlight = libraryPreparationTask {
+            try await inFlight.value
+            return
+        }
         if hasPreparedLibrary && !libraryEmbeddingsDeferred { return }
         if libraryEmbeddingsDeferred && EmbeddingService.shared.availabilityMode() == .unavailable {
             return
         }
-        do {
-            try await libraryImporter.ingestIfNeeded()
-            libraryEmbeddingsDeferred = libraryImporter.lastImportHadDeferredEmbeddings
-            hasPreparedLibrary = !libraryEmbeddingsDeferred
-        } catch {
-            hasPreparedLibrary = false
-            libraryEmbeddingsDeferred = false
-            throw error
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try await self.performLibraryPreparation()
         }
+        libraryPreparationTask = task
+        defer { libraryPreparationTask = nil }
+        try await task.value
     }
 
     public func retryDeferredLibraryImport(traceId: UUID? = nil) async {
         guard shouldIngestLibrary else { return }
-        if !libraryEmbeddingsDeferred && hasPreparedLibrary { return }
+        guard libraryEmbeddingsDeferred else { return }
         let span = Diagnostics.span(category: .library,
                                     name: "library.import.retry",
                                     fields: ["deferred": .bool(libraryEmbeddingsDeferred)],
@@ -99,17 +102,20 @@ public final class CoachAgent {
         var route = "library"
         var candidateCount = 0
         do {
+            try Task.checkCancellation()
             try await prepareLibraryIfNeeded()
             lastRecommendationNotice = nil
 
             let query = buildQuery(from: snapshot)
             let matches: [VectorMatch]
             do {
+                try Task.checkCancellation()
                 matches = try await vectorIndex.searchMicroMoments(query: query, topK: 20)
             } catch let embeddingError as EmbeddingError where embeddingError == .generatorUnavailable {
                 libraryEmbeddingsDeferred = true
                 lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
                 route = "fallback_embeddings_unavailable"
+                try Task.checkCancellation()
                 let cards = await fallbackRecommendations(snapshot: snapshot, topic: nil)
                 candidateCount = cards.count
                 span.end(additionalFields: [
@@ -123,6 +129,7 @@ public final class CoachAgent {
                     lastRecommendationNotice = "Personalized recommendations are limited on this device right now. We'll enable smarter suggestions when on-device embeddings are available."
                 }
                 route = "fallback_no_matches"
+                try Task.checkCancellation()
                 let cards = await fallbackRecommendations(snapshot: snapshot, topic: nil)
                 candidateCount = cards.count
                 span.end(additionalFields: [
@@ -133,10 +140,12 @@ public final class CoachAgent {
             }
 
             let scoreLookup = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0.score) })
+            try Task.checkCancellation()
             let moments = try await fetchMicroMoments(ids: Array(scoreLookup.keys))
 
             var candidates: [CardCandidate] = []
             for moment in moments {
+                try Task.checkCancellation()
                 guard let distance = scoreLookup[moment.id] else { continue }
                 if let candidate = await makeCandidate(moment: moment,
                                                        distance: distance,
@@ -147,10 +156,12 @@ public final class CoachAgent {
 
             guard !candidates.isEmpty else { return [] }
 
+            try Task.checkCancellation()
             let rankedFeatures = ranker.rank(candidates.map { $0.features })
             lastRankedFeatures = rankedFeatures
             var rankedCards: [RecommendationCard] = []
             for feature in rankedFeatures {
+                try Task.checkCancellation()
                 guard let candidate = candidates.first(where: { $0.features.id == feature.id }) else { continue }
                 rankedCards.append(candidate.card)
                 if rankedCards.count == 3 { break }
@@ -373,12 +384,37 @@ public final class CoachAgent {
                                         limit: Int) async throws -> [MicroMoment] {
         try await context.perform { [context] in
             let request = NSFetchRequest<MicroMoment>(entityName: "MicroMoment")
-            request.fetchLimit = limit
-            request.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
-                NSPredicate(format: "title CONTAINS[c] %@", topic),
-                NSPredicate(format: "ANY tags CONTAINS[c] %@", topic)
-            ])
-            return try context.fetch(request)
+            let candidateLimit = max(limit * 20, 200)
+            request.fetchLimit = candidateLimit
+            request.fetchBatchSize = candidateLimit
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "title",
+                                 ascending: true,
+                                 selector: #selector(NSString.localizedCaseInsensitiveCompare(_:))),
+                NSSortDescriptor(key: "id", ascending: true)
+            ]
+
+            // tags is Transformable; filter matches in-memory to avoid SQL string predicates
+            let candidates = try context.fetch(request)
+            let filtered = candidates.filter { moment in
+                if moment.title.range(of: topic, options: .caseInsensitive) != nil {
+                    return true
+                }
+                guard let tags = moment.tags else { return false }
+                return tags.contains { tag in
+                    tag.range(of: topic, options: .caseInsensitive) != nil
+                }
+            }
+
+            let sorted = filtered.sorted {
+                let comparison = $0.title.localizedCaseInsensitiveCompare($1.title)
+                if comparison == .orderedSame {
+                    return $0.id < $1.id
+                }
+                return comparison == .orderedAscending
+            }
+
+            return Array(sorted.prefix(limit))
         }
     }
 
@@ -656,4 +692,18 @@ private extension CoachAgent {
 
 extension CoachAgent {
     public var recommendationNotice: String? { lastRecommendationNotice }
+}
+
+private extension CoachAgent {
+    func performLibraryPreparation() async throws {
+        do {
+            try await libraryImporter.ingestIfNeeded()
+            libraryEmbeddingsDeferred = libraryImporter.lastImportHadDeferredEmbeddings
+            hasPreparedLibrary = !libraryEmbeddingsDeferred
+        } catch {
+            hasPreparedLibrary = false
+            libraryEmbeddingsDeferred = false
+            throw error
+        }
+    }
 }

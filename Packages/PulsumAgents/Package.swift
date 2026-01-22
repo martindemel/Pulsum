@@ -44,7 +44,10 @@ let package = Package(
                 "PulsumML",
                 "PulsumTypes"
             ],
-            path: "Tests"
+            path: "Tests",
+            resources: [
+                .process("PulsumAgentsTests/Resources")
+            ]
         )
     ]
 )

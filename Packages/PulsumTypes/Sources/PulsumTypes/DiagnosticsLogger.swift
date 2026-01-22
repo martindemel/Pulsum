@@ -279,7 +279,7 @@ public actor DiagnosticsLogger {
     private var pendingBytes: Int = 0
     private var flushTask: Task<Void, Never>?
     private let flushInterval: TimeInterval = 1.0
-    private let directoryURL: URL
+    private let logDirectoryURL: URL
     private var currentLogURL: URL?
 
     private init() {
@@ -292,7 +292,7 @@ public actor DiagnosticsLogger {
             loggerMap[category] = Logger(subsystem: subsystem, category: category.rawValue)
         }
         self.osLoggers = loggerMap
-        self.directoryURL = DiagnosticsLogger.makeDirectory()
+        self.logDirectoryURL = DiagnosticsLogger.makeDirectory()
     }
 
     nonisolated static func enqueue(event: DiagnosticsEvent, configSnapshot: DiagnosticsConfig) {
@@ -340,7 +340,7 @@ public actor DiagnosticsLogger {
         flushTask = nil
         pendingLines.removeAll()
         pendingBytes = 0
-        try? FileManager.default.removeItem(at: directoryURL)
+        try? FileManager.default.removeItem(at: logDirectoryURL)
         _ = DiagnosticsLogger.makeDirectory()
         currentLogURL = nil
     }
@@ -348,17 +348,29 @@ public actor DiagnosticsLogger {
     func persistedLogTail(maxLines: Int) async -> [String] {
         await flushPending()
         let fileManager = FileManager.default
-        guard let files = try? fileManager.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else {
+        guard let files = try? fileManager.contentsOfDirectory(at: logDirectoryURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             return []
         }
-        let sorted = files.sorted {
-            let lhsDate = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
-            let rhsDate = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
-            return lhsDate < rhsDate
+        let candidates: [(index: Int, url: URL)] = files.compactMap { url in
+            let name = url.lastPathComponent
+            if name == "diagnostics.log" {
+                return (0, url)
+            }
+            let prefix = "diagnostics.log."
+            if name.hasPrefix(prefix), let index = Int(name.dropFirst(prefix.count)) {
+                return (index, url)
+            }
+            return nil
+        }
+        let sorted = candidates.sorted {
+            if $0.index == $1.index {
+                return $0.url.path < $1.url.path
+            }
+            return $0.index > $1.index
         }
 
         var collected: [String] = []
-        for url in sorted {
+        for (_, url) in sorted {
             guard let data = try? Data(contentsOf: url),
                   let content = String(data: data, encoding: .utf8) else { continue }
             let lines = content.split(separator: "\n").map(String.init)
@@ -460,7 +472,7 @@ public actor DiagnosticsLogger {
         if let currentLogURL {
             return currentLogURL
         }
-        let url = directoryURL.appendingPathComponent("diagnostics.log")
+        let url = logDirectoryURL.appendingPathComponent("diagnostics.log")
         if !FileManager.default.fileExists(atPath: url.path) {
             FileManager.default.createFile(atPath: url.path, contents: nil)
             Self.applySecurityAttributes(to: url)
@@ -475,8 +487,8 @@ public actor DiagnosticsLogger {
         guard currentSize + addingBytes > config.maxFileBytes else { return }
         let fm = FileManager.default
         for index in stride(from: config.maxFiles - 1, through: 1, by: -1) {
-            let source = directoryURL.appendingPathComponent("diagnostics.log.\(index)")
-            let target = directoryURL.appendingPathComponent("diagnostics.log.\(index + 1)")
+            let source = logDirectoryURL.appendingPathComponent("diagnostics.log.\(index)")
+            let target = logDirectoryURL.appendingPathComponent("diagnostics.log.\(index + 1)")
             if fm.fileExists(atPath: target.path) {
                 try? fm.removeItem(at: target)
             }
@@ -484,7 +496,7 @@ public actor DiagnosticsLogger {
                 try? fm.moveItem(at: source, to: target)
             }
         }
-        let rotated = directoryURL.appendingPathComponent("diagnostics.log.1")
+        let rotated = logDirectoryURL.appendingPathComponent("diagnostics.log.1")
         try? fm.removeItem(at: rotated)
         if fm.fileExists(atPath: url.path) {
             try fm.moveItem(at: url, to: rotated)
@@ -507,15 +519,6 @@ public actor DiagnosticsLogger {
     }
 
     private static func makeDirectory() -> URL {
-        let fm = FileManager.default
-        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
-        var diagnosticsDir = base.appendingPathComponent("Diagnostics", isDirectory: true)
-        if !fm.fileExists(atPath: diagnosticsDir.path) {
-            try? fm.createDirectory(at: diagnosticsDir, withIntermediateDirectories: true)
-            var resourceValues = URLResourceValues()
-            resourceValues.isExcludedFromBackup = true
-            try? diagnosticsDir.setResourceValues(resourceValues)
-        }
-        return diagnosticsDir
+        DiagnosticsPaths.logsDirectory()
     }
 }

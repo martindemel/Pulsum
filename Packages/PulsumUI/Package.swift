@@ -34,7 +34,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PulsumUITests",
-            dependencies: ["PulsumUI"],
+            dependencies: ["PulsumUI", "PulsumAgents"],
             path: "Tests"
         )
     ]

@@ -1,0 +1,20 @@
+[
+  {
+    "episodeNumber": "0",
+    "episodeTitle": "Test Episode",
+    "recommendations": [
+      {
+        "recommendation": "Test recommendation",
+        "shortDescription": "Short description",
+        "detailedDescription": "Detailed description",
+        "microActivity": "Test activity",
+        "researchLink": "https://example.com",
+        "difficultyLevel": "easy",
+        "timeToComplete": "5 min",
+        "tags": ["test"],
+        "category": "test",
+        "cooldownSec": 60
+      }
+    ]
+  }
+]

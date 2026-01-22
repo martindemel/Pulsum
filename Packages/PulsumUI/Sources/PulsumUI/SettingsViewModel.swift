@@ -194,26 +194,66 @@ final class SettingsViewModel {
 
     func exportDiagnosticsReport() async {
         isExportingDiagnostics = true
+        diagnosticsExportURL = nil
         defer { isExportingDiagnostics = false }
+
         let config = diagnosticsConfig
-        let debugTail = await DebugLogBuffer.shared.snapshot()
-            .split(separator: "\n")
-            .map(String.init)
-        let debugTailLines = Array(debugTail.suffix(config.logTailLinesForExport))
-        let persisted = await Diagnostics.persistedLogTail(maxLines: config.logTailLinesForExport)
-        let combined = Array((debugTailLines + persisted).suffix(config.logTailLinesForExport))
-        let snapshot = await orchestrator?.diagnosticsSnapshot() ?? DiagnosticsSnapshot()
-        let context = DiagnosticsReportContext(appVersion: Self.appVersion(),
-                                               buildNumber: Self.buildNumber(),
-                                               deviceModel: Self.deviceModel(),
-                                               osVersion: Self.osVersion(),
-                                               locale: Locale.current.identifier,
-                                               sessionId: diagnosticsSessionId,
-                                               diagnosticsEnabled: config.enabled,
-                                               persistenceEnabled: config.persistToDisk)
-        diagnosticsExportURL = try? DiagnosticsReportBuilder.buildReport(context: context,
-                                                                         snapshot: snapshot,
-                                                                         logTail: combined)
+        let sessionId = diagnosticsSessionId
+        let locale = Locale.current.identifier
+        let appVersion = Self.appVersion()
+        let buildNumber = Self.buildNumber()
+        let deviceModel = Self.deviceModel()
+        let osVersion = Self.osVersion()
+        let snapshot: DiagnosticsSnapshot
+        if let orchestrator {
+            do {
+                let snapshotResult = try await withHardTimeout(seconds: 2) {
+                    await orchestrator.diagnosticsSnapshot()
+                }
+                switch snapshotResult {
+                case .value(let value):
+                    snapshot = value
+                case .timedOut:
+                    snapshot = DiagnosticsSnapshot()
+                    debugLogSnapshot = "Diagnostics snapshot timed out; exporting partial report."
+                }
+            } catch {
+                snapshot = DiagnosticsSnapshot()
+                debugLogSnapshot = "Diagnostics snapshot failed: \(error.localizedDescription)"
+            }
+        } else {
+            snapshot = DiagnosticsSnapshot()
+        }
+
+        let exportTask = Task.detached(priority: .utility) { () async -> URL? in
+            if config.persistToDisk {
+                await Diagnostics.flushPersistence()
+            }
+            let logTail: [String]
+            if config.persistToDisk {
+                logTail = await Diagnostics.persistedLogTail(maxLines: config.logTailLinesForExport)
+            } else {
+                logTail = await DebugLogBuffer.shared.tail(maxLines: config.logTailLinesForExport)
+            }
+
+            let sessionsIncluded = Self.extractSessionIds(from: logTail)
+
+            let context = DiagnosticsReportContext(appVersion: appVersion,
+                                                   buildNumber: buildNumber,
+                                                   deviceModel: deviceModel,
+                                                   osVersion: osVersion,
+                                                   locale: locale,
+                                                   sessionId: sessionId,
+                                                   diagnosticsEnabled: config.enabled,
+                                                   persistenceEnabled: config.persistToDisk,
+                                                   sessionsIncluded: sessionsIncluded.isEmpty ? nil : sessionsIncluded)
+
+            return try? DiagnosticsReportBuilder.buildReport(context: context,
+                                                             snapshot: snapshot,
+                                                             logTail: logTail)
+        }
+
+        diagnosticsExportURL = await exportTask.value
     }
 
     func clearDiagnostics() async {
@@ -383,6 +423,21 @@ final class SettingsViewModel {
         #else
         return ProcessInfo.processInfo.operatingSystemVersionString
         #endif
+    }
+
+    nonisolated private static func extractSessionIds(from logTail: [String]) -> [String] {
+        var sessions: [String] = []
+        for line in logTail {
+            guard let range = line.range(of: "app.session.start session=") else { continue }
+            let after = line[range.upperBound...]
+            if let id = after.split(separator: " ").first {
+                let value = String(id)
+                if !sessions.contains(value) {
+                    sessions.append(value)
+                }
+            }
+        }
+        return sessions
     }
 
 #if DEBUG

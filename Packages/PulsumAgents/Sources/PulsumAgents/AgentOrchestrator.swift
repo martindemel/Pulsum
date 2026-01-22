@@ -113,12 +113,18 @@ public struct RecommendationResponse {
     public let notice: String?
 }
 
+public struct WellbeingSnapshotResponse: Sendable {
+    public let wellbeingState: WellbeingScoreState
+    public let snapshotKind: WellbeingSnapshotKind
+    public let dayString: String?
+}
+
 public struct JournalCaptureResponse {
     public let result: JournalResult
     public let safety: SafetyDecision
 }
 
-public struct RecommendationCard: Equatable {
+public struct RecommendationCard: Equatable, Sendable {
     public let id: String
     public let title: String
     public let body: String
@@ -166,6 +172,8 @@ public final class AgentOrchestrator {
     private let topicGate: TopicGateProviding
     private let logger = Logger(subsystem: "com.pulsum", category: "AgentOrchestrator")
     private var isVoiceJournalActive = false
+    private let recommendationSnapshotTimeoutSeconds: Double = 2
+    private let recommendationsTimeoutSeconds: Double
     
     public init() throws {
         // Check Foundation Models availability
@@ -196,6 +204,7 @@ public final class AgentOrchestrator {
         self.safetyAgent = SafetyAgent()
         self.cheerAgent = CheerAgent()
         self.embeddingService = EmbeddingService.shared
+        self.recommendationsTimeoutSeconds = 30
     }
 #if DEBUG
     init(dataAgent: any DataAgentProviding,
@@ -205,7 +214,8 @@ public final class AgentOrchestrator {
                 cheerAgent: CheerAgent,
                 topicGate: TopicGateProviding,
                 embeddingService: EmbeddingService = .shared,
-                afmAvailable: Bool = false) {
+                afmAvailable: Bool = false,
+                recommendationsTimeoutSeconds: Double = 30) {
         self.dataAgent = dataAgent
         self.sentimentAgent = sentimentAgent
         self.coachAgent = coachAgent
@@ -214,6 +224,7 @@ public final class AgentOrchestrator {
         self.topicGate = topicGate
         self.afmAvailable = afmAvailable
         self.embeddingService = embeddingService
+        self.recommendationsTimeoutSeconds = recommendationsTimeoutSeconds
     }
 #endif
 
@@ -224,7 +235,8 @@ public final class AgentOrchestrator {
          testSafetyAgent: SafetyAgent,
          testCheerAgent: CheerAgent,
          testTopicGate: TopicGateProviding,
-         afmAvailable: Bool = false) {
+         afmAvailable: Bool = false,
+         recommendationsTimeoutSeconds: Double = 30) {
         self.dataAgent = testDataAgent
         self.sentimentAgent = testSentimentAgent
         self.coachAgent = testCoachAgent
@@ -233,6 +245,7 @@ public final class AgentOrchestrator {
         self.afmAvailable = afmAvailable
         self.topicGate = testTopicGate
         self.embeddingService = .shared
+        self.recommendationsTimeoutSeconds = recommendationsTimeoutSeconds
     }
 #endif
     
@@ -439,36 +452,124 @@ public final class AgentOrchestrator {
         try await dataAgent.recordSubjectiveInputs(date: date, stress: stress, energy: energy, sleepQuality: sleepQuality)
     }
 
-    public func recommendations(consentGranted: Bool) async throws -> RecommendationResponse {
+    public func wellbeingSnapshotState(consentGranted: Bool) async throws -> WellbeingSnapshotResponse {
+        _ = consentGranted
+        try Task.checkCancellation()
         let healthStatus = await dataAgent.currentHealthAccessStatus()
 
-        let snapshot: FeatureVectorSnapshot?
+        let snapshotResult: HardTimeoutResult<FeatureVectorSnapshot?>
         do {
-            snapshot = try await dataAgent.latestFeatureVector()
+            snapshotResult = try await withHardTimeout(seconds: recommendationSnapshotTimeoutSeconds) {
+                try await self.dataAgent.latestFeatureVector()
+            }
         } catch {
+            if error is CancellationError { throw error }
+            let metadata = await dataAgent.latestSnapshotMetadata()
+            return Self.makeNoDataSnapshotResponse(for: healthStatus,
+                                                   dayString: metadata.dayString,
+                                                   snapshotKind: .none)
+        }
+
+        switch snapshotResult {
+        case .timedOut:
+            Diagnostics.log(level: .warn,
+                            category: .dataAgent,
+                            name: "data.snapshot.timeout",
+                            fields: [
+                                "timeout_seconds": .double(recommendationSnapshotTimeoutSeconds)
+                            ])
+            let metadata = await dataAgent.latestSnapshotMetadata()
+            return Self.makeNoDataSnapshotResponse(for: healthStatus,
+                                                   dayString: metadata.dayString,
+                                                   snapshotKind: .none)
+        case .value(let snapshot):
+            guard let snapshot else {
+                let metadata = await dataAgent.latestSnapshotMetadata()
+                return Self.makeNoDataSnapshotResponse(for: healthStatus,
+                                                       dayString: metadata.dayString,
+                                                       snapshotKind: .none)
+            }
+            if SnapshotPlaceholder.isPlaceholder(snapshot) {
+                let metadata = await dataAgent.latestSnapshotMetadata()
+                return Self.makeNoDataSnapshotResponse(for: healthStatus,
+                                                       dayString: metadata.dayString,
+                                                       snapshotKind: .placeholder)
+            }
+            return WellbeingSnapshotResponse(wellbeingState: .ready(score: snapshot.wellbeingScore,
+                                                                    contributions: snapshot.contributions),
+                                             snapshotKind: .real,
+                                             dayString: DiagnosticsDayFormatter.dayString(from: snapshot.date))
+        }
+    }
+
+    public func recommendations(consentGranted: Bool) async throws -> RecommendationResponse {
+        try Task.checkCancellation()
+        let healthStatus = await dataAgent.currentHealthAccessStatus()
+
+        let snapshotResult: HardTimeoutResult<FeatureVectorSnapshot?>
+        do {
+            snapshotResult = try await withHardTimeout(seconds: recommendationSnapshotTimeoutSeconds) {
+                try await self.dataAgent.latestFeatureVector()
+            }
+        } catch {
+            if error is CancellationError { throw error }
             return Self.makeNoDataRecommendationResponse(for: healthStatus)
         }
 
-        guard let snapshot else {
+        switch snapshotResult {
+        case .timedOut:
+            Diagnostics.log(level: .warn,
+                            category: .dataAgent,
+                            name: "data.snapshot.timeout",
+                            fields: [
+                                "timeout_seconds": .double(recommendationSnapshotTimeoutSeconds)
+                            ])
             return Self.makeNoDataRecommendationResponse(for: healthStatus)
-        }
-
-        do {
-            let cards = try await coachAgent.recommendationCards(for: snapshot, consentGranted: consentGranted)
-            let notice = coachAgent.recommendationNotice
-            return RecommendationResponse(cards: cards,
-                                          wellbeingScore: snapshot.wellbeingScore,
-                                          contributions: snapshot.contributions,
-                                          wellbeingState: .ready(score: snapshot.wellbeingScore,
-                                                                  contributions: snapshot.contributions),
-                                          notice: notice)
-        } catch {
-            let sanitized = "Unable to compute wellbeing right now."
-            return RecommendationResponse(cards: [],
-                                          wellbeingScore: 0,
-                                          contributions: [:],
-                                          wellbeingState: .error(message: sanitized),
-                                          notice: "Personalized recommendations are limited on this device right now.")
+        case .value(let snapshot):
+            guard let snapshot else {
+                return Self.makeNoDataRecommendationResponse(for: healthStatus)
+            }
+            if SnapshotPlaceholder.isPlaceholder(snapshot) {
+                return Self.makeNoDataRecommendationResponse(for: healthStatus)
+            }
+            do {
+                try Task.checkCancellation()
+                let recommendationResult = try await withHardTimeout(seconds: recommendationsTimeoutSeconds) {
+                    try await self.coachAgent.recommendationCards(for: snapshot, consentGranted: consentGranted)
+                }
+                try Task.checkCancellation()
+                switch recommendationResult {
+                case .timedOut:
+                    Diagnostics.log(level: .warn,
+                                    category: .coach,
+                                    name: "coach.recommendations.timeout",
+                                    fields: [
+                                        "timeout_seconds": .double(recommendationsTimeoutSeconds)
+                                    ])
+                    return RecommendationResponse(cards: [],
+                                                  wellbeingScore: snapshot.wellbeingScore,
+                                                  contributions: snapshot.contributions,
+                                                  wellbeingState: .ready(score: snapshot.wellbeingScore,
+                                                                          contributions: snapshot.contributions),
+                                                  notice: "Recommendations are taking longer than expected. Try refreshing again soon.")
+                case .value(let cards):
+                    let notice = coachAgent.recommendationNotice
+                    return RecommendationResponse(cards: cards,
+                                                  wellbeingScore: snapshot.wellbeingScore,
+                                                  contributions: snapshot.contributions,
+                                                  wellbeingState: .ready(score: snapshot.wellbeingScore,
+                                                                          contributions: snapshot.contributions),
+                                                  notice: notice)
+                }
+            } catch {
+                if error is CancellationError { throw error }
+                let sanitized = "Unable to compute wellbeing right now."
+                return RecommendationResponse(cards: [],
+                                              wellbeingScore: 0,
+                                              contributions: [:],
+                                              wellbeingState: .error(message: sanitized),
+                                              notice: "Personalized recommendations are limited on this device right now.")
+            }
         }
     }
 
@@ -491,6 +592,15 @@ public final class AgentOrchestrator {
                                       contributions: [:],
                                       wellbeingState: state,
                                       notice: nil)
+    }
+
+    private static func makeNoDataSnapshotResponse(for healthStatus: HealthAccessStatus,
+                                                   dayString: String?,
+                                                   snapshotKind: WellbeingSnapshotKind) -> WellbeingSnapshotResponse {
+        let state = computeWellbeingState(for: healthStatus)
+        return WellbeingSnapshotResponse(wellbeingState: state,
+                                         snapshotKind: snapshotKind,
+                                         dayString: dayString)
     }
 
     public func scoreBreakdown() async throws -> ScoreBreakdown? {
@@ -531,7 +641,8 @@ public final class AgentOrchestrator {
                             "input_chars": .int(userInput.count)
                         ])
 
-        guard let snapshot = try await dataAgent.latestFeatureVector() else {
+        guard let snapshot = try await dataAgent.latestFeatureVector(),
+              !SnapshotPlaceholder.isPlaceholder(snapshot) else {
             logger.info("No feature vector snapshot available; returning warmup prompt.")
             return "Let's take a moment to capture your pulse first."
         }

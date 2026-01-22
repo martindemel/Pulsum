@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import PulsumAgents
+import PulsumTypes
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -10,6 +11,7 @@ struct SettingsScreen: View {
     @Environment(\.openURL) private var openURL
     @Bindable var viewModel: SettingsViewModel
     let wellbeingState: WellbeingScoreState
+    let snapshotKind: WellbeingSnapshotKind
 
     var body: some View {
         NavigationStack {
@@ -638,8 +640,12 @@ struct SettingsScreen: View {
         case .loading:
             WellbeingScoreLoadingCard()
         case let .noData(reason):
-            WellbeingNoDataCard(reason: reason) {
-                Task { await viewModel.requestHealthKitAuthorization() }
+            if snapshotKind == .placeholder, reason == .insufficientSamples {
+                WellbeingPlaceholderCard()
+            } else {
+                WellbeingNoDataCard(reason: reason) {
+                    Task { await viewModel.requestHealthKitAuthorization() }
+                }
             }
         case let .error(message):
             WellbeingErrorCard(message: message)
@@ -869,6 +875,35 @@ struct WellbeingScoreLoadingCard: View {
                 .font(.pulsumCaption)
                 .foregroundStyle(Color.pulsumTextSecondary)
                 .lineSpacing(2)
+        }
+        .padding(PulsumSpacing.lg)
+        .background(Color.pulsumCardWhite)
+        .cornerRadius(PulsumRadius.xl)
+        .shadow(
+            color: PulsumShadow.medium.color,
+            radius: PulsumShadow.medium.radius,
+            x: PulsumShadow.medium.x,
+            y: PulsumShadow.medium.y
+        )
+    }
+}
+
+struct WellbeingPlaceholderCard: View {
+    private let detail = "Health data may take a moment on first run. We'll update once your first sync completes."
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+            VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                Text("Wellbeing score")
+                    .font(.pulsumHeadline)
+                Text("Warming up")
+                    .font(.pulsumTitle3)
+                    .foregroundStyle(Color.pulsumTextPrimary)
+                Text(detail)
+                    .font(.pulsumCallout)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .lineSpacing(2)
+            }
         }
         .padding(PulsumSpacing.lg)
         .background(Color.pulsumCardWhite)

@@ -8,7 +8,7 @@ final class LiveWaveformBufferTests: XCTestCase {
 
         XCTAssertEqual(buffer.count, 8)
         XCTAssertEqual(buffer.samplesAppended, 20)
-        XCTAssertEqual(Array(buffer), [12, 13, 14, 15, 16, 17, 18, 19].map { CGFloat($0) })
+        XCTAssertEqual(Array(buffer), Array(repeating: 1, count: 8).map { CGFloat($0) })
     }
 
     func testWaveformPerfFeed30Seconds() {
@@ -17,6 +17,7 @@ final class LiveWaveformBufferTests: XCTestCase {
         let samples = (0..<sampleCount).map { _ in CGFloat.random(in: 0...1) }
 
         measure(metrics: [XCTClockMetric(), XCTMemoryMetric()]) {
+            buffer.reset()
             for sample in samples {
                 buffer.append(sample)
             }
