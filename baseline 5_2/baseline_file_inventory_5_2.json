@@ -1,0 +1,2553 @@
+{
+  "root": "/Users/martin.demel/Desktop/PULSUM/Pulsum",
+  "file_count": 269,
+  "ext_counts": {
+    "(no_ext)": 4,
+    ".entitlements": 1,
+    ".gif": 1,
+    ".jpg": 1,
+    ".json": 8,
+    ".md": 39,
+    ".mlmodel": 2,
+    ".mom": 1,
+    ".omo": 1,
+    ".pbxproj": 1,
+    ".pdf": 18,
+    ".plist": 2,
+    ".png": 8,
+    ".resolved": 1,
+    ".sh": 7,
+    ".splineswift": 2,
+    ".swift": 155,
+    ".template": 1,
+    ".txt": 1,
+    ".usdz": 1,
+    ".xcprivacy": 6,
+    ".xcscheme": 1,
+    ".xcworkspacedata": 1,
+    ".yaml": 1,
+    ".yml": 3,
+    ".zlist": 1
+  },
+  "large_files": [
+    {
+      "path": "main.gif",
+      "size": 21811312
+    },
+    {
+      "path": "Docs/a-practical-guide-to-building-with-gpt-5.pdf",
+      "size": 12010712
+    },
+    {
+      "path": "a-practical-guide-to-building-agents.pdf",
+      "size": 7335065
+    },
+    {
+      "path": "ios support documents/Landmarks_ Building an app with Liquid Glass _ Apple Developer Documentation.pdf",
+      "size": 7313354
+    },
+    {
+      "path": "codex_inventory.json",
+      "size": 5085530
+    },
+    {
+      "path": "ios support documents/Adopting Liquid Glass _ Apple Developer Documentation.pdf",
+      "size": 4863584
+    },
+    {
+      "path": "ios support documents/Liquid Glass _ Apple Developer Documentation.pdf",
+      "size": 4276716
+    },
+    {
+      "path": "coverage_ledger.json",
+      "size": 4256208
+    },
+    {
+      "path": "ChatGPT for engineers - Resource _ OpenAI Academy.pdf",
+      "size": 3977697
+    },
+    {
+      "path": "MAINDESIGN.png",
+      "size": 3873254
+    },
+    {
+      "path": "sha256.txt",
+      "size": 2838664
+    },
+    {
+      "path": "ios app mockup.png",
+      "size": 2821699
+    },
+    {
+      "path": "ios support documents/Landmarks_ Applying a background extension effect _ Apple Developer Documentation.pdf",
+      "size": 2098656
+    },
+    {
+      "path": "ios support documents/Landmarks_ Displaying custom activity badges _ Apple Developer Documentation.pdf",
+      "size": 1873402
+    },
+    {
+      "path": "files.zlist",
+      "size": 1796350
+    },
+    {
+      "path": "ios support documents/Landmarks_ Extending horizontal scrolling under a sidebar or inspector _ Apple Developer Documentation.pdf",
+      "size": 1632595
+    },
+    {
+      "path": "ios support documents/Landmarks_ Refining the system provided Liquid Glass effect in toolbars _ Apple Developer Documentation.pdf",
+      "size": 1398959
+    },
+    {
+      "path": "ios support documents/iOS & iPadOS 26 Release Notes _ Apple Developer Documentation.pdf",
+      "size": 1210570
+    },
+    {
+      "path": "ios support documents/Improving the safety of generative model output _ Apple Developer Documentation.pdf",
+      "size": 1137316
+    },
+    {
+      "path": "iconlogo.png",
+      "size": 1075847
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/iconnew 1.png",
+      "size": 1003595
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/iconnew 2.png",
+      "size": 1003595
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/iconnew.png",
+      "size": 1003595
+    },
+    {
+      "path": "iconnew.png",
+      "size": 1003595
+    }
+  ],
+  "files": [
+    {
+      "path": ".github/coderabbit.yaml",
+      "size": 2912,
+      "binary": false,
+      "reason": null,
+      "ext": ".yaml",
+      "mime": null,
+      "sample": "# CodeRabbit Configuration for Pulsum\n# https://docs.coderabbit.ai/guides/review-instructions/\n# Language and Frameworks\nlanguage: en-US\nearly_access: true"
+    },
+    {
+      "path": ".github/workflows/auto-merge.yml",
+      "size": 3598,
+      "binary": false,
+      "reason": null,
+      "ext": ".yml",
+      "mime": null,
+      "sample": "name: Auto Merge PR\n# OPTIONAL: Automatically merges PRs after CodeRabbit approval\n# This is disabled by default for safety. Enable it by uncommenting the 'on' triggers below.\n# Uncomment the lines below to enable auto-merge:\n# on:"
+    },
+    {
+      "path": ".github/workflows/auto-pr.yml",
+      "size": 2608,
+      "binary": false,
+      "reason": null,
+      "ext": ".yml",
+      "mime": null,
+      "sample": "name: Auto Create Pull Request\n# Automatically creates a PR when you push a feature branch\n# This enables CodeRabbit to review your changes\non:\n  push:"
+    },
+    {
+      "path": ".github/workflows/test-harness.yml",
+      "size": 484,
+      "binary": false,
+      "reason": null,
+      "ext": ".yml",
+      "mime": null,
+      "sample": "name: gate-tests\non:\n  push:\n    branches: [ main, gate1-testing-harness ]\n  pull_request:"
+    },
+    {
+      "path": ".gitignore",
+      "size": 766,
+      "binary": false,
+      "reason": null,
+      "ext": "",
+      "mime": null,
+      "sample": "# macOS\n.DS_Store\n*.swp\n# Xcode user data\nxcuserdata/"
+    },
+    {
+      "path": "CLAUDE.md",
+      "size": 14300,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# CLAUDE.md\n## Commands\n- Lint: swiftformat --lint .\n- Format: swiftformat .\nThis file provides guidance to Claude Code (claude.ai/code) when working with code in this repository."
+    },
+    {
+      "path": "COMPREHENSIVE_BUG_ANALYSIS.md",
+      "size": 41993,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# PULSUM iOS App - Comprehensive Architectural Bug Analysis\n**Generated:** November 11, 2025  \n**Analyst:** iOS Swift Architect  \n**Scope:** Full codebase review including all packages, UI, agents, services, data layers\n---"
+    },
+    {
+      "path": "ChatGPT for engineers - Resource _ OpenAI Academy.pdf",
+      "size": 3977697,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "Config.xcconfig.template",
+      "size": 274,
+      "binary": false,
+      "reason": null,
+      "ext": ".template",
+      "mime": null,
+      "sample": "// Pulsum Build Configuration Template\n// Copy this file to Config.xcconfig if you need local overrides.\n// Secrets are never stored here. Provide `PULSUM_COACH_API_KEY` via the environment (e.g., launchctl setenv) instead.\nOPENAI_API_KEY = YOUR_OPENAI_API_KEY_HERE"
+    },
+    {
+      "path": "Docs/a-practical-guide-to-building-with-gpt-5.pdf",
+      "size": 12010712,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "Docs/architecture copy.md",
+      "size": 111481,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum - Complete Architecture Documentation\n**Generated:** October 1, 2025\n**iOS Target:** iOS 26+\n**Swift Version:** 6.2\n**Status:** Milestone 4 Complete (UI & Experience Build)"
+    },
+    {
+      "path": "Docs/architecture_short copy.md",
+      "size": 28182,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum - Architecture Documentation (Condensed)\n**Generated:** October 1, 2025\n**iOS Target:** iOS 26+\n**Swift Version:** 6.2\n**Status:** Milestone 4 Complete"
+    },
+    {
+      "path": "Docs/chat1.md",
+      "size": 10249,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Project \u2013 Progress Summary (Chat Session)\n## Context\n- Role: Principal iOS architect implementing Pulsum per `instructions.md` spec (iOS 26, Liquid Glass, agent-first).\n- Milestones 0\u20132 completed; Milestone 3 currently in progress with substantial groundwork in place.\n## Milestone 0 \u2013 Repository Audit"
+    },
+    {
+      "path": "Docs/chat2.md",
+      "size": 6235,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Project \u2013 Continuation Log (Chat 2)\n## Milestone Status Snapshot (as of Chat 2)\n- **Milestone 0 \u2013 Repository Audit:** Complete. Read entire template project, assets, and support docs.\n- **Milestone 1 \u2013 Architecture & Scaffolding:** Complete. Created package layout (`PulsumUI`, `PulsumAgents`, `PulsumData`, `PulsumServices`, `PulsumML`), documented design (`Docs/architecture_and_scaffolding.md`), enabled required capabilities in Xcode project, and set up persistence strategy.\n- **Milestone 2 \u2013 Data & Services Foundations:** Complete. Core Data model built; persistence stack secured (`NSFileProtectionComplete`); HealthKit, Speech, LibraryImporter, VectorIndexManager, EmbeddingService, and KeychainService implemented with tests."
+    },
+    {
+      "path": "GITHUB_WORKFLOW.md",
+      "size": 17816,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# GitHub Workflow Guide for Pulsum\n**A complete guide to version control, branching, pull requests, and automated code review with CodeRabbit.**\n---\n## Table of Contents\n1. [Git & GitHub Basics](#git--github-basics)"
+    },
+    {
+      "path": "MAINDESIGN.png",
+      "size": 3873254,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "Packages/PulsumAgents/Package.swift",
+      "size": 1351,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "// swift-tools-version: 6.1\nimport PackageDescription\nlet package = Package(\n    name: \"PulsumAgents\",\n    platforms: ["
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift",
+      "size": 46339,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\n#if canImport(FoundationModels)\nimport FoundationModels\n#endif"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/BackfillStateStore.swift",
+      "size": 5866,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os.log\nimport PulsumData\nprotocol BackfillStateStoring: Sendable {\n    func loadState() -> BackfillProgress?"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/CheerAgent.swift",
+      "size": 1255,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n@MainActor\npublic final class CheerAgent {\n    private let calendar = Calendar(identifier: .gregorian)\n    public init() {}"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent+Coverage.swift",
+      "size": 4128,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport PulsumData\nimport PulsumTypes\npublic enum CoveragePassKind {\n    case strong"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent.swift",
+      "size": 32137,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\n#if canImport(FoundationModels)\nimport FoundationModels\n#endif"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift",
+      "size": 175266,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n@preconcurrency import CoreData\nimport HealthKit\n@preconcurrency import PulsumData\nimport PulsumML"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/EstimatorStateStore.swift",
+      "size": 3955,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os.log\nimport PulsumData\nimport PulsumML\nprotocol EstimatorStateStoring: Sendable {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/HealthAccessStatus.swift",
+      "size": 1451,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n@preconcurrency import HealthKit\n/// Consolidated authorization surface for Pulsum's HealthKit ingestion.\n/// `HKSampleType` is not marked `Sendable`, so the struct uses `@unchecked Sendable`.\npublic struct HealthAccessStatus: @unchecked Sendable {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/PrivacyInfo.xcprivacy",
+      "size": 559,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcprivacy",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>NSPrivacyAccessedAPITypes</key>"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/PulsumAgents.swift",
+      "size": 855,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels)\nimport FoundationModels\n#endif\nimport PulsumData"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/RecRankerStateStore.swift",
+      "size": 3865,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os.log\nimport PulsumData\nimport PulsumML\npublic protocol RecRankerStateStoring: Sendable {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/SafetyAgent.swift",
+      "size": 3376,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels)\nimport FoundationModels\n#endif\nimport PulsumML"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift",
+      "size": 15796,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\n#if canImport(FoundationModels)\nimport FoundationModels\n#endif"
+    },
+    {
+      "path": "Packages/PulsumAgents/Sources/PulsumAgents/WellbeingScoreState.swift",
+      "size": 383,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic enum WellbeingNoDataReason: Equatable, Sendable {\n    case healthDataUnavailable\n    case permissionsDeniedOrPending\n    case insufficientSamples"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/AgentSystemTests.swift",
+      "size": 2866,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nimport CoreData\n@testable import PulsumAgents\n@testable import PulsumData\n@testable import PulsumServices"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailAcceptanceTests.swift",
+      "size": 10884,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\nimport CoreData\n@testable import PulsumAgents\n@testable import PulsumServices\n@testable import PulsumData"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/ChatGuardrailTests.swift",
+      "size": 9152,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\nimport Foundation\n@testable import PulsumAgents\n@testable import PulsumML\n@testable import PulsumData"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/DebugLogBufferTests.swift",
+      "size": 901,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\nimport PulsumTypes\nimport XCTest\nfinal class DebugLogBufferTests: XCTestCase {\n    func testRingBufferEvictsOldEntries() async {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate2_JournalSessionTests.swift",
+      "size": 1347,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumAgents\n@testable import PulsumServices\nimport PulsumTypes\nfinal class Gate2_JournalSessionTests: XCTestCase {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate2_OrchestratorLLMKeyAPITests.swift",
+      "size": 6112,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "#if DEBUG\nimport Foundation\nimport XCTest\n@testable import PulsumAgents\n@testable import PulsumServices"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate2_TypesWiringTests.swift",
+      "size": 354,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nimport PulsumTypes\nfinal class Gate2_TypesWiringTests: XCTestCase {\n    func testSpeechSegmentInit() {\n        let segment = SpeechSegment(transcript: \"hello\", isFinal: true, confidence: 0.9)"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate3_FreshnessBusTests.swift",
+      "size": 2654,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\nimport PulsumTypes\nimport XCTest\nfinal class Gate3_FreshnessBusTests: XCTestCase {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate3_HealthAccessStatusTests.swift",
+      "size": 4613,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\n@testable import PulsumServices\nimport HealthKit\nimport XCTest"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate3_IngestionIdempotenceTests.swift",
+      "size": 2104,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\n@testable import PulsumServices\nimport XCTest\nfinal class Gate3_IngestionIdempotenceTests: XCTestCase {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate4_ConsentRoutingTests.swift",
+      "size": 3246,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\n@testable import PulsumServices\nstruct Gate4_ConsentRoutingTests {\n    @Test(\"Consent OFF forces on-device generator\")\n    func consentOffFallsBackLocal() async {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate4_LLMKeyTests.swift",
+      "size": 1489,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "#if DEBUG\nimport Foundation\nimport XCTest\n@testable import PulsumAgents\n@testable import PulsumServices"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate4_RoutingTests.swift",
+      "size": 4119,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\nimport CoreData\n@testable import PulsumAgents\n@testable import PulsumData\nstruct Gate4_RoutingTests {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_EmbeddingAvailabilityDegradationTests.swift",
+      "size": 2835,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\n@testable import PulsumML\nimport XCTest\n@MainActor"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_RecRankerLearningTests.swift",
+      "size": 2945,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumAgents\n@testable import PulsumData\n@testable import PulsumML\n@testable import PulsumServices"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_RecRankerPersistenceTests.swift",
+      "size": 3207,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\nimport PulsumML\nimport PulsumServices\nimport XCTest"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_SentimentJournalingFallbackTests.swift",
+      "size": 1532,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\nimport PulsumML\nimport XCTest\n@MainActor"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_StateEstimatorPersistenceTests.swift",
+      "size": 1887,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumAgents\n@testable import PulsumML\n// swiftlint:disable:next type_name\nfinal class Gate6_StateEstimatorPersistenceTests: XCTestCase {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_StateEstimatorWeightsAndLabelsTests.swift",
+      "size": 2798,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumAgents\n@testable import PulsumML\n// swiftlint:disable:next type_name\nfinal class Gate6_StateEstimatorWeightsAndLabelsTests: XCTestCase {"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_WellbeingBackfillPhasingTests.swift",
+      "size": 14962,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumData\n@testable import PulsumServices\nimport CoreData\nimport HealthKit"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_WellbeingStateMappingTests.swift",
+      "size": 2119,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumServices\nimport HealthKit\nimport XCTest\n// swiftlint:disable:next type_name"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/HealthKitServiceStub.swift",
+      "size": 5672,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport HealthKit\n@testable import PulsumServices\nfinal class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {\n    var isHealthDataAvailable: Bool = true"
+    },
+    {
+      "path": "Packages/PulsumAgents/Tests/PulsumAgentsTests/TestCoreDataStack.swift",
+      "size": 904,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\n@testable import PulsumData\npublic final class TestCoreDataStack {\n    public static func makeContainer() -> NSPersistentContainer {"
+    },
+    {
+      "path": "Packages/PulsumData/Package.swift",
+      "size": 1075,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "// swift-tools-version: 6.1\nimport PackageDescription\nlet package = Package(\n    name: \"PulsumData\",\n    platforms: ["
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Bundle+PulsumDataResources.swift",
+      "size": 295,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if SWIFT_PACKAGE\nextension Bundle {\n    static var pulsumDataResources: Bundle { .module }\n}"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/DataStack.swift",
+      "size": 7193,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\nimport os.log\npublic enum PulsumDataError: LocalizedError {\n    case storeInitializationFailed(underlying: Error)"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/EvidenceScorer.swift",
+      "size": 957,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic enum EvidenceBadge: String {\n    case strong = \"Strong\"\n    case medium = \"Medium\"\n    case weak = \"Weak\""
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift",
+      "size": 16785,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\nimport CryptoKit\nimport PulsumML\nimport PulsumTypes"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Model/ManagedObjects.swift",
+      "size": 5027,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import CoreData\n@objc(JournalEntry)\npublic final class JournalEntry: NSManagedObject {\n    @NSManaged public var id: UUID\n    @NSManaged public var date: Date"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy",
+      "size": 559,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcprivacy",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>NSPrivacyAccessedAPITypes</key>"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/PulsumData.swift",
+      "size": 1973,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\n/// Facade exposing Pulsum's persistent data infrastructure.\npublic enum PulsumData {\n    /// Shared Core Data stack configured for on-device only storage."
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/PulsumManagedObjectModel.swift",
+      "size": 4539,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import CoreData\nimport Foundation\n/// Canonical Pulsum Core Data model loader. Uses the packaged `.momd` from PulsumData resources\n/// and exposes a singleton instance so tests and production share the same model pointer.\npublic enum PulsumManagedObjectModel {"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/.xccurrentversion",
+      "size": 259,
+      "binary": false,
+      "reason": null,
+      "ext": "",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>_XCCurrentVersionName</key>"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/Pulsum.xcdatamodeld/Pulsum.xcdatamodel/contents",
+      "size": 7741,
+      "binary": false,
+      "reason": null,
+      "ext": "",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<model type=\"com.apple.IDECoreDataModeler.DataModel\" documentVersion=\"1.0\" lastSavedToolsVersion=\"1\" systemVersion=\"11A491\" minimumToolsVersion=\"Automatic\" sourceLanguage=\"Swift\" usedWithCloudKit=\"false\" userDefinedModelVersionIdentifier=\"\">\n    <entity name=\"JournalEntry\" representedClassName=\"JournalEntry\" syncable=\"YES\">\n        <attribute name=\"id\" optional=\"NO\" attributeType=\"UUID\" usesScalarValueType=\"NO\"/>\n        <attribute name=\"date\" optional=\"NO\" attributeType=\"Date\" usesScalarValueType=\"NO\"/>"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/PulsumCompiled.momd/Pulsum.mom",
+      "size": 8979,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".mom",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/PulsumCompiled.momd/Pulsum.omo",
+      "size": 22072,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".omo",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/Resources/PulsumCompiled.momd/VersionInfo.plist",
+      "size": 743,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".plist",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/VectorIndex.swift",
+      "size": 16784,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os.log\nprotocol VectorIndexFileHandle: AnyObject {\n    func seekToEnd() throws -> UInt64\n    func seek(toOffset offset: UInt64) throws"
+    },
+    {
+      "path": "Packages/PulsumData/Sources/PulsumData/VectorIndexManager.swift",
+      "size": 2023,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport PulsumML\npublic protocol VectorIndexProviding: AnyObject, Sendable {\n    @discardableResult\n    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float]"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/DataStackSecurityTests.swift",
+      "size": 1093,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumData\nfinal class DataStackSecurityTests: XCTestCase {\n    func testDebugApplyBackupExclusionMarksDirectories() throws {\n        let temporaryRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Gate0_DataStackSecurityTests.swift",
+      "size": 994,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumData\nfinal class Gate0_DataStackSecurityTests: XCTestCase {\n    func testPHIDirectoriesAreExcludedFromBackup() throws {\n        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Gate5_LibraryImporterAtomicityTests.swift",
+      "size": 8203,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import CoreData\nimport CryptoKit\nimport XCTest\n@testable import PulsumData\n@testable import PulsumML"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Gate5_LibraryImporterPerfTests.swift",
+      "size": 1220,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import CoreData\nimport XCTest\n@testable import PulsumData\nfinal class Gate5_LibraryImporterPerfTests: XCTestCase {\n    func testCoreDataReadCompletesQuicklyDuringImport() async throws {"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Gate5_VectorIndexConcurrencyTests.swift",
+      "size": 2600,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumData\nfinal class Gate5_VectorIndexConcurrencyTests: XCTestCase {\n    func testConcurrentShardOperationsRemainDeterministic() async throws {\n        let tempDirectory = FileManager.default.temporaryDirectory"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Gate5_VectorIndexFileHandleTests.swift",
+      "size": 2516,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumData\nfinal class Gate5_VectorIndexFileHandleTests: XCTestCase {\n    func testCloseFailureIsSurfacedToCaller() async throws {\n        let directory = FileManager.default.temporaryDirectory"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Gate5_VectorIndexManagerActorTests.swift",
+      "size": 1957,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumData\n@testable import PulsumML\nfinal class Gate5_VectorIndexManagerActorTests: XCTestCase {\n    func testManagerAllowsConcurrentAccessFromBackgroundTasks() async throws {"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/LibraryImporterTests.swift",
+      "size": 2484,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import CoreData\nimport XCTest\n@testable import PulsumData\nfinal actor HappyPathIndexStub: VectorIndexProviding {\n    private(set) var upsertedIds: [String] = []"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/PulsumDataBootstrapTests.swift",
+      "size": 1166,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nimport CoreData\n@testable import PulsumData\nfinal class PulsumDataBootstrapTests: XCTestCase {\n    func testPersistentContainerLoadsPulsumModel() {"
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/Resources/podcasts_sample.json",
+      "size": 785,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "[\n  {\n    \"episodeNumber\": \"001\",\n    \"episodeTitle\": \"Sample Episode\",\n    \"recommendations\": ["
+    },
+    {
+      "path": "Packages/PulsumData/Tests/PulsumDataTests/VectorIndexTests.swift",
+      "size": 817,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumData\nfinal class VectorIndexTests: XCTestCase {\n    func testUpsertAndSearch() async throws {\n        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(\"VectorIndexTests-\\(UUID().uuidString)\", isDirectory: true)"
+    },
+    {
+      "path": "Packages/PulsumML/Package.swift",
+      "size": 1249,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "// swift-tools-version: 6.1\nimport PackageDescription\nlet package = Package(\n    name: \"PulsumML\",\n    platforms: ["
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/AFM/FoundationModelsAvailability.swift",
+      "size": 1504,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels) && os(iOS)\nimport FoundationModels\n#endif\npublic enum AFMStatus {"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/AFM/FoundationModelsStub.swift",
+      "size": 1997,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n// TEMPORARY: Foundation Models stubs for current Xcode compatibility\n// Remove when iOS 26 SDK becomes available\n#if !canImport(FoundationModels)\n// Stub Foundation Models types for compilation compatibility"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/AFM/README_FoundationModels.md",
+      "size": 2256,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Foundation Models Integration - iOS 26 Ready\n## Current Status\nFoundation Models implementation is **COMPLETE** but temporarily disabled due to current Xcode not supporting iOS 26 SDK.\n## Files Ready for iOS 26 Activation\nWhen iOS 26 SDK becomes available in Xcode, rename these files to enable Foundation Models:"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/BaselineMath.swift",
+      "size": 1478,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic enum BaselineMath {\n    public struct RobustStats {\n        public let median: Double\n        public let mad: Double"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Bundle+PulsumMLResources.swift",
+      "size": 271,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if SWIFT_PACKAGE\nextension Bundle {\n    static var pulsumMLResources: Bundle { .module }\n}"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/AFMTextEmbeddingProvider.swift",
+      "size": 1984,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport NaturalLanguage\n/// Opportunistic AFM/NL embedding provider.\n///\n/// This provider only attempts contextual embeddings when Apple Intelligence reports `.ready`."
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/CoreMLEmbeddingFallbackProvider.swift",
+      "size": 2240,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreML\nimport NaturalLanguage\nimport os.log\n/// Reliable on-device fallback embedding provider backed by the bundled Core ML model."
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingError.swift",
+      "size": 401,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic enum EmbeddingError: LocalizedError {\n    case generatorUnavailable\n    case emptyResult\n    public var errorDescription: String? {"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingService.swift",
+      "size": 15632,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os\nimport PulsumTypes\n/// Central access point for on-device embeddings with AFM primary and hash fallback.\npublic final class EmbeddingService {"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Embedding/TextEmbeddingProviding.swift",
+      "size": 184,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic protocol TextEmbeddingProviding {\n    /// Returns a 384-dimensional embedding for the supplied text.\n    func embedding(for text: String) throws -> [Float]\n}"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Placeholder.swift",
+      "size": 380,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic enum PulsumML {\n    public static let version = \"0.1.0\"\n    public static func embedding(for text: String) throws -> [Float] {\n        try EmbeddingService.shared.embedding(for: text)"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/PrivacyInfo.xcprivacy",
+      "size": 559,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcprivacy",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>NSPrivacyAccessedAPITypes</key>"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/RecRanker.swift",
+      "size": 6038,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic struct RecommendationFeatures {\n    public let id: String\n    public let wellbeingScore: Double\n    public let evidenceStrength: Double"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Resources/PulsumFallbackEmbedding.mlmodel",
+      "size": 410814,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".mlmodel",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Resources/PulsumSentimentCoreML.mlmodel",
+      "size": 5491,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".mlmodel",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Resources/README_CreateModel.md",
+      "size": 645,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Creating Core ML Sentiment Model\nTo create the required `PulsumSentimentCoreML.mlmodel`:\n1. Ensure Xcode tooling is installed (CreateML is required).\n2. From this directory run `swift CreateSentimentModel.swift`.\n3. Move the generated `PulsumSentimentCoreML.mlmodel` into this folder (overwriting any previous version)."
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Safety/FoundationModelsSafetyProvider.swift",
+      "size": 3521,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels) && os(iOS)\nimport FoundationModels\n@available(iOS 26.0, *)\n@Generable enum SafetyRating: String, CaseIterable {"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/SafetyLocal.swift",
+      "size": 8643,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os\npublic enum SafetyClassification: Equatable {\n    case safe\n    case caution(reason: String)"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/AFMSentimentProvider.swift",
+      "size": 2809,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nfinal class AFMSentimentProvider: SentimentProviding {\n    private let embeddingService: EmbeddingService\n    private let positiveAnchors: [[Float]]\n    private let negativeAnchors: [[Float]]"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/CoreMLSentimentProvider.swift",
+      "size": 1404,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport NaturalLanguage\nimport CoreML\nfinal class CoreMLSentimentProvider: SentimentProviding {\n    private let model: NLModel"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/FoundationModelsSentimentProvider.swift",
+      "size": 2445,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels) && os(iOS)\nimport FoundationModels\n@available(iOS 26.0, *)\n@Generable enum SentimentLabel: String, CaseIterable {"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/NaturalLanguageSentimentProvider.swift",
+      "size": 721,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport NaturalLanguage\nfinal class NaturalLanguageSentimentProvider: SentimentProviding {\n    func sentimentScore(for text: String) async throws -> Double {\n        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/PIIRedactor.swift",
+      "size": 1502,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport NaturalLanguage\npublic enum PIIRedactor {\n    public static func redact(_ transcript: String) -> String {\n        guard !transcript.isEmpty else { return transcript }"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/SentimentProviding.swift",
+      "size": 556,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic protocol SentimentProviding {\n    /// Produces a sentiment score in the range [-1, 1].\n    func sentimentScore(for text: String) async throws -> Double\n}"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/Sentiment/SentimentService.swift",
+      "size": 1298,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic final class SentimentService {\n    private let providers: [SentimentProviding]\n    public init(providers: [SentimentProviding]? = nil) {\n        if let providers, !providers.isEmpty {"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/StateEstimator.swift",
+      "size": 3885,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic struct StateEstimatorConfig {\n    public let learningRate: Double\n    public let regularization: Double\n    public let weightCap: ClosedRange<Double>"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/TopicGate/EmbeddingTopicGateProvider.swift",
+      "size": 7192,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os\n/// Fallback topic gate using embedding similarity against wellbeing knowledge base\npublic final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Sendable {\n    private let embeddingService: EmbeddingService"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/TopicGate/FoundationModelsTopicGateProvider.swift",
+      "size": 2714,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels) && os(iOS)\nimport FoundationModels\n@available(iOS 26.0, *)\n@Generable"
+    },
+    {
+      "path": "Packages/PulsumML/Sources/PulsumML/TopicGate/TopicGateProviding.swift",
+      "size": 1017,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n/// Decision from the topic gate classifier\npublic struct GateDecision: Sendable {\n    public let isOnTopic: Bool\n    public let reason: String"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/EmbeddingServiceAvailabilityTests.swift",
+      "size": 2565,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumML\nfinal class EmbeddingServiceAvailabilityTests: XCTestCase {\n    func testReprobesAfterCooldown() {\n        let provider = MutableEmbeddingProvider(response: .failure(EmbeddingError.generatorUnavailable))"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/EmbeddingServiceFallbackTests.swift",
+      "size": 942,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumML\nfinal class EmbeddingServiceFallbackTests: XCTestCase {\n    func testFallsBackWhenPrimaryUnavailable() throws {\n        let fallback = MockEmbeddingProvider(vector: Array(repeating: Float(0.25), count: 4))"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/Gate0_EmbeddingServiceFallbackTests.swift",
+      "size": 1379,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumML\nprivate struct MockEmbeddingProvider: TextEmbeddingProviding {\n    enum Mode {\n        case succeeds([Float])"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/Gate6_EmbeddingProviderContextualTests.swift",
+      "size": 2450,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumML\nfinal class Gate6_EmbeddingProviderContextualTests: XCTestCase {\n    func testEmbeddingServiceRejectsZeroVector() {\n        let service = EmbeddingService.debugInstance("
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/PackageEmbedTests.swift",
+      "size": 5284,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumML\nfinal class PackageEmbedTests: XCTestCase {\n    func testVersionStringIsPresent() {\n        XCTAssertFalse(PulsumML.version.isEmpty)"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/SafetyLocalTests.swift",
+      "size": 1062,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumML\nfinal class SafetyLocalTests: XCTestCase {\n    func testCrisisKeywordTriggersCrisisClassification() {\n        let safety = SafetyLocal()"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/TopicGateMarginTests.swift",
+      "size": 1909,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\n@testable import PulsumML\nprivate func makeMarginTopicGateProvider() -> EmbeddingTopicGateProvider {\n    let embeddingService = EmbeddingService.debugInstance(\n        primary: KeywordEmbeddingProvider(dimension: 4),"
+    },
+    {
+      "path": "Packages/PulsumML/Tests/PulsumMLTests/TopicGateTests.swift",
+      "size": 5366,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\nimport Foundation\n@testable import PulsumML\nprivate func makeTopicGateProvider() -> EmbeddingTopicGateProvider {\n    let embeddingService = EmbeddingService.debugInstance("
+    },
+    {
+      "path": "Packages/PulsumServices/Package.swift",
+      "size": 1067,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "// swift-tools-version: 6.1\nimport PackageDescription\nlet package = Package(\n    name: \"PulsumServices\",\n    platforms: ["
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/BuildFlags.swift",
+      "size": 732,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n// Gate-1b: UITest seam hardening\n// Shared entry point so all services know if UITest seams are compiled in.\nenum BuildFlags {\n#if DEBUG || PULSUM_UITESTS"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/Bundle+PulsumServicesResources.swift",
+      "size": 311,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if SWIFT_PACKAGE\nextension Bundle {\n    static var pulsumServicesResources: Bundle { .module }\n}"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/CoachPhrasingSchema.swift",
+      "size": 2365,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n/// Canonical strict schema for GPT\u20115 structured coach phrasing.\n/// All fields are 'required' (strict JSON mode), but semantically-optional\n/// ones (\"refusalReason\", \"nextAction\", \"intentTopic\") must allow empty \"\".\npublic enum CoachPhrasingSchema {"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/FoundationModelsCoachGenerator.swift",
+      "size": 4895,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n#if canImport(FoundationModels) && os(iOS)\nimport FoundationModels\n#endif\nimport PulsumML"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/HealthKitAnchorStore.swift",
+      "size": 3144,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport HealthKit\nimport PulsumData\nimport PulsumTypes\n/// Persists HealthKit query anchors on-device with complete file protection."
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/HealthKitService.swift",
+      "size": 33385,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\n@preconcurrency import HealthKit\nimport PulsumTypes\npublic protocol HealthKitObservationToken: AnyObject {}\n#if canImport(HealthKit)"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/KeychainService.swift",
+      "size": 3074,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport Security\npublic protocol KeychainStoring: Sendable {\n    func setSecret(_ value: Data, for key: String) throws\n    func secret(for key: String) throws -> Data?"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift",
+      "size": 36927,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport os.log\nimport PulsumData\nimport PulsumML\nimport PulsumTypes"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/Placeholder.swift",
+      "size": 543,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport PulsumData\nimport PulsumML\npublic enum PulsumServices {\n    private static let healthKitInstance = HealthKitService()"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy",
+      "size": 559,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcprivacy",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>NSPrivacyAccessedAPITypes</key>"
+    },
+    {
+      "path": "Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift",
+      "size": 20854,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport Speech\n#if os(iOS)\nimport AVFoundation\n#endif"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate0_LLMGatewayTests.swift",
+      "size": 1803,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport XCTest\n@testable import PulsumServices\nprivate final class InMemoryKeychainStore: KeychainStoring, @unchecked Sendable {\n    private var storage: [String: Data] = [:]"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate0_SpeechServiceAuthorizationTests.swift",
+      "size": 3744,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "#if os(iOS)\nimport Speech\nimport XCTest\n@testable import PulsumServices\nprivate struct MockSpeechAuthorizationProvider: SpeechAuthorizationProviding {"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate0_SpeechServiceLoggingTests.swift",
+      "size": 1087,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class Gate0_SpeechServiceLoggingTests: XCTestCase {\n    func testReleaseBuildDisablesTranscriptLogging() throws {\n#if RELEASE_LOG_AUDIT"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate1_LLMGatewayUITestSeams.swift",
+      "size": 946,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class Gate1_LLMGatewayUITestSeams: XCTestCase {\n    func testStubPingShortCircuits_whenFlagOn() async throws {\n        guard ProcessInfo.processInfo.environment[\"UITEST_USE_STUB_LLM\"] == \"1\" else {"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate1_SpeechFakeBackendTests.swift",
+      "size": 965,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class Gate1_SpeechFakeBackendTests: XCTestCase {\n    func testFakeBackendStreamsScriptedSegments_whenFlagOn() async throws {\n        guard ProcessInfo.processInfo.environment[\"UITEST_FAKE_SPEECH\"] == \"1\" else {"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate2_ModernSpeechBackendTests.swift",
+      "size": 1311,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class Gate2_ModernSpeechBackendTests: XCTestCase {\n    func testModernBackendRespectsFeatureFlag() async throws {\n#if os(iOS)"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/Gate4_LLMGatewayPingSeams.swift",
+      "size": 628,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class Gate4_LLMGatewayPingSeams: XCTestCase {\n    func testStubPingShortCircuitsWhenFlagEnabled() async throws {\n        let previous = getenv(\"UITEST_USE_STUB_LLM\").flatMap { String(cString: $0) }"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/HealthKitAnchorStoreTests.swift",
+      "size": 1910,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nimport HealthKit\n@testable import PulsumServices\nfinal class HealthKitAnchorStoreTests: XCTestCase {\n    func testPersistAndLoadAnchor() throws {"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/KeychainServiceTests.swift",
+      "size": 490,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class KeychainServiceTests: XCTestCase {\n    func testRoundTripSecret() throws {\n        let service = KeychainService()"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/LLMGatewaySchemaTests.swift",
+      "size": 11668,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Testing\nimport Foundation\n@testable import PulsumServices\n/// Tests for LLMGateway structured output schema validation (Wall 2)\nstruct LLMGatewaySchemaTests {"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/LLMGatewayTests.swift",
+      "size": 11616,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n#if canImport(Darwin)\nimport Darwin\n#else\nimport Glibc"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/PulsumServicesDependencyTests.swift",
+      "size": 506,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumServices\nfinal class PulsumServicesDependencyTests: XCTestCase {\n    func testStorageMetadataAndEmbeddingVersion() {\n        let metadata = PulsumServices.storageMetadata()"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/PulsumServicesTests/SpeechServiceTests.swift",
+      "size": 2765,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nimport Speech\n@testable import PulsumServices\nfinal class SpeechServiceAuthorizationTests: XCTestCase {\n    func testRequestAuthorizationSucceedsWhenPermissionsGranted() async throws {"
+    },
+    {
+      "path": "Packages/PulsumServices/Tests/Support/LLMURLProtocolStub.swift",
+      "size": 3599,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nfinal class LLMURLProtocolStub: URLProtocol {\n    nonisolated(unsafe) static var handler: ((URLRequest) -> (Int, Data))?\n    nonisolated(unsafe) static var respondWithSchemaError: Bool = false\n    nonisolated(unsafe) static var invocationCount: Int = 0"
+    },
+    {
+      "path": "Packages/PulsumTypes/Package.swift",
+      "size": 541,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "// swift-tools-version: 6.1\nimport PackageDescription\nlet package = Package(\n    name: \"PulsumTypes\",\n    platforms: ["
+    },
+    {
+      "path": "Packages/PulsumTypes/Sources/PulsumTypes/DebugLog.swift",
+      "size": 1279,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic actor DebugLogBuffer {\n    public static let shared = DebugLogBuffer()\n    private var lines: [String] = []\n    private let maxLines = 30_000"
+    },
+    {
+      "path": "Packages/PulsumTypes/Sources/PulsumTypes/DiagnosticsLogger.swift",
+      "size": 20058,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Dispatch\nimport Foundation\nimport OSLog\nimport os.signpost\npublic enum Diagnostics {"
+    },
+    {
+      "path": "Packages/PulsumTypes/Sources/PulsumTypes/DiagnosticsReport.swift",
+      "size": 6190,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic struct DiagnosticsReportContext: Sendable {\n    public let appVersion: String\n    public let buildNumber: String\n    public let deviceModel: String"
+    },
+    {
+      "path": "Packages/PulsumTypes/Sources/PulsumTypes/DiagnosticsTypes.swift",
+      "size": 8588,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic enum DiagnosticsLevel: Int, Codable, Comparable, Sendable {\n    case debug = 0\n    case info = 1\n    case warn = 2"
+    },
+    {
+      "path": "Packages/PulsumTypes/Sources/PulsumTypes/Notifications.swift",
+      "size": 393,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic extension Notification.Name {\n    static let pulsumScoresUpdated = Notification.Name(\"pulsumScoresUpdated\")\n    static let pulsumChatRouteDiagnostics = Notification.Name(\"com.pulsum.chatRouteDiagnostics\")\n    static let pulsumChatCloudError = Notification.Name(\"com.pulsum.chatCloudError\")"
+    },
+    {
+      "path": "Packages/PulsumTypes/Sources/PulsumTypes/SpeechTypes.swift",
+      "size": 360,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\npublic struct SpeechSegment: Sendable, Equatable {\n    public let transcript: String\n    public let isFinal: Bool\n    public let confidence: Float?"
+    },
+    {
+      "path": "Packages/PulsumTypes/Tests/DiagnosticsLoggerTests.swift",
+      "size": 9748,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumTypes\nfinal class DiagnosticsLoggerTests: XCTestCase {\n    override func setUp() async throws {\n        await Diagnostics.clearDiagnostics()"
+    },
+    {
+      "path": "Packages/PulsumUI/Package.swift",
+      "size": 982,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "// swift-tools-version: 6.1\nimport PackageDescription\nlet package = Package(\n    name: \"PulsumUI\",\n    platforms: ["
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift",
+      "size": 21144,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport CoreData\nimport Observation\nimport PulsumAgents\nimport PulsumData"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/CoachView.swift",
+      "size": 15984,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nimport Observation\nimport PulsumAgents\npublic struct ChatInputView: View {\n    @Bindable var viewModel: CoachViewModel"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift",
+      "size": 18139,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport Observation\nimport os\nimport PulsumAgents\n#if canImport(FoundationModels) && os(iOS)"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/ConsentBannerView.swift",
+      "size": 2389,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nstruct ConsentBannerView: View {\n    let openSettings: () -> Void\n    let dismiss: () -> Void\n    private let bannerCopy = \"Pulsum can optionally use GPT\u20115 to phrase brief coaching text. If you allow cloud processing, Pulsum sends only minimized context (no journals, no raw health data, no identifiers). PII is redacted. You can turn this off anytime in Settings \u25b8 Cloud Processing.\""
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/GlassEffect.swift",
+      "size": 4944,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\npublic struct GlassEffectStyle: Equatable {\n    public enum Intensity: Equatable {\n        case ultraThin\n        case thin"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/HealthAccessRequirement.swift",
+      "size": 2552,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport HealthKit\nenum HealthAccessGrantState {\n    case granted\n    case denied"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/LiquidGlassComponents.swift",
+      "size": 7132,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\npublic struct LiquidGlassTabBar: View {\n    public struct TabItem: Identifiable {\n        public let id = UUID()\n        public let icon: String"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/LiveWaveformLevels.swift",
+      "size": 1660,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nstruct LiveWaveformLevels: RandomAccessCollection, MutableCollection, Sendable {\n    typealias Index = Int\n    private var storage: [CGFloat]\n    private var writeIndex: Int = 0"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/OnboardingView.swift",
+      "size": 14314,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nimport HealthKit\nimport PulsumAgents\nstruct OnboardingView: View {\n    @Binding var isPresented: Bool"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PrivacyInfo.xcprivacy",
+      "size": 559,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcprivacy",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>NSPrivacyAccessedAPITypes</key>"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulseView.swift",
+      "size": 16810,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nimport Observation\n#if canImport(UIKit)\nimport UIKit\n#endif"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulseViewModel.swift",
+      "size": 9265,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport Observation\nimport PulsumAgents\nimport SwiftUI\nimport PulsumTypes"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulsumDesignSystem.swift",
+      "size": 7850,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\n// MARK: - Pulsum Design System\n// Light, fresh, minimalistic aesthetic inspired by iOS 26 Liquid Glass principles\nextension Color {\n    // MARK: - Background Colors (Light, Fresh, Beige-based from maindesign.png)"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift",
+      "size": 12723,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nimport Observation\nimport Foundation\nimport PulsumAgents\nimport PulsumTypes"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/SafetyCardView.swift",
+      "size": 3064,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nstruct SafetyCardView: View {\n    let message: String\n    let dismiss: () -> Void\n    var body: some View {"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownView.swift",
+      "size": 19557,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nimport PulsumAgents\nstruct ScoreBreakdownScreen: View {\n    @Environment(\\.dismiss) private var dismiss\n    @State private var viewModel: ScoreBreakdownViewModel"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownViewModel.swift",
+      "size": 2037,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport Observation\nimport PulsumAgents\n@MainActor\n@Observable"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift",
+      "size": 50036,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nimport Observation\nimport PulsumAgents\nimport PulsumTypes\n#if canImport(UIKit)"
+    },
+    {
+      "path": "Packages/PulsumUI/Sources/PulsumUI/SettingsViewModel.swift",
+      "size": 18057,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import Foundation\nimport Observation\nimport PulsumAgents\nimport HealthKit\nimport PulsumTypes"
+    },
+    {
+      "path": "Packages/PulsumUI/Tests/PulsumUITests/LiveWaveformBufferTests.swift",
+      "size": 1167,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumUI\nfinal class LiveWaveformBufferTests: XCTestCase {\n    func testRingBufferMaintainsLatestSamples() {\n        var buffer = LiveWaveformLevels(capacity: 8)"
+    },
+    {
+      "path": "Packages/PulsumUI/Tests/PulsumUITests/PulsumRootViewTests.swift",
+      "size": 200,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\n@testable import PulsumUI\n@MainActor\nfinal class PulsumRootViewTests: XCTestCase {\n    func testRootViewHealthCheckPrecondition() {"
+    },
+    {
+      "path": "Packages/PulsumUI/Tests/PulsumUITests/SettingsViewModelHealthAccessTests.swift",
+      "size": 5680,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "@testable import PulsumAgents\n@testable import PulsumServices\n@testable import PulsumUI\nimport PulsumData\nimport PulsumML"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.pbxproj",
+      "size": 32398,
+      "binary": false,
+      "reason": null,
+      "ext": ".pbxproj",
+      "mime": null,
+      "sample": "// !$*UTF8*$!\n{\n\tarchiveVersion = 1;\n\tclasses = {\n\t};"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+      "size": 135,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcworkspacedata",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Workspace\n   version = \"1.0\">\n   <FileRef\n      location = \"self:\">"
+    },
+    {
+      "path": "Pulsum.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "size": 133,
+      "binary": false,
+      "reason": null,
+      "ext": ".resolved",
+      "mime": null,
+      "sample": "{\n  \"originHash\" : \"733ca631ca5ff7c5629976dd280e4b23b29dd4e0b98be4c4ace5d56d057b1386\",\n  \"pins\" : [\n  ],\n  \"version\" : 3"
+    },
+    {
+      "path": "Pulsum.xcodeproj/xcshareddata/xcschemes/Pulsum.xcscheme",
+      "size": 6236,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcscheme",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Scheme\n   LastUpgradeVersion = \"2600\"\n   version = \"1.7\">\n   <BuildAction"
+    },
+    {
+      "path": "Pulsum.xcodeproj/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "size": 670,
+      "binary": false,
+      "reason": null,
+      "ext": ".plist",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>SchemeUserState</key>"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "size": 123,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "{\n  \"colors\" : [\n    {\n      \"idiom\" : \"universal\"\n    }"
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "size": 713,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "{\n  \"images\" : [\n    {\n      \"filename\" : \"iconnew 2.png\",\n      \"idiom\" : \"universal\","
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/iconnew 1.png",
+      "size": 1003595,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/iconnew 2.png",
+      "size": 1003595,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/AppIcon.appiconset/iconnew.png",
+      "size": 1003595,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "Pulsum/Assets.xcassets/Contents.json",
+      "size": 63,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "{\n  \"info\" : {\n    \"author\" : \"xcode\",\n    \"version\" : 1\n  }"
+    },
+    {
+      "path": "Pulsum/PrivacyInfo.xcprivacy",
+      "size": 559,
+      "binary": false,
+      "reason": null,
+      "ext": ".xcprivacy",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>NSPrivacyAccessedAPITypes</key>"
+    },
+    {
+      "path": "Pulsum/Pulsum.entitlements",
+      "size": 310,
+      "binary": false,
+      "reason": null,
+      "ext": ".entitlements",
+      "mime": null,
+      "sample": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>com.apple.developer.healthkit</key>"
+    },
+    {
+      "path": "Pulsum/PulsumApp.swift",
+      "size": 239,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "//\n//  PulsumApp.swift\n//  Pulsum\n//\n//  Created by Martin Demel on 9/28/25."
+    },
+    {
+      "path": "PulsumTests/PulsumTests.swift",
+      "size": 294,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "//\n//  PulsumTests.swift\n//  PulsumTests\n//\n//  Created by Martin Demel on 9/28/25."
+    },
+    {
+      "path": "PulsumUITests/FirstRunPermissionsUITests.swift",
+      "size": 377,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nfinal class FirstRunPermissionsUITests: PulsumUITestCase {\n    func testFirstRun_authorizeSpeechAndMic() throws {\n        launchPulsum()\n        try openPulseSheetOrSkip()"
+    },
+    {
+      "path": "PulsumUITests/Gate3_HealthAccessUITests.swift",
+      "size": 3478,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nprivate let partialHealthAccessOverride = [\n    \"HKQuantityTypeIdentifierHeartRateVariabilitySDNN=authorized\",\n    \"HKQuantityTypeIdentifierHeartRate=authorized\",\n    \"HKQuantityTypeIdentifierRestingHeartRate=authorized\","
+    },
+    {
+      "path": "PulsumUITests/Gate4_CloudConsentUITests.swift",
+      "size": 2491,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nfinal class Gate4_CloudConsentUITests: PulsumUITestCase {\n    func test_enter_key_and_test_connection_shows_ok_pill() throws {\n        launchPulsum()\n        try openSettingsSheetOrSkip()"
+    },
+    {
+      "path": "PulsumUITests/JournalFlowUITests.swift",
+      "size": 1622,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nfinal class JournalFlowUITests: PulsumUITestCase {\n    func testRecordStreamFinish_showsSavedToastAndTranscript() throws {\n        launchPulsum()\n        try openPulseSheetOrSkip()"
+    },
+    {
+      "path": "PulsumUITests/PulsumUITestCase.swift",
+      "size": 4236,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nclass PulsumUITestCase: XCTestCase {\n    var app: XCUIApplication!\n    private let defaultEnvironment = [\n        \"UITEST_USE_STUB_LLM\": \"1\","
+    },
+    {
+      "path": "PulsumUITests/PulsumUITestsLaunchTests.swift",
+      "size": 814,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "//\n//  PulsumUITestsLaunchTests.swift\n//  PulsumUITests\n//\n//  Created by Martin Demel on 9/28/25."
+    },
+    {
+      "path": "PulsumUITests/SettingsAndCoachUITests.swift",
+      "size": 2395,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import XCTest\nfinal class SettingsAndCoachUITests: PulsumUITestCase {\n    func testCoachChat_withStub_returnsGroundedReply() throws {\n        launchPulsum()\n        try enableCloudConsentIfNeeded()"
+    },
+    {
+      "path": "README.md",
+      "size": 20926,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "<p align=\"center\">\n  <img src=\"logo2.png\" alt=\"Pulsum Logo\" width=\"120\" height=\"120\" style=\"border-radius: 24px;\">\n</p>\n<h1 align=\"center\">Pulsum</h1>\n<p align=\"center\">"
+    },
+    {
+      "path": "a-practical-guide-to-building-agents.pdf",
+      "size": 7335065,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "agents.md",
+      "size": 15581,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# CLAUDE.md\n## Commands\n- Lint: swiftformat --lint .\n- Format: swiftformat .\nThis file provides guidance to Claude Code (claude.ai/code) when working with code in this repository."
+    },
+    {
+      "path": "architecture.md",
+      "size": 52430,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "## 1. Title & Commit Info\n- Repo: Pulsum \u2014 Revision: working tree (no VCS tag)\n- Generated on: 2025-10-26T01:14:51Z UTC\n## 2. Executive Summary\n- Pulsum is an iOS 26+ wellbeing coach that boots an `AgentOrchestrator` to connect data ingestion, sentiment capture, safety vetting, and coaching agents behind the SwiftUI front end. Gate 3 added `HealthAccessStatus` + notification seams so DataAgent gates observers on per-type authorization, exposes structured status data to Settings/Onboarding, and uses a single `.pulsumScoresUpdated` bus (journals, sliders, and HealthKit samples) to refresh wellbeing/coach surfaces immediately; the UI now treats wellbeing readiness as a snapshot-only path and loads recommendations asynchronously with debounced/coalesced refreshes so the score card never blocks on the recommendation pipeline. Snapshot responses carry a `WellbeingSnapshotKind` (none/placeholder/real) so the UI can render an explicit warm-up state, and recommendation fetches are hard-timeout bounded with a non-blocking fallback. (Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift:45-175; Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift:1-320; Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift:65-540; Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift:58-220)"
+    },
+    {
+      "path": "architecture_short.md",
+      "size": 6026,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Architecture Snapshot\n## Core Principles\n- Agent-first wellness platform where a single `AgentOrchestrator` coordinates specialized agents (Data, Sentiment, Coach, Safety, Cheer) to keep all decision-making ML-driven and consistent with privacy policies.\n- ML-over-rules philosophy: recommendations, chat tone, and scoring rely on learned models (StateEstimator, RecRanker, AFM-guided generation) with deterministic logic limited to statistical baselining.\n- Privacy-first execution: health data, transcripts, embeddings, and vector indexes stay on-device under `NSFileProtectionComplete`; GPT-5 cloud calls only occur with explicit consent and minimal context."
+    },
+    {
+      "path": "audit_gate_0_and_1.md",
+      "size": 11496,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum \u2013 Gate 0 & Gate 1 Audit\n## Executive Summary\n- Overall status: PASS \u2014 Gate 0 security blockers and Gate 1 harness requirements are fully satisfied with auditable evidence.\n- What passed at a glance: \u2705 Secrets purged + key precedence tests, \u2705 Privacy manifests + validator script, \u2705 Speech entitlement/mic preflight/PHI logging guards, \u2705 Release build parity + platform guards, \u2705 Data protection + typed AFM stubs, \u2705 FoundationModels gating + deterministic scheme/CI harness.\n- What needs work: None detected for Gate 0/1 scope (residual risks move to later gates per fix.md)."
+    },
+    {
+      "path": "bugs.md",
+      "size": 101926,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Bug Audit\n**Scan Context:** Repo Pulsum @ working tree | UTC 2025-10-26T19:30:00Z\n**Changes in this pass:** Added:11  Updated:15  Obsolete:0  Duplicates:0\n**Coverage Summary:** PulsumApp{files_read:5,lines:727} PulsumUI{files_read:16,lines:4847} PulsumAgents{files_read:8,lines:2563} PulsumServices{files_read:9,lines:3142} PulsumData{files_read:7,lines:1841} PulsumML{files_read:12,lines:2094} Config/Assets{files_read:9} Tests{files_read:6,all_empty_stubs}\n## Quick Readout"
+    },
+    {
+      "path": "bugsplan.md",
+      "size": 6076,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Bug Remediation Plan\n## Guiding Principles\n- Tackle production blockers and compliance exposure first, then restore the end-to-end wellbeing loop, and finally address UX polish and resiliency gaps.\n- When a bug represents a broken contract or security/privacy exposure, fix it in the earliest feasible phase and add automated tests or monitors to prevent regression.\n- After each phase, run the full SwiftPM test suite plus targeted manual checks (voice journal, HealthKit ingestion, GPT consent) before moving forward."
+    },
+    {
+      "path": "calculations.md",
+      "size": 11215,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Scoring Calculations\nThis document captures how Pulsum derives every score that surfaces in the app today. It covers the raw signal preparation, normalization, model weighting, and storage pathways for:\n1. Objective health metrics (Heart Rate Variability, Nocturnal HR, Resting HR, Sleep Debt, Respiratory Rate, Steps)\n2. Subjective pulse inputs (Stress, Energy, Sleep Quality)\n3. Voice journal sentiment"
+    },
+    {
+      "path": "coderabit.md",
+      "size": 9620,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# CodeRabbit Validation Report\n**Scan Context:** Manual review of Pulsum working tree @ 2025-10-26.  \n**Docs Covered:** `architecture.md`, `todolist.md`, `bugs.md`, `agents.md`, `instructions.md`.  \n**Swift Coverage:** Key modules in `PulsumAgents`, `PulsumServices`, `PulsumUI`, and Xcode project settings inspected to validate review feedback.\n## Quick Readout"
+    },
+    {
+      "path": "codex_inventory.json",
+      "size": 5085530,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "[\n  {\n    \"path\": \".DS_Store\",\n    \"size\": 18436,\n    \"mtime\": 1761443965.0257926,"
+    },
+    {
+      "path": "core/pulsum/review.md",
+      "size": 28896,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum vs. Demo Apps SwiftUI Architecture Review\n- Date: 2025-11-02\n- Repo root: Pulsum\n- Commit: 1ceeac6\n## Executive Summary"
+    },
+    {
+      "path": "core/pulsum/status.md",
+      "size": 6156,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "**Title & Metadata**\n- Pulsum \u2014 App Status & Stage\n- Date: 2025-11-02\n- Repo root: /Users/martin.demel/Desktop/PULSUM/Pulsum\n**Executive Summary**"
+    },
+    {
+      "path": "coverage_ledger.json",
+      "size": 4256208,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "[\n  {\n    \"path\": \".DS_Store\",\n    \"sha256\": \"b1c65921cae6e5efda7bd58d8d9a6c2af81fe8a1ed050e2c58f332ebcad6ff26\",\n    \"status\": \"summarize_only\","
+    },
+    {
+      "path": "files.zlist",
+      "size": 1796350,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".zlist",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "gate2_summary.md",
+      "size": 6966,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Gate 2 Summary \u2014 Voice Journaling End-to-End\nThis document freezes the state of Gate\u202f2 (Voice Journaling) as of 2025\u201111\u201112. It records the architectural changes, test coverage, and CI wiring required to keep the gate green in the future.\n---\n## 1. Shared Types & Notifications\n**Package:** `Packages/PulsumTypes`"
+    },
+    {
+      "path": "gate3_summary.md",
+      "size": 3509,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Gate 3 \u2014 HealthKit Ingestion & UI Freshness\n## Problem (BUG\u20110024 / 0037 / 0040 / 0043)\n- HealthKit authorization logic was all-or-nothing, so denied/not-determined types still started observers and Settings couldn\u2019t show partial status.\n- Restarting ingestion after the user re-granted access duplicated observers and left revoked types running.\n- `AgentOrchestrator.postScoresUpdated` was removed but nothing replaced it, so `.pulsumScoresUpdated` never fired after HealthKit ingest or manual recomputes."
+    },
+    {
+      "path": "gate4_summary.md",
+      "size": 5142,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Gate 4 \u2014 RAG / LLM Wiring & Consent UX\n## Problem (BUG\u20110004 / 0008 / 0010 / 0023 / 0041)\n- Guardrail payloads sent to GPT\u20115 omitted micro\u2011moment context, violating the minimized\u2011context contract and letting cloud replies drift off-topic.\n- Fallback routing probed feature keys that don\u2019t exist in `FeatureVectorSnapshot`, so \u201cdata-dominant\u201d decisions always defaulted to `subj_energy`.\n- Settings had no working Apple Intelligence CTA, no runtime GPT key storage, and no deterministic Save/Test UX; ESC key dismissal crashed because `.onKeyPress` closures returned `Void`."
+    },
+    {
+      "path": "gate5_summary.md",
+      "size": 6266,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Gate 5 \u2014 Vector Index Safety & Data I/O Integrity\n## Problem (BUG\u20110012 / 0017 / 0013 / 0022 / 0036)\n- Vector index shards used double\u2011checked locking with unsynchronized dictionary reads, so concurrent search/upsert/remove could race shard initialization and corrupt on\u2011disk data (S0).\n- `FileHandle.close()` failures in shard writes were swallowed with `try?`, leading to silent descriptor leaks and undetected I/O corruption (S1).\n- `LibraryImporter` performed `Data(contentsOf:)` + JSON decoding inside `context.perform`, blocking Core Data\u2019s serial queue and freezing UI work whenever podcasts were imported (S2)."
+    },
+    {
+      "path": "gate6_analysis.md",
+      "size": 7375,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "## Summary\n- Embedding stack is now opportunistic AFM with a hardened CoreML fallback: zero vectors throw, availability is probed once, and coverage only fails closed when all on-device providers are down.\n- Wellbeing pipeline now normalizes/clamps inputs (including sentiment), uses recovery-positive seeds, persists the StateEstimator, and drives a new wellbeing state model so UI surfaces clear loading/no-data/denied/error states instead of spinning forever.\n- Personalization and health UX tightened: RecRanker learns from feedback, HealthKit request/denied/unavailable paths are surfaced consistently across main/insights/settings, and docs/tests lock the Gate 6 fixes.\n## Changes by Area"
+    },
+    {
+      "path": "gate6_summary.md",
+      "size": 7045,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Gate 6 \u2014 ML correctness & personalization\n## Code changes\n- `Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift`, `Packages/PulsumAgents/Tests/PulsumAgentsTests/Gate6_WellbeingBackfillPhasingTests.swift`: `start()`/`requestHealthAccess()` now perform a 2-day bootstrap synchronously for a fast first score, then schedule the 7-day warm-start + 30-day backfill in the background. Snapshot notifications are debounced to a single `.pulsumScoresUpdated` per batch with per-batch log summaries.\n- `Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift`: keeps wellbeing state in the last known value after the first load so background backfill no longer flips the main card back to \u201cCalculating\u2026\u201d.\n- `Packages/PulsumAgents/Sources/PulsumAgents/DebugLogBuffer.swift`: increased capacity (2000 lines) and added test-only reset; `DebugLogBufferTests` guard ring buffer behavior."
+    },
+    {
+      "path": "gates.md",
+      "size": 32829,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Got it \u2014 I read **every line** of your `bugs.md` (43 bugs) and the companion `architecture.md` spec and used them as the source of truth for the plan below. Nothing in this plan is guessed; where the documents themselves raise unknowns (e.g., the iOS Settings deep link for Apple Intelligence), I call that out so we can decide before coding.  \n---\n## Gate Progress Tracker\n| Gate | Focus | Status | Notes |\n| --- | --- | --- | --- |"
+    },
+    {
+      "path": "gates_learnings.md",
+      "size": 5798,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Short version: yes, everything looks merged correctly now, and what you\u2019re seeing in the branch list is totally normal. Let\u2019s capture the \u201cgate playbook\u201d so future Gates don\u2019t turn into another multi-day odyssey.\nI\u2019ll break it into three parts you can reuse in prompts: branching + commits, testing/CI, and docs/gates alignment.\n\u2e3b\n1. Branching & commits \u2013 how to structure future Gates\nUse this pattern for every new Gate (3, 4, \u2026):"
+    },
+    {
+      "path": "geminibugs.md",
+      "size": 6328,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Gemini 3 Technical Audit (`geminibugs.md`)\n## 1. Architecture Consistency Check\n- **Status:** Critical Deviations\n- **Analysis:** The codebase generally follows the modular architecture defined in `architecture.md` with clear separation of Agents, Services, and Data. However, key \"Modern\" features relying on iOS 26+ are implemented as stubs or disabled, violating the functional promise of the architecture.\n- **Violations:**"
+    },
+    {
+      "path": "github_cheat_sheet.md",
+      "size": 7722,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# GitHub How-To (Pulsum) \u2014 Printable Cheat Sheet\nA compact guide to the **what/why/how** of Git & GitHub for your Pulsum repo, with **copy-pasteable commands**. Keep this next to your keyboard.\n---\n## 1) Core words (what they mean)\n* **Repository (repo)**: Your project\u2019s versioned database (local and on GitHub)."
+    },
+    {
+      "path": "github_master_gate.md",
+      "size": 8926,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum \u2014 Gate-by-Gate GitHub Playbook (for \u201cOpenAI Codex 5 High\u201d)\nA single, detailed, **copy\u2011pasteable** guide for how you (and your AI assistants) should branch, commit, PR, merge, tag, and verify **each Gate** (Gate 1, Gate 2, \u2026) using the **same best practices** we finalized for **Gate 0**\u2014with corrections for pitfalls we hit.\n---\n## 0) Principles this document enforces\n* **One Gate = One PR** from a **dedicated branch**; use **Squash & Merge**."
+    },
+    {
+      "path": "gpt5_1_prompt_guide.md",
+      "size": null,
+      "binary": true,
+      "reason": "read error: [Errno 2] No such file or directory: '/Users/martin.demel/Desktop/PULSUM/Pulsum/gpt5_1_prompt_guide.md'",
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": null
+    },
+    {
+      "path": "iconlogo.png",
+      "size": 1075847,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "iconnew.png",
+      "size": 1003595,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "infinity_blubs_copy.splineswift",
+      "size": 272828,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".splineswift",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "instructions.md",
+      "size": 32807,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Pulsum \u2014 Final Production Build Spec (iOS 26, Liquid Glass, Agent\u2011First)\nROLE\nYou are a principal iOS architect and staff\u2011level Swift engineer. Build a production, App\u2011Store\u2011ready version of Pulsum\u2014no placeholders, no mock UIs, no fake backends. Every feature must function end\u2011to\u2011end.\nInitially, analyze the entire codebase, including all folders and subfolders, as well as all files within these folders, to understand what is already available from the Xcode project. Do not skip lines; read it all. I have also added instructions.md that have these instructions and you can read it whenever required to ensure you adhere 100%. Create a todolist.md file where you will track all the details and activities as you split this work into several milestones. That way, if required, I can use the next chat window to continue from where you left off. Ensure you always update the todolist.md file when completing such work or task part.\n\u2e3b"
+    },
+    {
+      "path": "inventory.json",
+      "size": 43254,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": "{\n  \"root\": \"/Users/martin.demel/Desktop/PULSUM/Pulsum\",\n  \"generated_at\": \"2025-10-26T01:02:02.195681Z\",\n  \"total_files\": 150,\n  \"entries\": ["
+    },
+    {
+      "path": "ios app mockup.png",
+      "size": 2821699,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Adding intelligent app features with generative models _ Apple Developer Documentation.pdf",
+      "size": 101354,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Adopting Liquid Glass _ Apple Developer Documentation.pdf",
+      "size": 4863584,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Foundation Models _ Apple Developer Documentation.pdf",
+      "size": 790023,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Generating content and performing tasks with Foundation Models _ Apple Developer Documentation.pdf",
+      "size": 721092,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Improving the safety of generative model output _ Apple Developer Documentation.pdf",
+      "size": 1137316,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Landmarks_ Applying a background extension effect _ Apple Developer Documentation.pdf",
+      "size": 2098656,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Landmarks_ Building an app with Liquid Glass _ Apple Developer Documentation.pdf",
+      "size": 7313354,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Landmarks_ Displaying custom activity badges _ Apple Developer Documentation.pdf",
+      "size": 1873402,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Landmarks_ Extending horizontal scrolling under a sidebar or inspector _ Apple Developer Documentation.pdf",
+      "size": 1632595,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Landmarks_ Refining the system provided Liquid Glass effect in toolbars _ Apple Developer Documentation.pdf",
+      "size": 1398959,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Liquid Glass _ Apple Developer Documentation.pdf",
+      "size": 4276716,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/Support languages and locales with Foundation Models _ Apple Developer Documentation.pdf",
+      "size": 388923,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/SystemLanguageModel _ Apple Developer Documentation.pdf",
+      "size": 351666,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/aGenerating content and performing tasks with Foundation Models _ Apple Developer Documentation.pdf",
+      "size": 720230,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support documents/iOS & iPadOS 26 Release Notes _ Apple Developer Documentation.pdf",
+      "size": 1210570,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".pdf",
+      "mime": "application/pdf",
+      "sample": null
+    },
+    {
+      "path": "ios support files/glow.swift",
+      "size": 4626,
+      "binary": false,
+      "reason": null,
+      "ext": ".swift",
+      "mime": null,
+      "sample": "import SwiftUI\nstruct GlowEffect: View {\n    @State private var gradientStops: [Gradient.Stop] = GlowEffect.generateGradientStops()\n    var body: some View {\n        ZStack {"
+    },
+    {
+      "path": "liquidglass.md",
+      "size": 48367,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum iOS App - Liquid Glass Design Implementation Guide\n**Target:** iOS 26+ | **Design Language:** Liquid Glass | **Date:** September 30, 2025  \n**Purpose:** Complete reference for Claude Code to rework Pulsum app with Apple's Liquid Glass design system\n---\n## Table of Contents"
+    },
+    {
+      "path": "logo.jpg",
+      "size": 152344,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".jpg",
+      "mime": "image/jpeg",
+      "sample": null
+    },
+    {
+      "path": "logo2.png",
+      "size": 585439,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".png",
+      "mime": "image/png",
+      "sample": null
+    },
+    {
+      "path": "main.gif",
+      "size": 21811312,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".gif",
+      "mime": "image/gif",
+      "sample": null
+    },
+    {
+      "path": "mainanimation.usdz",
+      "size": 47388,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".usdz",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "openai_summary_chat_gate4.md",
+      "size": 110834,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Now you have to create prompt for the gate 4 below are the instructions. think ultrahrad. learn form the past prompts and inforkmations.\nWrite me detailed prompt that would follow the guidelines, the scope defined in the gate 4 and will incorporate all the lessons learned from the previous implenetnations, especially around testing,. ensuring that its implemented properly, testing is performed correctly and linekd correctly and the bugs or issues in the gate 4 are fixed correctly. furthermore the ficxes needs to be aligned with the architecture.md and todolist.md and other documents in the project folder. read all the docuemnt. Below is example of the prompt for gate 0 so you can use it to start with but ehnacne it with what you have learend that needs to be addressed. The prompt below is only for reference purpose, do not exxecute the prompt, just read it how you defined the prompt previously and you can use it for the prompt for the gate 4 but it must be aligned with the 2 pdf attached which defines the way the prompt should be! Read carefully the attached files. the gates.md has all the infromations for the gate 4. \ndefione clearly start and the end of the prompt, do not use the mnt/data as this is youres, all the filkes are in the same folder as the entire project! .\nBelow is a **copy\u2011paste prompt** you can run in your code agent (Codex / \u201chigh\u2011thinking 5\u201d) to implement **Gate 0 \u2014 Security & Build Blockers** end\u2011to\u2011end. I built it to follow OpenAI\u2019s **GPT\u20115 prompting** practices (explicit roles, evals, stepwise verification, and steerability settings) and the engineering prompt patterns recommended for code automation.  \nIt is grounded in your repo\u2019s **bugs.md** and **architecture.md**; the bug IDs and acceptance criteria below match those files and reference their evidence/locations so the agent has the exact anchors to modify.  "
+    },
+    {
+      "path": "podcastrecommendations 2.json",
+      "size": 52726,
+      "binary": false,
+      "reason": null,
+      "ext": ".json",
+      "mime": "application/json",
+      "sample": " [\n  {\n    \"episodeNumber\": \"199\",\n    \"episodeTitle\": \"Arnold's Pump Club - #199 It Doesn't Fcking Matter\",\n    \"recommendations\": ["
+    },
+    {
+      "path": "review_calculation_summary.md",
+      "size": 253929,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "### Packages/PulsumServices/Sources/PulsumServices/HealthKitService.swift\n```swift\nimport Foundation\n@preconcurrency import HealthKit\npublic protocol HealthKitObservationToken: AnyObject {}"
+    },
+    {
+      "path": "scripts/ci/build-release.sh",
+      "size": 265,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nROOT_DIR=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\ncd \"$ROOT_DIR\"\nxcodebuild -scheme Pulsum -configuration Release build \\"
+    },
+    {
+      "path": "scripts/ci/check-privacy-manifests.sh",
+      "size": 3291,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nROOT_DIR=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\ncd \"$ROOT_DIR\"\nRED=\"\\033[31m\""
+    },
+    {
+      "path": "scripts/ci/integrity.sh",
+      "size": 8127,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nROOT_DIR=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\ncd \"$ROOT_DIR\"\npass() { printf \"\\033[32m%s\\033[0m\\n\" \"$1\"; }"
+    },
+    {
+      "path": "scripts/ci/scan-placeholders.sh",
+      "size": 632,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nROOT_DIR=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\ncd \"$ROOT_DIR\"\nRED=\"\\033[31m\""
+    },
+    {
+      "path": "scripts/ci/scan-secrets.sh",
+      "size": 1961,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nROOT_DIR=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\ncd \"$ROOT_DIR\"\nRED=\"\\033[31m\""
+    },
+    {
+      "path": "scripts/ci/test-harness.sh",
+      "size": 8059,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nROOT_DIR=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\ncd \"$ROOT_DIR\"\nexport COPYFILE_DISABLE=1"
+    },
+    {
+      "path": "scripts/ci/ui-tests.sh",
+      "size": 1319,
+      "binary": false,
+      "reason": null,
+      "ext": ".sh",
+      "mime": "application/x-sh",
+      "sample": "#!/usr/bin/env bash\nset -euo pipefail\nSCHEME=${SCHEME:-Pulsum}\nCONFIG=${CONFIG:-Debug}\nDERIVED=${DERIVED:-Build}"
+    },
+    {
+      "path": "sha256.txt",
+      "size": 2838664,
+      "binary": false,
+      "reason": null,
+      "ext": ".txt",
+      "mime": "text/plain",
+      "sample": "b1c65921cae6e5efda7bd58d8d9a6c2af81fe8a1ed050e2c58f332ebcad6ff26  .DS_Store\nbf958c047a166e897967eb1ea15f63756cec69a4721964dbc685c16d0ac90ce4  .claude/settings.local.json\nf03696726f48b362128f629b36624fd88aebce0a0fe328262535340984e2fbda  .github/coderabbit.yaml\n0512dcbd61988c4f4229dfa033be784b9be92295e1ce6c65d8f2a4f5fe219ab9  .github/workflows/auto-merge.yml\n3065d4e0b62f2faf6cef076c3e9b55e42546f861e8bb8ba4532d10124ae331d3  .github/workflows/auto-pr.yml"
+    },
+    {
+      "path": "streak_low_poly_copy.splineswift",
+      "size": 49425,
+      "binary": true,
+      "reason": "contains NUL bytes",
+      "ext": ".splineswift",
+      "mime": null,
+      "sample": null
+    },
+    {
+      "path": "terminal_1.md",
+      "size": 529404,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Last login: Mon Nov 10 22:31:55 on ttys006\n(base) martin.demel@Martins-MacBook-Pro ~ % cd desktop\n(base) martin.demel@Martins-MacBook-Pro desktop % cd pulsum\n(base) martin.demel@Martins-MacBook-Pro pulsum % cd pulsum\n(base) martin.demel@Martins-MacBook-Pro pulsum % xcodebuild test \\"
+    },
+    {
+      "path": "terminal_new.md",
+      "size": 715472,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Last login: Mon Nov 10 22:14:17 on ttys006\n(base) martin.demel@Martins-MacBook-Pro ~ % cd desktop\n(base) martin.demel@Martins-MacBook-Pro desktop % cd pulsum\n(base) martin.demel@Martins-MacBook-Pro pulsum % cd pulsum\n(base) martin.demel@Martins-MacBook-Pro pulsum % # Clean + rebuild Release for Simulator with signing skipped"
+    },
+    {
+      "path": "testfile",
+      "size": 2,
+      "binary": false,
+      "reason": null,
+      "ext": "",
+      "mime": null,
+      "sample": "hi"
+    },
+    {
+      "path": "tests_automation.md",
+      "size": 10355,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "Got it\u2014I understand. You want an automated \u201ctest-updater\u201d so when you land future gates (3, 4, 5, \u2026) the repo detects code changes, generates/updates the right tests, runs them, and proposes the patch without you hand-editing every test file.\nBelow is a practical blueprint that teams actually use, with safe human-in-the-loop controls. It combines:\n\t\u2022\tGatekeeper checks that force tests to exist (Danger + coverage),\n\t\u2022\tImpact detection to find what changed,\n\t\u2022\tAn AI test agent that drafts/update tests and opens a small follow-up PR,"
+    },
+    {
+      "path": "todolist.md",
+      "size": 23202,
+      "binary": false,
+      "reason": null,
+      "ext": ".md",
+      "mime": "text/markdown",
+      "sample": "# Pulsum Production Build - TODO\n## Milestone 0 - Repository Audit (Complete)\n- [x] Reviewed all existing source files (`PulsumApp.swift`, `ContentView.swift`, `Persistence.swift`, Core Data model, assets)\n- [x] Inspected Xcode project settings (`Pulsum.xcodeproj`, workspace state, schemes)\n- [x] Cataloged support materials (`ios support documents`, `ios support files/glow.swift`, `json database/podcastrecommendations (38).json`, media assets)"
+    }
+  ]
+}

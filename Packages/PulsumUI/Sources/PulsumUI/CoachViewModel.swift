@@ -184,15 +184,26 @@ final class CoachViewModel {
     }
 
     func sendChat() async {
-        guard let orchestrator else { return }
         let trimmed = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         logger.debug("Sending chat message. Characters: \(trimmed.count, privacy: .public)")
         let userMessage = ChatMessage(role: .user, text: trimmed, timestamp: Date())
         messages.append(userMessage)
         chatInput = ""
-        isSendingChat = true
         chatErrorMessage = nil
+        isSendingChat = true
+        defer { isSendingChat = false }
+        guard let orchestrator else {
+            if AppRuntimeConfig.useStubLLM {
+                let assistant = ChatMessage(role: .assistant,
+                                            text: "Stub response: Pulsum coach stub reply for UI testing.",
+                                            timestamp: Date())
+                messages.append(assistant)
+            } else {
+                chatErrorMessage = "Coach is unavailable right now."
+            }
+            return
+        }
         do {
             let response = try await orchestrator.chat(userInput: trimmed, consentGranted: consentProvider())
             let assistant = ChatMessage(role: .assistant, text: response, timestamp: Date())
@@ -203,7 +214,6 @@ final class CoachViewModel {
             let nsError = error as NSError
             logger.error("Chat send failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
         }
-        isSendingChat = false
     }
 
     private func mapError(_ error: Error) -> String {

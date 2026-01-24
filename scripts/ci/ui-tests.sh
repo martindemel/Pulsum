@@ -21,9 +21,11 @@ fi
 
 rm -rf "$DERIVED" && mkdir -p "$DERIVED"
 
+TEST_CONCURRENCY_FLAGS=(-parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1)
+
 xc -scheme "$SCHEME" -configuration "$CONFIG" -destination "$DEST" -destination-timeout 180 -derivedDataPath "$DERIVED" \
    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build-for-testing
 
 UITEST_USE_STUB_LLM=1 UITEST_FAKE_SPEECH=1 UITEST_AUTOGRANT=1 \
 xc -scheme "$SCHEME" -configuration "$CONFIG" -destination "$DEST" -destination-timeout 180 -derivedDataPath "$DERIVED" \
-   -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -only-testing:PulsumUITests test-without-building
+   "${TEST_CONCURRENCY_FLAGS[@]}" -only-testing:PulsumUITests test-without-building

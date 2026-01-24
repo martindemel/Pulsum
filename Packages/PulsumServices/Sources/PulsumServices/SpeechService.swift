@@ -189,10 +189,10 @@ private struct SpeechUITestOverrides {
     let useFakeBackend: Bool
     let autoGrantPermissions: Bool
 
-    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+    init() {
 #if DEBUG
-        useFakeBackend = environment["UITEST_FAKE_SPEECH"] == "1"
-        autoGrantPermissions = environment["UITEST_AUTOGRANT"] == "1"
+        useFakeBackend = AppRuntimeConfig.useFakeSpeechBackend
+        autoGrantPermissions = AppRuntimeConfig.autoGrantSpeechPermissions
 #else
         useFakeBackend = false
         autoGrantPermissions = false

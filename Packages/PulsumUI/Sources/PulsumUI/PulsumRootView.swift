@@ -20,7 +20,8 @@ public struct PulsumRootView: View {
             MainContainerView(viewModel: viewModel)
                 .blur(radius: viewModel.startupState == .ready ? 0 : 6)
                 .allowsHitTesting(viewModel.startupState == .ready)
-                .animation(.easeInOut(duration: 0.25), value: viewModel.startupState)
+                .animation(AppRuntimeConfig.disableAnimations ? nil : .easeInOut(duration: 0.25),
+                           value: viewModel.startupState)
 
             if viewModel.startupState != .ready {
                 overlay(for: viewModel.startupState)
@@ -126,6 +127,7 @@ public struct PulsumRootView: View {
 struct MainContainerView: View {
     @Bindable var viewModel: AppViewModel
     @Namespace private var transitionNamespace
+    @State private var isUITestPresentingSettings = false
 
     var body: some View {
         ZStack {
@@ -148,7 +150,7 @@ struct MainContainerView: View {
             )
             .presentationDetents([.large])
         }
-        .sheet(isPresented: $viewModel.isPresentingSettings) {
+        .sheet(isPresented: settingsSheetBinding) {
             SettingsScreen(
                 viewModel: viewModel.settingsViewModel,
                 wellbeingState: viewModel.coachViewModel.wellbeingState,
@@ -166,7 +168,7 @@ struct MainContainerView: View {
             if viewModel.showConsentBanner {
                 VStack {
                     ConsentBannerView(
-                        openSettings: { viewModel.isPresentingSettings = true },
+                        openSettings: { presentSettings() },
                         dismiss: { viewModel.dismissConsentBanner() }
                     )
                     .padding(.horizontal, PulsumSpacing.lg)
@@ -175,6 +177,37 @@ struct MainContainerView: View {
                     Spacer()
                 }
             }
+        }
+        .overlay(alignment: .topLeading) {
+            if AppRuntimeConfig.settingsHookEnabled {
+                Button {
+                    presentSettings()
+                } label: {
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                }
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("SettingsTestHookButton")
+                .accessibilityElement()
+            }
+        }
+    }
+
+    private var settingsSheetBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.isPresentingSettings || isUITestPresentingSettings },
+            set: { newValue in
+                viewModel.isPresentingSettings = newValue
+                isUITestPresentingSettings = newValue
+            }
+        )
+    }
+
+    @MainActor
+    private func presentSettings() {
+        viewModel.isPresentingSettings = true
+        if AppRuntimeConfig.settingsHookEnabled {
+            isUITestPresentingSettings = true
         }
     }
 
@@ -244,18 +277,23 @@ struct MainContainerView: View {
                     }
                     .pulsumToolbarButton()
                     .accessibilityIdentifier("PulseButton")
+                    .accessibilityHidden(viewModel.selectedTab != .main)
                     .matchedTransitionSource(id: "pulseButton", in: transitionNamespace)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        viewModel.isPresentingSettings = true
+                        presentSettings()
                     } label: {
                         Image(systemName: "gearshape")
+                            .frame(width: 44, height: 44, alignment: .center)
+                            .contentShape(Rectangle())
                     }
                     .pulsumToolbarButton()
                     .accessibilityLabel("Settings")
                     .accessibilityIdentifier("SettingsButton")
+                    .accessibilityElement()
+                    .accessibilityHidden(viewModel.selectedTab != .main)
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
@@ -273,7 +311,7 @@ struct MainContainerView: View {
                 viewModel: viewModel.coachViewModel,
                 foundationStatus: viewModel.orchestrator?.foundationModelsStatus ?? "",
                 consentGranted: viewModel.consentGranted,
-                triggerSettings: { viewModel.isPresentingSettings = true }
+                triggerSettings: { presentSettings() }
             )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -286,17 +324,22 @@ struct MainContainerView: View {
                     }
                     .pulsumToolbarButton()
                     .accessibilityIdentifier("PulseButton")
+                    .accessibilityHidden(viewModel.selectedTab != .insights)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        viewModel.isPresentingSettings = true
+                        presentSettings()
                     } label: {
                         Image(systemName: "gearshape")
+                            .frame(width: 44, height: 44, alignment: .center)
+                            .contentShape(Rectangle())
                     }
                     .pulsumToolbarButton()
                     .accessibilityLabel("Settings")
                     .accessibilityIdentifier("SettingsButton")
+                    .accessibilityElement()
+                    .accessibilityHidden(viewModel.selectedTab != .insights)
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
@@ -325,17 +368,22 @@ struct MainContainerView: View {
                     }
                     .pulsumToolbarButton()
                     .accessibilityIdentifier("PulseButton")
+                    .accessibilityHidden(viewModel.selectedTab != .coach)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        viewModel.isPresentingSettings = true
+                        presentSettings()
                     } label: {
                         Image(systemName: "gearshape")
+                            .frame(width: 44, height: 44, alignment: .center)
+                            .contentShape(Rectangle())
                     }
                     .pulsumToolbarButton()
                     .accessibilityLabel("Settings")
                     .accessibilityIdentifier("SettingsButton")
+                    .accessibilityElement()
+                    .accessibilityHidden(viewModel.selectedTab != .coach)
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)

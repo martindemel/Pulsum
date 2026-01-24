@@ -36,12 +36,15 @@ public enum LibraryImporterError: LocalizedError {
 public final class LibraryImporter {
     private let configuration: LibraryImporterConfiguration
     private let vectorIndex: VectorIndexProviding
+    private let persistentContainer: NSPersistentContainer
     public private(set) var lastImportHadDeferredEmbeddings = false
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
-                vectorIndex: VectorIndexProviding = VectorIndexManager.shared) {
+                vectorIndex: VectorIndexProviding = VectorIndexManager.shared,
+                persistentContainer: NSPersistentContainer = PulsumData.container) {
         self.configuration = configuration
         self.vectorIndex = vectorIndex
+        self.persistentContainer = persistentContainer
     }
 
     public func ingestIfNeeded() async throws {
@@ -83,8 +86,10 @@ public final class LibraryImporter {
                 return
             }
 
-            let context = PulsumData.newBackgroundContext(name: "Pulsum.LibraryImporter")
+            let context = persistentContainer.newBackgroundContext()
+            context.name = "Pulsum.LibraryImporter"
             context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
+            context.transactionAuthor = "Pulsum.LibraryImporter"
 
             let result = try await context.perform {
                 var payloads: [MicroMomentIndexPayload] = []

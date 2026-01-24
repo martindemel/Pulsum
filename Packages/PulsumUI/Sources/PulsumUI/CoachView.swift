@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import PulsumAgents
+import PulsumTypes
 
 public struct ChatInputView: View {
     @Bindable var viewModel: CoachViewModel
@@ -66,7 +67,8 @@ public struct ChatInputView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: chatFieldInFocus)
+        .animation(AppRuntimeConfig.disableAnimations ? nil : .spring(response: 0.3, dampingFraction: 0.8),
+                   value: chatFieldInFocus)
         .onChange(of: viewModel.chatFocusToken) { _, _ in
             chatFieldInFocus = true
         }
@@ -97,7 +99,11 @@ struct CoachScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .onAppear {
 #if canImport(UIKit)
-            UIView.setAnimationsEnabled(true)
+            if AppRuntimeConfig.disableAnimations {
+                UIView.setAnimationsEnabled(false)
+            } else {
+                UIView.setAnimationsEnabled(true)
+            }
 #endif
         }
     }
@@ -328,6 +334,7 @@ private struct ChatBubble: View {
                     x: PulsumShadow.small.x,
                     y: PulsumShadow.small.y
                 )
+                .accessibilityIdentifier(message.role == .assistant ? "CoachAssistantMessage" : "CoachUserMessage")
 
             Text(message.timestamp, style: .time)
                 .font(.pulsumCaption2)

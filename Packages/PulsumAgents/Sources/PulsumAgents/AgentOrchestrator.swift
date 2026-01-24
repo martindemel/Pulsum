@@ -632,6 +632,11 @@ public final class AgentOrchestrator {
     }
 
     public func chat(userInput: String, consentGranted: Bool) async throws -> String {
+#if DEBUG
+        if AppRuntimeConfig.useStubLLM {
+            return "Stub response: Pulsum coach stub reply for UI testing."
+        }
+#endif
         let sanitizedInput = PIIRedactor.redact(userInput)
         Diagnostics.log(level: .info,
                         category: .coach,

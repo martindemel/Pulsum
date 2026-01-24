@@ -12,117 +12,139 @@ struct SettingsScreen: View {
     @Bindable var viewModel: SettingsViewModel
     let wellbeingState: WellbeingScoreState
     let snapshotKind: WellbeingSnapshotKind
+    private let cloudSectionId = "SettingsCloudSection"
+
+    private var consentBinding: Binding<Bool> {
+        return Binding(
+            get: { viewModel.consentGranted },
+            set: { viewModel.toggleConsent($0) }
+        )
+    }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: PulsumSpacing.lg) {
-                    // Wellbeing Score Display (moved from MainView)
-                    wellbeingScoreSection
+        ZStack {
+            NavigationStack {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: PulsumSpacing.lg) {
+                        // Wellbeing Score Display (moved from MainView)
+                        wellbeingScoreSection
 
-                    // Cloud Processing Section
-                    VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                        Text("Cloud Processing")
-                            .font(.pulsumHeadline)
-                            .foregroundStyle(Color.pulsumTextPrimary)
-                            .padding(.horizontal, PulsumSpacing.lg)
-
+                        // Cloud Processing Section
                         VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                            Toggle(isOn: Binding(
-                                get: { viewModel.consentGranted },
-                                set: { viewModel.toggleConsent($0) }
-                            )) {
-                                VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                                    Text("Use GPT-5 phrasing")
-                                        .font(.pulsumBody)
-                                        .foregroundStyle(Color.pulsumTextPrimary)
-                                    Text("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumTextSecondary)
-                                        .lineSpacing(2)
-                                }
-                            }
-                            .tint(Color.pulsumGreenSoft)
+                            Text("Cloud Processing")
+                                .font(.pulsumHeadline)
+                                .foregroundStyle(Color.pulsumTextPrimary)
+                                .padding(.horizontal, PulsumSpacing.lg)
 
-                            if let updated = relativeDate(for: viewModel.lastConsentUpdated) {
-                                Text("Updated \(updated)")
-                                    .font(.pulsumFootnote)
-                                    .foregroundStyle(Color.pulsumTextTertiary)
-                            }
+                            VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                HStack(alignment: .top, spacing: PulsumSpacing.sm) {
+                                    VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                                        Text("Use GPT-5 phrasing")
+                                            .font(.pulsumBody)
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                        Text("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
+                                            .font(.pulsumCaption)
+                                            .foregroundStyle(Color.pulsumTextSecondary)
+                                            .lineSpacing(2)
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        consentBinding.wrappedValue.toggle()
+                                    }
 
-                            Divider()
+                                    Spacer(minLength: PulsumSpacing.sm)
 
-                            VStack(alignment: .leading, spacing: PulsumSpacing.sm) {
-                                VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
-                                    Text("GPT-5 API Key")
-                                        .font(.pulsumCallout.weight(.semibold))
-                                        .foregroundStyle(Color.pulsumTextPrimary)
-                                    SecureField("sk-...", text: $viewModel.gptAPIKeyDraft)
-                                        .textFieldStyle(.roundedBorder)
-                                        .textInputAutocapitalization(.never)
-                                        .autocorrectionDisabled()
-                                        .font(.pulsumBody)
-                                        .foregroundStyle(Color.pulsumTextPrimary)
-                                        .accessibilityIdentifier("CloudAPIKeyField")
+                                    Toggle(isOn: consentBinding) {
+                                        EmptyView()
+                                    }
+                                        .toggleStyle(.switch)
+                                        .labelsHidden()
+                                        .tint(Color.pulsumGreenSoft)
+                                        .accessibilityLabel("Use GPT-5 phrasing")
+                                        .accessibilityHint("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
+                                        .accessibilityIdentifier("CloudConsentToggle")
+                                        .accessibilityValue(viewModel.consentGranted ? "1" : "0")
                                 }
 
-                                HStack(spacing: PulsumSpacing.sm) {
-                                    Button {
-                                        Task { await viewModel.saveAPIKey(viewModel.gptAPIKeyDraft) }
-                                    } label: {
-                                        Text("Save Key")
+                                if let updated = relativeDate(for: viewModel.lastConsentUpdated) {
+                                    Text("Updated \(updated)")
+                                        .font(.pulsumFootnote)
+                                        .foregroundStyle(Color.pulsumTextTertiary)
+                                }
+
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: PulsumSpacing.sm) {
+                                    VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                        Text("GPT-5 API Key")
                                             .font(.pulsumCallout.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
-                                            .frame(maxWidth: .infinity)
+                                        SecureField("sk-...", text: $viewModel.gptAPIKeyDraft)
+                                            .textFieldStyle(.roundedBorder)
+                                            .textInputAutocapitalization(.never)
+                                            .autocorrectionDisabled()
+                                            .font(.pulsumBody)
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .accessibilityIdentifier("CloudAPIKeyField")
                                     }
-                                    .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.6)).interactive())
-                                    .accessibilityIdentifier("CloudAPISaveButton")
-                                    .disabled(viewModel.gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTestingAPIKey)
 
-                                    Button {
-                                        Task { await viewModel.testCurrentAPIKey() }
-                                    } label: {
-                                        if viewModel.isTestingAPIKey {
-                                            ProgressView()
-                                                .progressViewStyle(.circular)
-                                                .tint(Color.pulsumTextPrimary)
-                                                .frame(maxWidth: .infinity)
-                                        } else {
-                                            Text("Test Connection")
+                                    HStack(spacing: PulsumSpacing.sm) {
+                                        Button {
+                                            Task { await viewModel.saveAPIKey(viewModel.gptAPIKeyDraft) }
+                                        } label: {
+                                            Text("Save Key")
                                                 .font(.pulsumCallout.weight(.semibold))
                                                 .foregroundStyle(Color.pulsumTextPrimary)
                                                 .frame(maxWidth: .infinity)
                                         }
-                                    }
-                                    .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
-                                    .disabled(viewModel.isTestingAPIKey)
-                                    .accessibilityIdentifier("CloudAPITestButton")
-                                }
+                                        .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.6)).interactive())
+                                        .disabled(viewModel.gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTestingAPIKey)
 
-                                HStack(spacing: PulsumSpacing.sm) {
-                                    gptStatusBadge(isWorking: viewModel.isGPTAPIWorking,
-                                                   status: viewModel.gptAPIStatus)
-                                    Text(viewModel.gptAPIStatus)
-                                        .font(.pulsumFootnote)
-                                        .foregroundStyle(Color.pulsumTextSecondary)
-                                        .lineSpacing(2)
-                                        .accessibilityIdentifier("CloudAPIStatusText")
+                                        Button {
+                                            Task { await viewModel.testCurrentAPIKey() }
+                                        } label: {
+                                            if viewModel.isTestingAPIKey {
+                                                ProgressView()
+                                                    .progressViewStyle(.circular)
+                                                    .tint(Color.pulsumTextPrimary)
+                                                    .frame(maxWidth: .infinity)
+                                            } else {
+                                                Text("Test Connection")
+                                                    .font(.pulsumCallout.weight(.semibold))
+                                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                                    .frame(maxWidth: .infinity)
+                                            }
+                                        }
+                                        .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                        .disabled(viewModel.isTestingAPIKey)
+                                        .accessibilityIdentifier("CloudTestConnectionButton")
+                                    }
+
+                                    HStack(spacing: PulsumSpacing.sm) {
+                                        gptStatusBadge(isWorking: viewModel.isGPTAPIWorking,
+                                                       status: viewModel.gptAPIStatus)
+                                        Text(viewModel.gptAPIStatus)
+                                            .font(.pulsumFootnote)
+                                            .foregroundStyle(Color.pulsumTextSecondary)
+                                            .lineSpacing(2)
+                                    }
                                 }
                             }
+                            .padding(PulsumSpacing.lg)
+                            .background(Color.pulsumCardWhite)
+                            .cornerRadius(PulsumRadius.xl)
+                            .shadow(
+                                color: PulsumShadow.small.color,
+                                radius: PulsumShadow.small.radius,
+                                x: PulsumShadow.small.x,
+                                y: PulsumShadow.small.y
+                            )
                         }
-                        .padding(PulsumSpacing.lg)
-                        .background(Color.pulsumCardWhite)
-                        .cornerRadius(PulsumRadius.xl)
-                        .shadow(
-                            color: PulsumShadow.small.color,
-                            radius: PulsumShadow.small.radius,
-                            x: PulsumShadow.small.x,
-                            y: PulsumShadow.small.y
-                        )
-                    }
+                        .id(cloudSectionId)
 
-                    // HealthKit Section
-                    VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                        // HealthKit Section
+                        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
                         Text("Apple HealthKit")
                             .font(.pulsumHeadline)
                             .foregroundStyle(Color.pulsumTextPrimary)
@@ -473,61 +495,78 @@ struct SettingsScreen: View {
                             .transition(.opacity)
                     }
 #endif
-                }
-                .padding(PulsumSpacing.lg)
-                .padding(.bottom, PulsumSpacing.xxl)
-            }
-            .background(Color.pulsumBackgroundBeige.ignoresSafeArea())
-#if DEBUG
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Settings")
-                        .font(.pulsumHeadline)
-                        .foregroundStyle(Color.pulsumTextPrimary)
-                        .onTapGesture(count: 3) {
-                            viewModel.toggleDiagnosticsVisibility()
                         }
-                }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(Color.pulsumTextSecondary)
-                            .symbolRenderingMode(.hierarchical)
+                        .padding(PulsumSpacing.lg)
+                        .padding(.bottom, PulsumSpacing.xxl)
                     }
-                    .accessibilityLabel("Close Settings")
-                }
-            }
-            .toolbarBackground(.automatic, for: .navigationBar)
+                    .onAppear {
+                        guard AppRuntimeConfig.isUITesting else { return }
+                        DispatchQueue.main.async {
+                            withAnimation(.none) {
+                                proxy.scrollTo(cloudSectionId, anchor: .top)
+                            }
+                        }
+                    }
+                    .background(Color.pulsumBackgroundBeige.ignoresSafeArea())
+#if DEBUG
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Text("Settings")
+                                .font(.pulsumHeadline)
+                                .foregroundStyle(Color.pulsumTextPrimary)
+                                .onTapGesture(count: 3) {
+                                    viewModel.toggleDiagnosticsVisibility()
+                                }
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                    .symbolRenderingMode(.hierarchical)
+                            }
+                            .accessibilityLabel("Close Settings")
+                        }
+                    }
+                    .toolbarBackground(.automatic, for: .navigationBar)
 #else
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(Color.pulsumTextSecondary)
-                            .symbolRenderingMode(.hierarchical)
+                    .navigationTitle("Settings")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button {
+                                dismiss()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                    .symbolRenderingMode(.hierarchical)
+                            }
+                            .accessibilityLabel("Close Settings")
+                        }
                     }
-                    .accessibilityLabel("Close Settings")
+                    .toolbarBackground(.automatic, for: .navigationBar)
+#endif
+                    .task {
+                        viewModel.refreshFoundationStatus()
+                        viewModel.refreshHealthAccessStatus()
+                        if !AppRuntimeConfig.isUITesting {
+                            await viewModel.testCurrentAPIKey()
+                        }
+                    }
+                    .onEscapeDismiss {
+                        dismiss()
+                    }
                 }
             }
-            .toolbarBackground(.automatic, for: .navigationBar)
-#endif
-            .task {
-                viewModel.refreshFoundationStatus()
-                viewModel.refreshHealthAccessStatus()
-                await viewModel.testCurrentAPIKey()
-            }
-            .onEscapeDismiss {
-                dismiss()
-            }
+        }
+        .accessibilityIdentifier("SettingsSheetRoot")
+        .accessibilityElement(children: .contain)
+        .onDisappear {
+            AppRuntimeConfig.synchronizeUITestDefaults()
         }
     }
 
@@ -727,10 +766,11 @@ struct SettingsScreen: View {
         .padding(.vertical, PulsumSpacing.xxs)
         .background(color.opacity(0.12))
         .cornerRadius(PulsumRadius.sm)
+        .accessibilityElement(children: .combine)
     }
 
     private func openAppleIntelligenceSettings() {
-        let forceFallback = ProcessInfo.processInfo.environment["UITEST_FORCE_SETTINGS_FALLBACK"] == "1"
+        let forceFallback = AppRuntimeConfig.forceSettingsFallback
 #if canImport(UIKit)
         if !forceFallback,
            let settingsURL = URL(string: UIApplication.openSettingsURLString) {
@@ -748,7 +788,7 @@ struct SettingsScreen: View {
     }
 
     private func logOpenedURL(_ url: URL) {
-        guard ProcessInfo.processInfo.environment["UITEST_CAPTURE_URLS"] == "1" else { return }
+        guard AppRuntimeConfig.captureSettingsURLs else { return }
         let defaults = UserDefaults(suiteName: "ai.pulsum.uiautomation")
         defaults?.set(url.absoluteString, forKey: "LastOpenedURL")
     }

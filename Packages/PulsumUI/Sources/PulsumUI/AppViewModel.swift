@@ -93,7 +93,7 @@ final class AppViewModel {
 #endif
 
     init(consentStore: ConsentStore = ConsentStore(),
-         userDefaults: UserDefaults = .standard,
+         userDefaults: UserDefaults = AppRuntimeConfig.runtimeDefaults,
          sessionInfo: (version: String, build: String) = AppViewModel.makeVersionInfo()) {
         let consent = consentStore.loadConsent()
         let launchKey = "ai.pulsum.hasLaunched"
@@ -110,6 +110,14 @@ final class AppViewModel {
         self.coachViewModel = coachVM
         self.pulseViewModel = pulseVM
         self.settingsViewModel = settingsVM
+        if AppRuntimeConfig.hideConsentBanner {
+            self.shouldHideConsentBanner = true
+        }
+#if canImport(UIKit)
+        if AppRuntimeConfig.disableAnimations {
+            UIView.setAnimationsEnabled(false)
+        }
+#endif
 
         settingsVM.onConsentChanged = { [weak self] newValue in
             guard let self else { return }
@@ -160,12 +168,21 @@ final class AppViewModel {
     func start() {
         guard startupState == .idle else { return }
 #if DEBUG
-        if isRunningUnderXCTest {
+        if isRunningUnderXCTest && !AppRuntimeConfig.isUITesting {
             startupState = .ready
             return
         }
 #endif
         emitFirstRunStartIfNeeded()
+        if AppRuntimeConfig.skipHeavyStartupWork {
+            startupState = .ready
+            Task { await DebugLogBuffer.shared.append("Startup: UITest mode, skipping orchestrator bootstrap") }
+            emitFirstRunEnd(fields: [
+                "reason": .safeString(.stage("ready",
+                                             allowed: firstRunReasonAllowlist))
+            ])
+            return
+        }
         if let issue = PulsumData.backupSecurityIssue {
             let location = issue.url.lastPathComponent
             startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")
@@ -437,6 +454,7 @@ private extension AppViewModel {
 struct ConsentStore {
     private let contextProvider: () -> NSManagedObjectContext
     private static let recordID = "default"
+    private static let consentDefaultsKey = "ai.pulsum.cloudConsent"
     private let consentVersion: String
 
     init(contextProvider: @escaping () -> NSManagedObjectContext = { PulsumData.viewContext },
@@ -447,17 +465,35 @@ struct ConsentStore {
 
     private var context: NSManagedObjectContext { contextProvider() }
 
+    private var defaults: UserDefaults {
+        AppRuntimeConfig.runtimeDefaults
+    }
+
     func loadConsent() -> Bool {
+        let defaults = defaults
+        if defaults.object(forKey: Self.consentDefaultsKey) != nil {
+            return defaults.bool(forKey: Self.consentDefaultsKey)
+        }
+        if AppRuntimeConfig.isUITesting {
+            return false
+        }
         let request = UserPrefs.fetchRequest()
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id == %@", Self.recordID)
         if let existing = try? context.fetch(request).first {
+            defaults.set(existing.consentCloud, forKey: Self.consentDefaultsKey)
             return existing.consentCloud
         }
         return false
     }
 
     func saveConsent(_ granted: Bool) {
+        let defaults = defaults
+        defaults.set(granted, forKey: Self.consentDefaultsKey)
+        AppRuntimeConfig.synchronizeUITestDefaults()
+        if AppRuntimeConfig.isUITesting {
+            return
+        }
         let request = UserPrefs.fetchRequest()
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id == %@", Self.recordID)

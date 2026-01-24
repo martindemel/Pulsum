@@ -285,7 +285,7 @@ public final class LLMGateway {
         return raw
     }
 
-    private let keychain: KeychainStoring
+    private let apiKeyStore: APIKeyProviding
     private let cloudClient: CloudLLMClient
     private let localGenerator: OnDeviceCoachGenerator
     private let session: URLSession
@@ -295,11 +295,11 @@ public final class LLMGateway {
 
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
 
-    public init(keychain: KeychainStoring = KeychainService(),
+    public init(keychain: APIKeyProviding = KeychainService(),
                 cloudClient: CloudLLMClient? = nil,
                 localGenerator: OnDeviceCoachGenerator? = nil,
                 session: URLSession = .shared) {
-        self.keychain = keychain
+        self.apiKeyStore = keychain
         let stubEnabled = Self.isUITestStubEnabled()
         self.usesUITestStub = stubEnabled
 
@@ -324,7 +324,7 @@ public final class LLMGateway {
               let data = trimmed.data(using: .utf8) else {
             throw LLMGatewayError.apiKeyMissing
         }
-        try keychain.setSecret(data, for: Self.apiKeyIdentifier)
+        try apiKeyStore.storeAPIKeyData(data, identifier: Self.apiKeyIdentifier)
         inMemoryAPIKey = trimmed
         logger.debug("LLM API key saved to keychain (length=\(trimmed.count, privacy: .private)).")
     }
@@ -380,6 +380,12 @@ public final class LLMGateway {
                                       candidateMoments: [CandidateMoment],
                                       consentGranted: Bool,
                                       groundingFloor: Double = 0.50) async -> CoachReplyPayload {
+        if usesUITestStub {
+            return CoachReplyPayload(
+                coachReply: "Stub response: Pulsum coach stub reply for UI testing.",
+                nextAction: "Take a mindful breathing break"
+            )
+        }
         let sanitizedContext = CoachLLMContext(userToneHints: PIIRedactor.redact(context.userToneHints),
                                                topSignal: context.topSignal,
                                                topMomentId: context.topMomentId,
@@ -439,7 +445,7 @@ public final class LLMGateway {
         if inMemoryAPIKey?.trimmedNonEmpty != nil {
             return "memory"
         }
-        if ((try? keychain.secret(for: Self.apiKeyIdentifier)) ?? nil) != nil {
+        if ((try? apiKeyStore.fetchAPIKeyData(for: Self.apiKeyIdentifier)) ?? nil) != nil {
             return "keychain"
         }
         if Self.environmentAPIKey() != nil {
@@ -453,7 +459,7 @@ public final class LLMGateway {
             return "UITEST_STUB_KEY"
         }
         if let m = inMemoryAPIKey?.trimmedNonEmpty { return m }
-        if let data = try? keychain.secret(for: Self.apiKeyIdentifier),
+        if let data = try? apiKeyStore.fetchAPIKeyData(for: Self.apiKeyIdentifier),
            let k = String(data: data, encoding: .utf8)?.trimmedNonEmpty {
             return k
         }
@@ -489,14 +495,14 @@ public final class LLMGateway {
     }
 
     func debugClearPersistedAPIKey() throws {
-        try keychain.removeSecret(for: Self.apiKeyIdentifier)
+        try apiKeyStore.removeAPIKey(for: Self.apiKeyIdentifier)
     }
 
     // Gate-1b: UITest seams are compiled out of Release builds.
     // In Release, env flags are ignored so remote stubs never activate.
     private static func isUITestStubEnabled() -> Bool {
 #if DEBUG
-        return ProcessInfo.processInfo.environment["UITEST_USE_STUB_LLM"] == "1"
+        return BuildFlags.uiTestSeamsCompiledIn && AppRuntimeConfig.useStubLLM
 #else
         return false
 #endif

@@ -160,6 +160,7 @@ final class SettingsViewModel {
         consentGranted = newValue
         lastConsentUpdated = Date()
         onConsentChanged?(newValue)
+        AppRuntimeConfig.synchronizeUITestDefaults()
     }
 
     func refreshConsent(_ value: Bool) {
@@ -289,6 +290,13 @@ final class SettingsViewModel {
 
     @MainActor
     func testCurrentAPIKey() async {
+        if AppRuntimeConfig.isUITesting {
+            let trimmed = gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            isTestingAPIKey = false
+            isGPTAPIWorking = !trimmed.isEmpty
+            gptAPIStatus = trimmed.isEmpty ? "Missing API key" : "UI testing: skipped"
+            return
+        }
         guard let orchestrator else {
             gptAPIStatus = "Agent unavailable"
             isGPTAPIWorking = false

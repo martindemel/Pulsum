@@ -239,6 +239,7 @@ run_xcode_ui_gate_tests() {
   info "[gate-ci] Running UI Gate tests on ${dest_name} (${dest_os})"
   if UITEST_FAKE_SPEECH=1 UITEST_AUTOGRANT=1 \
      xcodebuild -scheme Pulsum -destination "$destination" \
+     -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
      -only-testing:PulsumUITests clean test >"$log_file" 2>&1; then
     pass "[gate-ci] UI Gate tests passed"
   else

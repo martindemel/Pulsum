@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PulsumServices
 
@@ -5,9 +6,10 @@ struct Gate4_ConsentRoutingTests {
 
     @Test("Consent OFF forces on-device generator")
     func consentOffFallsBackLocal() async {
+        let keyStore = InMemoryAPIKeyStoreStub()
         let cloud = ConsentCloudClientStub()
         let local = ConsentLocalGeneratorStub()
-        let gateway = LLMGateway(keychain: KeychainService(),
+        let gateway = LLMGateway(keychain: keyStore,
                                  cloudClient: cloud,
                                  localGenerator: local)
         let context = CoachLLMContext(userToneHints: "How can I improve my sleep?",
@@ -26,9 +28,10 @@ struct Gate4_ConsentRoutingTests {
 
     @Test("Consent ON routes to cloud when coverage strong")
     func consentOnUsesCloud() async {
+        let keyStore = InMemoryAPIKeyStoreStub()
         let cloud = ConsentCloudClientStub()
         let local = ConsentLocalGeneratorStub()
-        let gateway = LLMGateway(keychain: KeychainService(),
+        let gateway = LLMGateway(keychain: keyStore,
                                  cloudClient: cloud,
                                  localGenerator: local)
         let context = CoachLLMContext(userToneHints: "Give me a stress reset.",
@@ -43,6 +46,23 @@ struct Gate4_ConsentRoutingTests {
                                                 groundingFloor: 0.40)
         #expect(cloud.callCount == 1)
         #expect(local.callCount == 0)
+    }
+}
+
+/// Hermetic API key store so consent routing never depends on macOS keychain or HOME.
+private final class InMemoryAPIKeyStoreStub: APIKeyProviding, @unchecked Sendable {
+    private var storedKey = Data("test-key".utf8)
+
+    func storeAPIKeyData(_ value: Data, identifier: String) throws {
+        storedKey = value
+    }
+
+    func fetchAPIKeyData(for identifier: String) throws -> Data? {
+        storedKey
+    }
+
+    func removeAPIKey(for identifier: String) throws {
+        storedKey = Data()
     }
 }
 

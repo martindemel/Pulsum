@@ -8,16 +8,27 @@ import XCTest
 final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     private let testConfig = LibraryImporterConfiguration(bundle: .module,
                                                           subdirectory: "PulsumDataTests/Resources")
+    private var container: NSPersistentContainer!
+    private var storeDirectoryURL: URL?
+    private var storeURL: URL?
 
     override func setUp() async throws {
         try await super.setUp()
+        try setUpStore()
         resetStore()
+    }
+
+    override func tearDown() async throws {
+        try tearDownStore()
+        try await super.tearDown()
     }
 
     func testChecksumNotSavedOnIndexFailure_andRetrySucceeds() async throws {
         let metadata = try sampleMetadata()
         let failingIndex = FlakyIndex(failCount: 3)
-        let importerFail = LibraryImporter(configuration: testConfig, vectorIndex: failingIndex)
+        let importerFail = LibraryImporter(configuration: testConfig,
+                                           vectorIndex: failingIndex,
+                                           persistentContainer: container)
 
         do {
             try await importerFail.ingestIfNeeded()
@@ -31,7 +42,9 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         XCTAssertNil(fetchLibraryIngest(source: metadata.filename), "Checksum should not persist on indexing failure")
 
         let succeedingIndex = FlakyIndex(failCount: 0)
-        let importerSuccess = LibraryImporter(configuration: testConfig, vectorIndex: succeedingIndex)
+        let importerSuccess = LibraryImporter(configuration: testConfig,
+                                              vectorIndex: succeedingIndex,
+                                              persistentContainer: container)
         try await importerSuccess.ingestIfNeeded()
 
         let ingest = fetchLibraryIngest(source: metadata.filename)
@@ -46,7 +59,9 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     func testImporterIsIdempotent_NoDuplicateEpisodesAfterRetry() async throws {
         let metadata = try sampleMetadata()
         let failingIndex = FlakyIndex(failCount: 2)
-        let importerFail = LibraryImporter(configuration: testConfig, vectorIndex: failingIndex)
+        let importerFail = LibraryImporter(configuration: testConfig,
+                                           vectorIndex: failingIndex,
+                                           persistentContainer: container)
         do {
             try await importerFail.ingestIfNeeded()
             XCTFail("Expected indexing failure")
@@ -57,7 +72,9 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         }
 
         let succeedingIndex = FlakyIndex(failCount: 0)
-        let importerSuccess = LibraryImporter(configuration: testConfig, vectorIndex: succeedingIndex)
+        let importerSuccess = LibraryImporter(configuration: testConfig,
+                                              vectorIndex: succeedingIndex,
+                                              persistentContainer: container)
         try await importerSuccess.ingestIfNeeded()
 
         let (count, uniqueCount) = fetchMicroMomentCounts()
@@ -67,10 +84,13 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
 
     func testSkipWhenChecksumMatches_DoesNotTouchIndex() async throws {
         try await LibraryImporter(configuration: testConfig,
-                                  vectorIndex: SpyIndex()).ingestIfNeeded()
+                                  vectorIndex: SpyIndex(),
+                                  persistentContainer: container).ingestIfNeeded()
 
         let spy = SpyIndex(throwsOnUpsert: true)
-        let importer = LibraryImporter(configuration: testConfig, vectorIndex: spy)
+        let importer = LibraryImporter(configuration: testConfig,
+                                       vectorIndex: spy,
+                                       persistentContainer: container)
         try await importer.ingestIfNeeded()
 
         let calls = await spy.upsertCallCount()
@@ -80,7 +100,9 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     func testEmbeddingsUnavailableDefersIndexingGracefully() async throws {
         let metadata = try sampleMetadata()
         let unavailableIndex = UnavailableEmbeddingIndex()
-        let importer = LibraryImporter(configuration: testConfig, vectorIndex: unavailableIndex)
+        let importer = LibraryImporter(configuration: testConfig,
+                                       vectorIndex: unavailableIndex,
+                                       persistentContainer: container)
 
         try await importer.ingestIfNeeded()
 
@@ -93,8 +115,58 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
 
     // MARK: - Helpers
 
+    private func setUpStore() throws {
+        let fileManager = FileManager.default
+        let directoryURL = fileManager.temporaryDirectory
+            .appendingPathComponent("PulsumDataTests-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let storeURL = directoryURL.appendingPathComponent("Pulsum.sqlite")
+        container = Self.makePersistentContainer(storeURL: storeURL)
+        storeDirectoryURL = directoryURL
+        self.storeURL = storeURL
+    }
+
+    private func tearDownStore() throws {
+        guard let container else { return }
+        let coordinator = container.persistentStoreCoordinator
+        if let storeURL, let store = coordinator.persistentStore(for: storeURL) {
+            try coordinator.remove(store)
+        }
+        if let storeDirectoryURL {
+            try FileManager.default.removeItem(at: storeDirectoryURL)
+        }
+        self.storeURL = nil
+        self.storeDirectoryURL = nil
+        self.container = nil
+    }
+
+    private static func makePersistentContainer(storeURL: URL) -> NSPersistentContainer {
+        let container = NSPersistentContainer(name: "Pulsum",
+                                              managedObjectModel: PulsumManagedObjectModel.shared)
+        let description = NSPersistentStoreDescription(url: storeURL)
+        description.type = NSSQLiteStoreType
+        description.shouldAddStoreAsynchronously = false
+        description.shouldMigrateStoreAutomatically = true
+        description.shouldInferMappingModelAutomatically = true
+        description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+        container.persistentStoreDescriptions = [description]
+        container.loadPersistentStores { _, error in
+            if let error {
+                fatalError("Test Core Data store error: \(error)")
+            }
+        }
+        container.viewContext.automaticallyMergesChangesFromParent = true
+        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
+        container.viewContext.transactionAuthor = "Pulsum.Tests"
+        return container
+    }
+
     private func resetStore() {
-        let viewContext = PulsumData.viewContext
+        guard let container else {
+            XCTFail("Test store not initialized")
+            return
+        }
+        let viewContext = container.viewContext
         viewContext.performAndWait {
             ["MicroMoment", "LibraryIngest"].forEach { entity in
                 let fetch = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
@@ -106,7 +178,11 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     }
 
     private func fetchLibraryIngest(source: String) -> LibraryIngest? {
-        let viewContext = PulsumData.viewContext
+        guard let container else {
+            XCTFail("Test store not initialized")
+            return nil
+        }
+        let viewContext = container.viewContext
         return viewContext.performAndWait {
             let request: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
             request.predicate = NSPredicate(format: "source == %@", source)
@@ -117,7 +193,11 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     }
 
     private func fetchMicroMomentCounts() -> (Int, Int) {
-        let viewContext = PulsumData.viewContext
+        guard let container else {
+            XCTFail("Test store not initialized")
+            return (0, 0)
+        }
+        let viewContext = container.viewContext
         return viewContext.performAndWait {
             let request: NSFetchRequest<MicroMoment> = MicroMoment.fetchRequest()
             guard let moments = try? viewContext.fetch(request) else { return (0, 0) }
@@ -127,19 +207,26 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     }
 
     private func sampleMetadata() throws -> (filename: String, checksum: String, microMomentCount: Int) {
-        var urls = testConfig.bundle.urls(forResourcesWithExtension: "json",
-                                          subdirectory: testConfig.subdirectory) ?? []
-        if urls.isEmpty, testConfig.subdirectory != nil {
-            urls = testConfig.bundle.urls(forResourcesWithExtension: "json", subdirectory: nil) ?? []
-        }
-        guard let url = urls.first(where: { $0.lastPathComponent == "podcasts_sample.json" }) ?? urls.first else {
-            throw XCTSkip("podcasts_sample.json fixture missing")
-        }
+        let url = try fixtureURL()
         let data = try Data(contentsOf: url)
         let checksum = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         let episodes = try JSONDecoder().decode([SampleEpisode].self, from: data)
         let count = episodes.reduce(0) { $0 + $1.recommendations.count }
         return (url.lastPathComponent, checksum, count)
+    }
+
+    private func fixtureURL() throws -> URL {
+        let bundle = Bundle.module
+        if let url = bundle.url(forResource: "podcasts_sample",
+                                withExtension: "json",
+                                subdirectory: testConfig.subdirectory) {
+            return url
+        }
+        if let url = bundle.url(forResource: "podcasts_sample",
+                                withExtension: "json") {
+            return url
+        }
+        throw XCTSkip("podcasts_sample.json fixture missing")
     }
 }
 

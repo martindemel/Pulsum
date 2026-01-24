@@ -1,0 +1,226 @@
+Pulsum Diagnostics Report
+Generated: 2025-12-30T03:15:23Z
+
+[Header]
+app_version=1.0
+build_number=42
+device_model=iPhone
+os_version=26.2
+locale=en_US
+session_id=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78
+diagnostics_enabled=true
+persistence_enabled=true
+
+[Snapshot]
+health_granted=6
+health_denied=0
+health_pending=0
+health_availability=available
+embeddings_available=true
+pending_journals_count=0
+backfill_warm_completed_types=6
+backfill_full_completed_types=0
+deferred_library_import=false
+last_snapshot_day=2025-12-29
+last_wellbeing_score=-0.001
+
+[Logs]
+[2025-12-30T03:05:43.404Z] [INFO] [app] app.session.start session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 app_version=1.0 build_number=42 device_model=iPhone first_launch=true locale=en_US low_power_mode=false os_version=26.2
+[2025-12-30T03:05:43.521Z] [INFO] [app] timeline.firstRun.start session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:43.522Z] [INFO] [ui] ui.startupState.changed session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC state=loading
+[2025-12-30T03:05:43.526Z] [INFO] [app] app.orchestrator.create.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:43.901Z] [INFO] [app] app.orchestrator.create.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:43.903Z] [INFO] [ui] timeline.firstRun.checkpoint session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 stage=orchestrator_bound
+[2025-12-30T03:05:43.904Z] [INFO] [ui] ui.startupState.changed session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC state=ready
+[2025-12-30T03:05:43.907Z] [INFO] [app] app.lifecycle.didBecomeActive session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:43.908Z] [INFO] [orchestrator] orchestrator.start.call.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:43.908Z] [INFO] [orchestrator] orchestrator.start.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 afm_available=true
+[2025-12-30T03:05:43.908Z] [INFO] [library] orchestrator.start.prepareLibrary.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:43.908Z] [INFO] [library] library.import.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC resource_count=1
+[2025-12-30T03:05:43.921Z] [INFO] [embeddings] embeddings.availability.probe.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC dimension=384 trigger=retry_deferred
+[2025-12-30T03:05:43.930Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC availability=available denied=0 granted=0 pending=6
+[2025-12-30T03:05:43.965Z] [INFO] [embeddings] embeddings.availability.probe.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC dimension=384 duration_ms=44.052 provider=primary result=available trigger=retry_deferred
+[2025-12-30T03:05:43.965Z] [INFO] [embeddings] embeddings.availability.probe.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC dimension=384 duration_ms=44.020 provider=primary result=available trigger=retry_deferred
+[2025-12-30T03:05:43.965Z] [INFO] [embeddings] embeddings.availability.changed session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC state=available trigger=retry_deferred
+[2025-12-30T03:05:43.965Z] [INFO] [embeddings] embeddings.availability.changed session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 state=available
+[2025-12-30T03:05:43.966Z] [INFO] [library] library.import.retry.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deferred=false
+[2025-12-30T03:05:43.966Z] [INFO] [library] library.import.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC resource_count=1
+[2025-12-30T03:05:47.377Z] [INFO] [vectorIndex] vectorIndex.stats session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC items=39 shards=16
+[2025-12-30T03:05:47.377Z] [INFO] [library] library.import.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC decoded_count=1 duration_ms=3468.347 indexed_count=39 inserted_count=39 resource_count=1
+[2025-12-30T03:05:47.377Z] [INFO] [library] orchestrator.start.prepareLibrary.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 duration_ms=3469.164
+[2025-12-30T03:05:47.377Z] [INFO] [dataAgent] orchestrator.start.dataAgent.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:47.377Z] [INFO] [dataAgent] data.start.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:05:47.378Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=0 pending=6
+[2025-12-30T03:05:47.378Z] [INFO] [vectorIndex] vectorIndex.stats session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC items=39 shards=16
+[2025-12-30T03:05:47.378Z] [INFO] [library] library.import.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC decoded_count=1 duration_ms=3412.135 indexed_count=39 inserted_count=39 resource_count=1
+[2025-12-30T03:05:47.378Z] [INFO] [library] library.import.retry.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deferred=false
+[2025-12-30T03:05:47.378Z] [INFO] [library] library.import.retry.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deferred=false duration_ms=3412.186
+[2025-12-30T03:05:50.925Z] [INFO] [healthkit] data.healthkit.authorization session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 state=authorized
+[2025-12-30T03:05:50.960Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:05:50.962Z] [INFO] [dataAgent] data.bootstrap.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 end_day=2025-12-29 start_day=2025-12-28 window_days=2
+[2025-12-30T03:05:50.962Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:05:51.038Z] [INFO] [dataAgent] data.bootstrap.batch.end session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=76.262 processed_days=1 processed_sample_count=96 raw_sample_count=96 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:05:51.038Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:05:54.596Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:05:56.088Z] [INFO] [ui] ui.wellbeingState.transition session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:05:56.092Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:06:04.221Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:06:11.964Z] [INFO] [ui] ui.wellbeingState.transition session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:06:11.967Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:06:19.097Z] [INFO] [ui] ui.wellbeingState.transition session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:06:19.099Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:07:32.986Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:07:32.991Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:32.994Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:07:32.991Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:40.986Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:50.320Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:07:52.518Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:54.754Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:07:57.450Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:58.822Z] [INFO] [healthkit] data.healthkit.update session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:58.822Z] [INFO] [healthkit] data.healthkit.update session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:07:59.130Z] [INFO] [ui] ui.wellbeingState.transition session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:07:59.152Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:07:59.920Z] [INFO] [healthkit] data.healthkit.update session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:07:59.920Z] [INFO] [healthkit] data.healthkit.update session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:07:59.920Z] [INFO] [healthkit] data.healthkit.update session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:07:59.921Z] [INFO] [healthkit] data.healthkit.update session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 deleted_count=0 sample_count=0 touched_days=0 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:07:59.923Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:00.224Z] [INFO] [ui] ui.wellbeingState.transition session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:08:00.225Z] [INFO] [healthkit] data.healthkit.status session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4 availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:39.397Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:51.614Z] [INFO] [app] app.lifecycle.didEnterBackground session=4F536EE6-50D1-4722-A4B4-92C5AF62B4FC trace=C47E9DAC-D283-484D-8297-D0B289869CE4
+[2025-12-30T03:08:54.555Z] [INFO] [app] app.session.start session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C app_version=1.0 build_number=42 device_model=iPhone first_launch=false locale=en_US low_power_mode=false os_version=26.2
+[2025-12-30T03:08:54.778Z] [INFO] [app] timeline.firstRun.start session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:54.779Z] [INFO] [ui] ui.startupState.changed session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 state=loading
+[2025-12-30T03:08:54.790Z] [INFO] [app] app.orchestrator.create.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.522Z] [INFO] [app] app.orchestrator.create.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.526Z] [INFO] [ui] timeline.firstRun.checkpoint session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C stage=orchestrator_bound
+[2025-12-30T03:08:55.533Z] [INFO] [app] app.lifecycle.didBecomeActive session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.536Z] [INFO] [ui] ui.startupState.changed session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 state=ready
+[2025-12-30T03:08:55.557Z] [INFO] [orchestrator] orchestrator.start.call.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.557Z] [INFO] [orchestrator] orchestrator.start.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C afm_available=true
+[2025-12-30T03:08:55.557Z] [INFO] [library] orchestrator.start.prepareLibrary.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.557Z] [INFO] [embeddings] embeddings.availability.probe.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 dimension=384 trigger=retry_deferred
+[2025-12-30T03:08:55.557Z] [INFO] [library] library.import.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 resource_count=1
+[2025-12-30T03:08:55.580Z] [INFO] [vectorIndex] vectorIndex.stats session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 items=39 shards=16
+[2025-12-30T03:08:55.580Z] [INFO] [library] library.import.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 decoded_count=1 duration_ms=22.970 indexed_count=0 inserted_count=0 resource_count=1
+[2025-12-30T03:08:55.580Z] [INFO] [library] orchestrator.start.prepareLibrary.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=23.418
+[2025-12-30T03:08:55.580Z] [INFO] [dataAgent] orchestrator.start.dataAgent.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.580Z] [INFO] [dataAgent] data.start.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.595Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:55.595Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:55.610Z] [INFO] [healthkit] data.healthkit.authorization session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C state=authorized
+[2025-12-30T03:08:55.617Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:55.618Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:08:55.619Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:55.619Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:08:55.619Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:55.621Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:08:55.624Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:55.624Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:08:55.626Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:08:55.627Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:08:55.627Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:55.627Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:55.630Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:55.632Z] [INFO] [dataAgent] data.bootstrap.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C end_day=2025-12-29 start_day=2025-12-28 window_days=2
+[2025-12-30T03:08:55.632Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:08:55.641Z] [INFO] [embeddings] embeddings.availability.probe.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 dimension=384 duration_ms=83.889 provider=primary result=available trigger=retry_deferred
+[2025-12-30T03:08:55.641Z] [INFO] [embeddings] embeddings.availability.probe.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 dimension=384 duration_ms=83.851 provider=primary result=available trigger=retry_deferred
+[2025-12-30T03:08:55.641Z] [INFO] [embeddings] embeddings.availability.changed session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 state=available trigger=retry_deferred
+[2025-12-30T03:08:55.641Z] [INFO] [embeddings] embeddings.availability.changed session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C state=available
+[2025-12-30T03:08:55.827Z] [INFO] [dataAgent] data.bootstrap.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=194.867 processed_days=0 processed_sample_count=96 raw_sample_count=96 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:08:55.827Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:55.850Z] [INFO] [dataAgent] data.bootstrap.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=23.215 processed_days=1 raw_sample_count=1 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:55.850Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:55.879Z] [INFO] [dataAgent] data.bootstrap.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=28.626 processed_days=1 processed_sample_count=6 raw_sample_count=6 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:55.879Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:08:55.911Z] [INFO] [dataAgent] data.bootstrap.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=31.868 processed_days=1 processed_sample_count=9 raw_sample_count=9 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:08:55.911Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:08:55.927Z] [INFO] [dataAgent] data.bootstrap.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=16.074 processed_days=1 processed_sample_count=1 raw_sample_count=1 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:08:55.927Z] [INFO] [dataAgent] data.bootstrap.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:55.940Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:08:55.940Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:55.941Z] [INFO] [dataAgent] data.snapshot.published session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C latest_snapshot_day=2025-12-28 reason=refresh snapshot_day=2025-12-29 wellbeing_score=-0.350
+[2025-12-30T03:08:55.941Z] [INFO] [coach] coach.recommendations.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 consent=true
+[2025-12-30T03:08:55.990Z] [INFO] [dataAgent] data.bootstrap.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-28 duration_ms=63.114 processed_days=1 raw_sample_count=1 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:55.991Z] [INFO] [dataAgent] data.bootstrap.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=359.017 end_day=2025-12-29 raw_sample_count=114 snapshot_day=2025-12-29 start_day=2025-12-28 touched_days=1 window_days=2
+[2025-12-30T03:08:55.991Z] [INFO] [dataAgent] data.start.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=410.280
+[2025-12-30T03:08:55.991Z] [INFO] [dataAgent] orchestrator.start.dataAgent.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=410.335
+[2025-12-30T03:08:55.991Z] [INFO] [orchestrator] orchestrator.start.refreshDeferred.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C
+[2025-12-30T03:08:55.991Z] [INFO] [embeddings] embeddings.availability.probe.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 dimension=384 trigger=retry_deferred
+[2025-12-30T03:08:55.996Z] [INFO] [backfill] data.backfill.phase.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C end_day=2025-12-29 phase=warmStart7d start_day=2025-12-23 target_start_day=2025-11-30
+[2025-12-30T03:08:55.996Z] [INFO] [backfill] data.backfill.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 mark_warm_start=true phase=warm-start target_start_day=2025-11-30 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:08:56.024Z] [INFO] [embeddings] embeddings.availability.probe.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 dimension=384 duration_ms=32.987 provider=primary result=available trigger=retry_deferred
+[2025-12-30T03:08:56.024Z] [INFO] [embeddings] embeddings.availability.probe.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 dimension=384 duration_ms=32.964 provider=primary result=available trigger=retry_deferred
+[2025-12-30T03:08:56.024Z] [INFO] [embeddings] embeddings.availability.changed session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C state=available
+[2025-12-30T03:08:56.025Z] [INFO] [orchestrator] orchestrator.start.refreshDeferred.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=33.777
+[2025-12-30T03:08:56.026Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:56.026Z] [INFO] [orchestrator] timeline.firstRun.checkpoint session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C backfill_full_completed=0 backfill_warm_completed=0 embeddings_available=true health_available=available health_denied=0 health_granted=6 health_pending=0 library_deferred=false pending_journals=0
+[2025-12-30T03:08:56.026Z] [INFO] [orchestrator] orchestrator.start.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C afm_available=true backfill_full_completed=0 backfill_warm_completed=0 duration_ms=468.978 embeddings_available=true health_available=available health_denied=0 health_granted=6 health_pending=0 library_deferred=false pending_journals=0
+[2025-12-30T03:08:56.026Z] [INFO] [orchestrator] orchestrator.start.call.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=469.038
+[2025-12-30T03:08:56.026Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:08:56.027Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:56.027Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:56.028Z] [INFO] [coach] coach.recommendations.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 consent=true
+[2025-12-30T03:08:56.123Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:56.129Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:56.142Z] [ERROR] [dataAgent] dataAgent.handleUpdate.error session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 error_code=11 error_domain=<redacted> type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:56.290Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:08:56.291Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:56.310Z] [INFO] [dataAgent] data.snapshot.published session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C latest_snapshot_day=2025-12-28 reason=bootstrap snapshot_day=2025-12-29 wellbeing_score=-0.350
+[2025-12-30T03:08:56.310Z] [INFO] [coach] coach.recommendations.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 consent=true
+[2025-12-30T03:08:56.516Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=1 touched_days=1 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:56.522Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=1 touched_days=1 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:56.522Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=1 touched_days=1 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:56.522Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=1 touched_days=1 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:56.522Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=1 touched_days=1 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:56.522Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=1 touched_days=1 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:08:56.834Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:08:56.836Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:08:56.915Z] [INFO] [dataAgent] data.snapshot.published session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C latest_snapshot_day=2025-12-29 reason=refresh snapshot_day=2025-12-29 wellbeing_score=-0.021
+[2025-12-30T03:08:56.915Z] [INFO] [coach] coach.recommendations.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 consent=true
+[2025-12-30T03:08:58.739Z] [INFO] [backfill] data.backfill.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 duration_ms=2742.592 mark_warm_start=true phase=warm-start processed_days=5 processed_sample_count=667 raw_sample_count=667 target_start_day=2025-11-30 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:08:58.744Z] [INFO] [backfill] data.backfill.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 mark_warm_start=true phase=warm-start target_start_day=2025-11-30 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:59.134Z] [INFO] [backfill] data.backfill.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 duration_ms=389.395 mark_warm_start=true phase=warm-start processed_days=6 raw_sample_count=6 target_start_day=2025-11-30 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:08:59.139Z] [INFO] [backfill] data.backfill.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 mark_warm_start=true phase=warm-start target_start_day=2025-11-30 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:59.571Z] [INFO] [backfill] data.backfill.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 duration_ms=432.423 mark_warm_start=true phase=warm-start processed_days=5 processed_sample_count=18 raw_sample_count=18 target_start_day=2025-11-30 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:08:59.576Z] [INFO] [backfill] data.backfill.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 mark_warm_start=true phase=warm-start target_start_day=2025-11-30 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:09:00.481Z] [INFO] [backfill] data.backfill.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 duration_ms=905.166 mark_warm_start=true phase=warm-start processed_days=6 processed_sample_count=62 raw_sample_count=62 target_start_day=2025-11-30 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:09:00.486Z] [INFO] [backfill] data.backfill.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 mark_warm_start=true phase=warm-start target_start_day=2025-11-30 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:09:00.956Z] [INFO] [backfill] data.backfill.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 duration_ms=469.906 mark_warm_start=true phase=warm-start processed_days=6 processed_sample_count=6 raw_sample_count=6 target_start_day=2025-11-30 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:09:00.960Z] [INFO] [backfill] data.backfill.batch.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 mark_warm_start=true phase=warm-start target_start_day=2025-11-30 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:09:01.505Z] [INFO] [backfill] data.backfill.batch.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C batch_end_day=2025-12-29 batch_start_day=2025-12-23 duration_ms=545.056 mark_warm_start=true phase=warm-start processed_days=6 raw_sample_count=6 target_start_day=2025-11-30 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:09:01.510Z] [INFO] [backfill] data.backfill.phase.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C duration_ms=5513.783 end_day=2025-12-29 phase=warmStart7d raw_sample_count=765 start_day=2025-12-23 target_start_day=2025-11-30 touched_days=6
+[2025-12-30T03:09:01.860Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=loading has_snapshot=false reason=loading to=loading
+[2025-12-30T03:09:01.862Z] [INFO] [dataAgent] data.snapshot.published session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C latest_snapshot_day=2025-12-29 reason=warm_backfill snapshot_day=2025-12-29 wellbeing_score=-0.001
+[2025-12-30T03:09:01.865Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:09:01.866Z] [INFO] [coach] coach.recommendations.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 consent=true
+[2025-12-30T03:09:38.209Z] [INFO] [coach] coach.recommendations.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 candidate_count=3 consent=true duration_ms=42266.109 matches_considered=20 route=library
+[2025-12-30T03:09:38.209Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=loading has_snapshot=true reason=refresh to=ready
+[2025-12-30T03:09:38.522Z] [INFO] [coach] coach.recommendations.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 candidate_count=3 consent=true duration_ms=42491.906 matches_considered=20 route=library
+[2025-12-30T03:09:38.522Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=ready has_snapshot=true reason=refresh to=ready
+[2025-12-30T03:09:38.530Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:09:38.530Z] [INFO] [ui] ui.analysis.deferred session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C backfill_full_completed=0 backfill_warm_completed=6 deferred_library_import=false embeddings_available=true pending_journals=0 reason=health_backfill_running
+[2025-12-30T03:09:38.530Z] [INFO] [app] timeline.firstRun.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C backfill_full_completed=0 backfill_warm_completed=6 deferred_library_import=false embeddings_available=true pending_journals=0 reason=health_backfill_running
+[2025-12-30T03:09:38.837Z] [INFO] [coach] coach.recommendations.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 candidate_count=3 consent=true duration_ms=41920.279 matches_considered=20 route=library
+[2025-12-30T03:09:38.837Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=ready has_snapshot=true reason=refresh to=ready
+[2025-12-30T03:09:39.392Z] [INFO] [coach] coach.recommendations.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 candidate_count=3 consent=true duration_ms=43079.853 matches_considered=20 route=library
+[2025-12-30T03:09:39.392Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=ready has_snapshot=true reason=refresh to=ready
+[2025-12-30T03:09:40.073Z] [INFO] [coach] coach.recommendations.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 candidate_count=3 consent=true duration_ms=38204.791 matches_considered=20 route=library
+[2025-12-30T03:09:40.073Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=ready has_snapshot=true reason=refresh to=ready
+[2025-12-30T03:09:53.457Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRestingHeartRate
+[2025-12-30T03:09:53.461Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKCategoryTypeIdentifierSleepAnalysis
+[2025-12-30T03:09:53.464Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierRespiratoryRate
+[2025-12-30T03:09:53.464Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRate
+[2025-12-30T03:09:53.465Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierHeartRateVariabilitySDNN
+[2025-12-30T03:09:53.466Z] [INFO] [healthkit] data.healthkit.update session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C deleted_count=0 sample_count=0 touched_days=0 type=HKQuantityTypeIdentifierStepCount
+[2025-12-30T03:09:53.778Z] [INFO] [dataAgent] data.snapshot.published session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C latest_snapshot_day=2025-12-29 reason=refresh snapshot_day=2025-12-29 wellbeing_score=-0.001
+[2025-12-30T03:09:53.781Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:09:53.782Z] [INFO] [coach] coach.recommendations.begin session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 consent=true
+[2025-12-30T03:10:00.873Z] [INFO] [coach] coach.recommendations.end session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 candidate_count=3 consent=true duration_ms=7091.015 matches_considered=20 route=library
+[2025-12-30T03:10:00.874Z] [INFO] [ui] ui.wellbeingState.transition session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 from=ready has_snapshot=true reason=refresh to=ready
+[2025-12-30T03:15:19.828Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
+[2025-12-30T03:15:23.683Z] [INFO] [healthkit] data.healthkit.status session=E78438E6-A8CC-4A3D-8519-1CBE6EB46F78 trace=D96A0A8A-1ABC-4C7D-8CB2-26855B46FA3C availability=available denied=0 granted=6 pending=0
