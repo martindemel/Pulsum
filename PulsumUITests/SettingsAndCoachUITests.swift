@@ -28,15 +28,15 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
         launchPulsum()
         guard openSettingsSheetOrSkip() else { return }
 
-        guard consentToggleExists() else {
+        guard let toggle = findConsentToggle() else {
             XCTFail("Cloud consent toggle not present yet.")
             return
         }
-        guard let initialValue = toggleValue(app.switches["CloudConsentToggle"]) else {
+        guard let initialValue = toggleValue(toggle) else {
             XCTFail("Consent toggle value unreadable.")
             return
         }
-        tapConsentToggle()
+        tapConsentToggle(toggle)
 
         let expectedValue = !initialValue
         assertConsentValue(expectedValue, message: "Toggle did not change value.")
@@ -47,31 +47,34 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
         launchPulsum()
         guard openSettingsSheetOrSkip() else { return }
 
-        guard consentToggleExists() else {
+        guard findConsentToggle() != nil else {
             XCTFail("Consent toggle missing after relaunch.")
             return
         }
         assertConsentValue(expectedValue, message: "Consent state did not persist across launches.")
     }
 
-    private func consentToggleExists(timeout: TimeInterval = 5) -> Bool {
+    private func findConsentToggle(timeout: TimeInterval = 5) -> XCUIElement? {
         let toggle = app.switches["CloudConsentToggle"]
         if toggle.waitForExistence(timeout: timeout) {
-            return true
+            return toggle
         }
         let fallback = app.otherElements["CloudConsentToggle"]
-        return fallback.waitForExistence(timeout: timeout)
+        if fallback.waitForExistence(timeout: timeout) {
+            return fallback
+        }
+        return nil
     }
 
     @discardableResult
     private func enableCloudConsentIfNeeded() -> Bool {
         guard openSettingsSheetOrSkip() else { return false }
-        guard consentToggleExists() else {
+        guard let toggle = findConsentToggle() else {
             XCTFail("Consent toggle not found.")
             return false
         }
-        if toggleValue(app.switches["CloudConsentToggle"]) == false {
-            tapConsentToggle()
+        if toggleValue(toggle) == false {
+            tapConsentToggle(toggle)
         }
         dismissSettingsSheet()
         return true
@@ -100,8 +103,9 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
     private func waitForConsentValue(_ expectedValue: Bool, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            let toggle = app.switches["CloudConsentToggle"]
-            if let value = toggleValue(toggle), value == expectedValue {
+            if let toggle = findConsentToggle(timeout: 0.2),
+               let value = toggleValue(toggle),
+               value == expectedValue {
                 return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -109,15 +113,9 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
         return false
     }
 
-    private func tapConsentToggle() {
-        let switchToggle = app.switches["CloudConsentToggle"]
-        if switchToggle.exists {
-            switchToggle.tapWhenHittable(timeout: 3)
-            return
-        }
-        let fallback = app.otherElements["CloudConsentToggle"]
-        if fallback.exists {
-            fallback.tapWhenHittable(timeout: 3)
+    private func tapConsentToggle(_ toggle: XCUIElement? = nil) {
+        if let toggle = toggle ?? findConsentToggle(timeout: 2) {
+            toggle.tapWhenHittable(timeout: 3)
             return
         }
         let label = app.staticTexts["Use GPT-5 phrasing"]

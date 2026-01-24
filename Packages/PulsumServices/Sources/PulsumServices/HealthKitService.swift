@@ -374,7 +374,7 @@ public final class HealthKitService: @unchecked Sendable {
         let endBoundary = calendar.startOfDay(for: endDate)
         let healthStore = self.healthStore
 
-        while day < endDate {
+        while day < endBoundary {
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
             let nightStart = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: day) ?? day
             let nightEnd = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: nextDay) ?? nextDay

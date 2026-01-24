@@ -280,15 +280,28 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 }
 
 final class BackfillStateStoreSpy: BackfillStateStoring, @unchecked Sendable {
-    var savedState: BackfillProgress?
-    var loadStateReturn: BackfillProgress?
+    private let lock = NSLock()
+    private var _savedState: BackfillProgress?
+    private var _loadStateReturn: BackfillProgress?
+
+    var savedState: BackfillProgress? {
+        lock.lock(); defer { lock.unlock() }
+        return _savedState
+    }
+
+    var loadStateReturn: BackfillProgress? {
+        get { lock.lock(); defer { lock.unlock() }; return _loadStateReturn }
+        set { lock.lock(); defer { lock.unlock() }; _loadStateReturn = newValue }
+    }
 
     func loadState() -> BackfillProgress? {
-        loadStateReturn ?? savedState
+        lock.lock(); defer { lock.unlock() }
+        return _loadStateReturn ?? _savedState
     }
 
     func saveState(_ state: BackfillProgress) {
-        savedState = state
+        lock.lock(); defer { lock.unlock() }
+        _savedState = state
     }
 }
 
