@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-public enum SafetyClassification: Equatable {
+public enum SafetyClassification: Equatable, Sendable {
     case safe
     case caution(reason: String)
     case crisis(reason: String)
