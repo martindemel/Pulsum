@@ -49,7 +49,7 @@ Carthage/Build/
 *.tmp
 
 # Local config / secrets (track only template)
-Config.xcconfig
+## CI needs this tracked: Config.xcconfig
 .env
 .env.*
 !Config.xcconfig.template

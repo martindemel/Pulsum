@@ -1,0 +1,12 @@
+// Pulsum Build Configuration
+// Secrets are never stored in this file. Use Keychain or environment variables on the build machine.
+// For local development, provide `PULSUM_COACH_API_KEY` via `launchctl setenv` or an .xcconfig that is not committed.
+
+
+
+
+
+
+
+
+
