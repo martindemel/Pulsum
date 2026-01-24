@@ -73,7 +73,12 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
             XCTFail("Consent toggle not found.")
             return false
         }
-        if toggleValue(toggle) == false {
+        guard let currentValue = toggleValue(toggle) else {
+            XCTFail("Consent toggle value unreadable.")
+            dismissSettingsSheet()
+            return false
+        }
+        if currentValue == false {
             tapConsentToggle(toggle)
         }
         dismissSettingsSheet()
