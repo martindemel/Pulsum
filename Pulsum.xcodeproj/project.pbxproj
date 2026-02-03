@@ -25,6 +25,7 @@
 		945EC89F2E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
 		945EC8A02E8AD321001CCF2E /* PulsumServices in Frameworks */ = {isa = PBXBuildFile; productRef = 789E650BC257425BBE5CEDCB /* PulsumServices */; };
 		945EC8A12E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
+		94BC8DDA2F26A8540043ADE0 /* PulsumTypes in Frameworks */ = {isa = PBXBuildFile; productRef = E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */; };
 		F3A4B5C6D7E8090A1B2C3D4E /* PulsumTypes in Frameworks */ = {isa = PBXBuildFile; productRef = E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */; };
 /* End PBXBuildFile section */
 
@@ -96,6 +97,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				94BC8DDA2F26A8540043ADE0 /* PulsumTypes in Frameworks */,
 				945EC8962E8AD321001CCF2E /* PulsumML in Frameworks */,
 				945EC8952E8AD321001CCF2E /* PulsumServices in Frameworks */,
 				945EC8942E8AD321001CCF2E /* PulsumData in Frameworks */,
@@ -292,6 +294,7 @@
 				AC96D4BBAB3448A2A2619700 /* XCLocalSwiftPackageReference "Packages/PulsumServices" */,
 				300FFDA27B1942B2BBA23181 /* XCLocalSwiftPackageReference "Packages/PulsumML" */,
 				D1A2B3C4D5E6F70809101112 /* XCLocalSwiftPackageReference "Packages/PulsumTypes" */,
+				94BC8E002F26AFC90043ADE0 /* XCRemoteSwiftPackageReference "spline-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 941192812E8A01FF0078B278 /* Products */;
@@ -734,6 +737,17 @@
 			relativePath = Packages/PulsumTypes;
 		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		94BC8E002F26AFC90043ADE0 /* XCRemoteSwiftPackageReference "spline-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/splinetool/spline-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.48;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		0F767ADA6BE24721A5249B90 /* PulsumML */ = {
