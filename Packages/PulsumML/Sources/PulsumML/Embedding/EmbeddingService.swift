@@ -6,7 +6,7 @@ import PulsumTypes
 public final class EmbeddingService {
     public static let shared = EmbeddingService()
 
-    public enum AvailabilityMode {
+    public enum AvailabilityMode: Sendable {
         case available
         case unavailable
     }
