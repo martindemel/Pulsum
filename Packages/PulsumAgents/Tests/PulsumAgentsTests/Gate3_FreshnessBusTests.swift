@@ -54,15 +54,15 @@ private final class RecordingNotificationCenter: NotificationCenter, @unchecked 
 
     override func post(name aName: Notification.Name, object anObject: Any?, userInfo aUserInfo: [AnyHashable: Any]? = nil) {
         lock.lock()
+        defer { lock.unlock() }
         postedNotifications.append(PostedNotification(name: aName, object: anObject, userInfo: aUserInfo))
-        lock.unlock()
         super.post(name: aName, object: anObject, userInfo: aUserInfo)
     }
 
     func notifications(named name: Notification.Name) -> [PostedNotification] {
         lock.lock()
+        defer { lock.unlock() }
         let result = postedNotifications.filter { $0.name == name }
-        lock.unlock()
         return result
     }
 }

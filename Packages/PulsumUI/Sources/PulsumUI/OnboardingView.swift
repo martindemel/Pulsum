@@ -44,7 +44,9 @@ struct OnboardingView: View {
                     healthKitPage.tag(1)
                     readyPage.tag(2)
                 }
+#if os(iOS)
                 .tabViewStyle(.page(indexDisplayMode: .never))
+#endif
                 .animation(.pulsumStandard, value: currentPage)
             }
         }

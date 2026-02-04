@@ -190,3 +190,8 @@ Next focus: Gate 1 (test harness on) — see Milestone 6 tasks for adding packag
 - [x] Add journal transcript persistence + Saved toast assertions after BUG-0009 is resolved (Gate 2). (`JournalFlowUITests.testRecordStreamFinish_showsSavedToastAndTranscript`)
 - [x] Wire Gate Gate suites into CI via `scripts/ci/test-harness.sh`, `scripts/ci/integrity.sh`, and `.github/workflows/test-harness.yml` so Gate 0/1/2 (and future gates) run automatically.
 - [x] Gate3 package + UI tests now live; harness auto-detects them via the existing regex (`Gate3_*`).
+
+## App Store Guideline Audit (2026-02-04)
+- [x] Reviewed App Review Guidelines (provided in thread) and mapped relevant sections to Pulsum features.
+- [x] Scanned all source/config/test/script files for potential App Store compliance risks.
+- [ ] Resolve identified risks: privacy manifest required-reason APIs (UserDefaults), BYO GPT-5 API key/IAP policy risk, third-party content rights for podcast-derived data, content age rating (profanity/drug references), supplement dosage guidance wording, and support contact path.

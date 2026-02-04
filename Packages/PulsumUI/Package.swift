@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "PulsumUI",
     platforms: [
-        .iOS("26.0")
+        .iOS("26.0"),
+        .macOS("14.0")
     ],
     products: [
         .library(

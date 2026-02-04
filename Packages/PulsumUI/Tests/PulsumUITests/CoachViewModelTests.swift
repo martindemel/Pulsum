@@ -228,15 +228,24 @@ final class CoachViewModelTests: XCTestCase {
         await viewModel.refreshRecommendations()
         XCTAssertTrue(viewModel.isLoadingCards)
 
-        await softTimeoutSleeper.advanceAll()
         await Task.yield()
+        await softTimeoutSleeper.advanceAll()
+        let clock = ContinuousClock()
+        let softTimeoutDeadline = clock.now.advanced(by: .seconds(1))
+        while clock.now < softTimeoutDeadline, viewModel.recommendationsSoftTimeoutMessage == nil {
+            await Task.yield()
+        }
         XCTAssertFalse(viewModel.isLoadingCards)
         XCTAssertTrue(viewModel.recommendations.isEmpty)
         XCTAssertEqual(viewModel.recommendationsSoftTimeoutMessage,
                        "Recommendations are taking longer than expected. We'll show them here as soon as they're ready.")
 
-        await recommendationsSleeper.advanceAll()
         await Task.yield()
+        await recommendationsSleeper.advanceAll()
+        let applyDeadline = clock.now.advanced(by: .seconds(1))
+        while clock.now < applyDeadline, viewModel.recommendations != response.cards {
+            await Task.yield()
+        }
         XCTAssertEqual(viewModel.recommendations, response.cards)
         XCTAssertNil(viewModel.recommendationsSoftTimeoutMessage)
     }
@@ -374,9 +383,14 @@ private final class TestCoachOrchestrator: CoachOrchestrating {
 
 private actor TestSleeper {
     private var continuations: [UUID: CheckedContinuation<Void, Error>] = [:]
+    private var pendingAdvanceCount = 0
 
     func sleep(nanoseconds: UInt64) async throws {
         _ = nanoseconds
+        if pendingAdvanceCount > 0 {
+            pendingAdvanceCount -= 1
+            return
+        }
         let id = UUID()
         try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
@@ -388,6 +402,10 @@ private actor TestSleeper {
     }
 
     func advanceAll() {
+        if continuations.isEmpty {
+            pendingAdvanceCount += 1
+            return
+        }
         for (_, continuation) in continuations {
             continuation.resume()
         }

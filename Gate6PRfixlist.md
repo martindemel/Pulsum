@@ -34,7 +34,49 @@ Make PR #12 “Gate 6: aggregate HealthKit ingestion and bootstrap fallback” r
 * No destructive git commands like `git reset --hard` or `git checkout --`.
 * Do not ask me to clarify unless you are truly blocked; otherwise choose the simplest valid interpretation and proceed.
 * Do not use `/mnt/data` paths; assume you’re in the repo working copy.
-* i have created Gate6PRfixlist.md which is copy of this entire prompt with details, where you must track the progress of the implementation of all the items that needs to be fixed. that way you will not lose track of the progress. you can update the docuemnt accordingly.
+* Gate6PRfixlist.md was created to track progress for this work.
+
+# CodeRabbit Follow-ups (2026-02-04)
+- [x] 1) applereview.md updates
+  - Status: Done
+  - Notes/PR link: Added Status lines for findings #3/#4/#7/#8, clarified SystemLanguageModel.availability enum, and added explicit Action for finding #3.
+- [x] 2) SpeechService on-device recognition handling
+  - Status: Done
+  - Notes/PR link: Removed assignment to supportsOnDeviceRecognition and only enforce requiresOnDeviceRecognition when supported.
+- [x] 3) EmbeddingService availability refresh + probe validation
+  - Status: Done
+  - Notes/PR link: Moved probe off availability queue with safe state updates and validated vectors before availability checks.
+- [x] 4) Gate7_FirstRunWatchdogTests flakiness + task cleanup
+  - Status: Done
+  - Notes/PR link: Increased timeouts, added hard timeouts with cancel, and fixed reference date.
+- [x] 5) LibraryImporterDiagnosticsTests isolation + polling
+  - Status: Done
+  - Notes/PR link: Restored Diagnostics config in tearDown and replaced fixed sleep with polling loop.
+- [x] 6) TestHealthKitSampleSeeder clarity
+  - Status: Done
+  - Notes/PR link: Added comment for sharingAuthorized read stub and simplified sample appending.
+- [x] 7) Gate3_FreshnessBusTests lock usage
+  - Status: Done
+  - Notes/PR link: Replaced manual lock/unlock with defer for safety.
+- [x] 8) SettingsView WellbeingErrorCard retry
+  - Status: Done
+  - Notes/PR link: Wired retry to HealthKit authorization request.
+- [x] 9) SettingsViewModel diagnostics report error handling
+  - Status: Done
+  - Notes/PR link: Switched to do/catch and logs errors before returning nil.
+- [x] 10) CoachViewModel soft timeout consolidation
+  - Status: Done
+  - Notes/PR link: Consolidated reset/clear soft timeout into a single method and updated call sites.
+
+# PulsumUI macOS Alignment (2026-02-04)
+- [x] PulsumUI deployment target alignment + tests
+  - Status: Done
+  - Notes/PR link: Updated `Packages/PulsumUI/Package.swift` platforms to include `.macOS("14.0")` (matching Pulsum*), and adjusted macOS guards in PulsumUI sources/tests to compile and run.
+
+# Verification Notes (2026-02-04)
+- PulsumML skipped tests (expected in this environment)
+  - Status: Done
+  - Notes/PR link: Skipped `Gate6_EmbeddingProviderContextualTests.testContextualProviderProducesNonZeroVectorIfAvailable` (Contextual embeddings unavailable) and `PackageEmbedTests.testCoreMLFallbackModelIsBundled` (Core ML fallback embedding unavailable) during `swift test --package-path Packages/PulsumML`.
 
 # What is failing (from GitHub Actions gate-tests)
 

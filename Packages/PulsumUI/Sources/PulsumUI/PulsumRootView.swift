@@ -269,6 +269,7 @@ struct MainContainerView: View {
             }
             .scrollIndicators(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -297,6 +298,7 @@ struct MainContainerView: View {
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
+#endif
         }
         .tabItem {
             Image(systemName: AppViewModel.Tab.main.iconName)
@@ -313,6 +315,7 @@ struct MainContainerView: View {
                 consentGranted: viewModel.consentGranted,
                 triggerSettings: { presentSettings() }
             )
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -343,6 +346,7 @@ struct MainContainerView: View {
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
+#endif
         }
         .tabItem {
             Image(systemName: AppViewModel.Tab.insights.iconName)
@@ -357,6 +361,7 @@ struct MainContainerView: View {
                 viewModel: viewModel.coachViewModel,
                 showChatInput: true
             )
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -387,6 +392,7 @@ struct MainContainerView: View {
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
+#endif
         }
         .tabItem {
             Image(systemName: AppViewModel.Tab.coach.iconName)

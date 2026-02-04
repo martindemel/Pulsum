@@ -157,11 +157,17 @@ public final class EmbeddingService {
                 }
 
                 self.availabilityState = .probing(previous: cached == .available)
-                let result = self.probeAvailability(trigger: trigger)
-                let mode: AvailabilityMode = result ? .available : .unavailable
-                self.availabilityState = mode == .available ? .available : .unavailable(lastChecked: now)
-                self.logAvailabilityChangeIfNeeded(newMode: mode, trigger: trigger)
-                continuation.resume(returning: mode)
+                Task.detached(priority: .utility) { [weak self] in
+                    guard let self else { return }
+                    let result = self.probeAvailability(trigger: trigger)
+                    let mode: AvailabilityMode = result ? .available : .unavailable
+                    self.availabilityQueue.async {
+                        let completionDate = self.dateProvider()
+                        self.availabilityState = mode == .available ? .available : .unavailable(lastChecked: completionDate)
+                        self.logAvailabilityChangeIfNeeded(newMode: mode, trigger: trigger)
+                        continuation.resume(returning: mode)
+                    }
+                }
             }
         }
     }
@@ -272,8 +278,9 @@ public final class EmbeddingService {
 
         if let primaryProvider {
             if let vector = try? primaryProvider.embedding(for: availabilityProbeText),
-               vector.count == dimension,
-               vector.contains(where: { $0 != 0 }) {
+               let validatedVec = try? validated(vector),
+               validatedVec.count == dimension,
+               validatedVec.contains(where: { $0 != 0 }) {
                 success = true
                 providerUsed = DiagnosticsSafeString.stage("primary", allowed: Set(["primary", "fallback", "unknown"]))
             }
@@ -281,8 +288,9 @@ public final class EmbeddingService {
 
         if !success, let fallbackProvider {
             if let vector = try? fallbackProvider.embedding(for: availabilityProbeText),
-               vector.count == dimension,
-               vector.contains(where: { $0 != 0 }) {
+               let validatedVec = try? validated(vector),
+               validatedVec.count == dimension,
+               validatedVec.contains(where: { $0 != 0 }) {
                 success = true
                 providerUsed = DiagnosticsSafeString.stage("fallback", allowed: Set(["primary", "fallback", "unknown"]))
             }

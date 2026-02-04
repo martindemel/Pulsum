@@ -46,7 +46,8 @@ Scope: repo-wide compliance checks against Apple Developer Documentation for Pri
 - **What I found:** `LegacySpeechBackend` assigns `recognizer?.supportsOnDeviceRecognition = true`.
   - File: `Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift` (LegacySpeechBackend init)
 - **Why this conflicts:** This is not a settable property in Apple’s API. If this compiles via extensions or conditional builds, it risks diverging from the standard API or failing on SDK updates.
-- **Action:** Remove the assignment and rely on `recognitionRequest.requiresOnDeviceRecognition` to enforce on‑device recognition. Keep `supportsOnDeviceRecognition` as a read‑only check.
+- **Action:** Remove any erroneous assignment to `recognizer.supportsOnDeviceRecognition`, and rely on `recognitionRequest.requiresOnDeviceRecognition` when supported (or handle unsupported devices as documented).
+- **Status:** **Completed.**
 
 ### 4) “On‑device” promise vs actual speech recognition behavior
 
@@ -56,6 +57,7 @@ Scope: repo-wide compliance checks against Apple Developer Documentation for Pri
   - File: `Pulsum.xcodeproj/project.pbxproj` (usage descriptions)
 - **Why this conflicts:** The app copy promises on‑device processing, but the runtime path can fall back to server‑based recognition.
 - **Action:** Either (a) enforce `requiresOnDeviceRecognition = true` and fail gracefully when unsupported, or (b) adjust usage descriptions to avoid “on‑device” guarantees and add user messaging/consent for server processing.
+- **Status:** **Completed.**
 
 ### 5) HealthKit authorization requested automatically at startup
 
@@ -78,11 +80,12 @@ Scope: repo-wide compliance checks against Apple Developer Documentation for Pri
 
 ### 7) Foundation Models availability handling is incomplete
 
-- **What Apple docs say:** Use `SystemLanguageModel.availability` and handle all unavailability cases explicitly, including `.deviceNotEligible`, `.appleIntelligenceNotEnabled`, and `.modelNotReady`.
+- **What Apple docs say:** `SystemLanguageModel.availability` is an enum with `.available` and `.unavailable(let reason)`, where reason can include `.deviceNotEligible`, `.appleIntelligenceNotEnabled`, and `.modelNotReady` (and you should handle unknown defaults).
 - **What I found:** `FoundationModelsAvailability.checkAvailability()` handles `.appleIntelligenceNotEnabled` and `.modelNotReady`, but does not map `.deviceNotEligible` to the `unsupportedDevice` state and falls back to `.unknown`.
   - File: `Packages/PulsumML/Sources/PulsumML/AFM/FoundationModelsAvailability.swift`
 - **Why this conflicts:** The UI may misrepresent unsupported devices as “unknown” instead of telling users their device is ineligible.
 - **Action:** Explicitly map `.unavailable(.deviceNotEligible)` to `unsupportedDevice` and expand unknown handling. Consider showing the recommended “model not ready” state while downloading.
+- **Status:** **Completed.**
 
 ### 8) Foundation Models safety feedback path appears missing
 
@@ -91,6 +94,7 @@ Scope: repo-wide compliance checks against Apple Developer Documentation for Pri
   - Files: `Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift` (diagnostics export only)
 - **Why this conflicts:** Apple’s guidance expects a feedback pathway for safety issues when using generative models.
 - **Action:** Add a lightweight “Report a concern” action (e.g., mail or feedback form) and log minimal, privacy‑safe context.
+- **Status:** **Pending.**
 
 ## Notes (aligned with Apple docs)
 

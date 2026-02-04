@@ -18,11 +18,18 @@ public final class FoundationModelsAvailability {
         switch SystemLanguageModel.default.availability {
         case .available:
             return .ready
-        case .unavailable(.appleIntelligenceNotEnabled):
-            return .needsAppleIntelligence
-        case .unavailable(.modelNotReady):
-            return .downloading
-        default:
+        case .unavailable(let reason):
+            switch reason {
+            case .appleIntelligenceNotEnabled:
+                return .needsAppleIntelligence
+            case .modelNotReady:
+                return .downloading
+            case .deviceNotEligible:
+                return .unsupportedDevice
+            @unknown default:
+                return .unknown
+            }
+        @unknown default:
             return .unknown
         }
     }

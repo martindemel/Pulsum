@@ -60,7 +60,9 @@ struct ScoreBreakdownScreen: View {
                 }
             }
             .navigationTitle("Score details")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -73,7 +75,9 @@ struct ScoreBreakdownScreen: View {
                     }
                 }
             }
+#if os(iOS)
             .toolbarBackground(.automatic, for: .navigationBar)
+#endif
             .task {
                 await viewModel.refresh()
             }

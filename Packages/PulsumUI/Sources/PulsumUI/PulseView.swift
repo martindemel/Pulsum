@@ -34,7 +34,9 @@ struct PulseView: View {
                 .scrollIndicators(.hidden)
             }
             .navigationTitle("Pulse Check-In")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -47,7 +49,9 @@ struct PulseView: View {
                     }
                 }
             }
+#if os(iOS)
             .toolbarBackground(.automatic, for: .navigationBar)
+#endif
             .onDisappear { autoDismissTask?.cancel() }
             .onChange(of: viewModel.sliderSubmissionMessage) { _, message in
                 guard message != nil else { return }

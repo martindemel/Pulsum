@@ -85,9 +85,15 @@ struct SettingsScreen: View {
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                         SecureField("sk-...", text: $viewModel.gptAPIKeyDraft)
                                             .textFieldStyle(.roundedBorder)
+#if os(iOS)
                                             .textInputAutocapitalization(.never)
+#endif
                                             .autocorrectionDisabled()
+#if os(iOS)
                                             .font(.pulsumBody)
+#else
+                                            .font(.body)
+#endif
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .accessibilityIdentifier("CloudAPIKeyField")
                                     }
@@ -512,7 +518,9 @@ struct SettingsScreen: View {
                     }
                     .background(Color.pulsumBackgroundBeige.ignoresSafeArea())
 #if DEBUG
+#if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
+#endif
                     .toolbar {
                         ToolbarItem(placement: .principal) {
                             Text("Settings")
@@ -534,10 +542,14 @@ struct SettingsScreen: View {
                             .accessibilityLabel("Close Settings")
                         }
                     }
+#if os(iOS)
                     .toolbarBackground(.automatic, for: .navigationBar)
+#endif
 #else
                     .navigationTitle("Settings")
+#if os(iOS)
                     .navigationBarTitleDisplayMode(.large)
+#endif
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button {
@@ -551,7 +563,9 @@ struct SettingsScreen: View {
                             .accessibilityLabel("Close Settings")
                         }
                     }
+#if os(iOS)
                     .toolbarBackground(.automatic, for: .navigationBar)
+#endif
 #endif
                     .task {
                         viewModel.refreshFoundationStatus()
@@ -694,7 +708,9 @@ struct SettingsScreen: View {
                 }
             }
         case let .error(message):
-            WellbeingErrorCard(message: message)
+            WellbeingErrorCard(message: message) {
+                Task { await viewModel.requestHealthKitAuthorization() }
+            }
         }
     }
 

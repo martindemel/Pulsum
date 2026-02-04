@@ -251,9 +251,21 @@ final class SettingsViewModel {
                                                    persistenceEnabled: config.persistToDisk,
                                                    sessionsIncluded: sessionsIncluded.isEmpty ? nil : sessionsIncluded)
 
-            return try? DiagnosticsReportBuilder.buildReport(context: context,
-                                                             snapshot: snapshot,
-                                                             logTail: logTail)
+            do {
+                return try DiagnosticsReportBuilder.buildReport(context: context,
+                                                                snapshot: snapshot,
+                                                                logTail: logTail)
+            } catch {
+                                Diagnostics.log(level: .error,
+                                                category: .ui,
+                                                name: "ui.diagnostics.report.build.failed",
+                                                fields: [
+                                    "session_id": .uuid(sessionId),
+                                    "persist_enabled": .bool(config.persistToDisk)
+                                ],
+                                error: error)
+                return nil
+            }
         }
 
         diagnosticsExportURL = await exportTask.value

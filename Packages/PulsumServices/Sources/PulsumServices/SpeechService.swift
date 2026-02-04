@@ -211,7 +211,6 @@ private final class LegacySpeechBackend: SpeechBackending {
 
     init(locale: Locale, authorizationProvider _: SpeechAuthorizationProviding) {
         let recognizer = SFSpeechRecognizer(locale: locale)
-        recognizer?.supportsOnDeviceRecognition = true
         self.recognizer = recognizer
     }
 
@@ -262,7 +261,9 @@ private final class LegacySpeechBackend: SpeechBackending {
 
         let engine = AVAudioEngine()
         let request = SFSpeechAudioBufferRecognitionRequest()
-        request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
         request.shouldReportPartialResults = true
         
         speechLogger.debug("Starting audio engine...")

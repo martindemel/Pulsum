@@ -4,6 +4,7 @@ import HealthKit
 enum TestHealthKitSampleSeeder {
     static func authorizeAllTypes(_ stub: HealthKitServiceStub) {
         for type in HealthKitService.orderedReadSampleTypes {
+            // HealthKit doesn't expose explicit read authorization; sharingAuthorized is the closest stub signal.
             stub.authorizationStatuses[type.identifier] = .sharingAuthorized
             stub.readProbeResults[type.identifier] = .authorized
         }
@@ -89,8 +90,6 @@ enum TestHealthKitSampleSeeder {
     }
 
     private static func append(sample: HKSample, to stub: HealthKitServiceStub, identifier: String) {
-        var existing = stub.fetchedSamples[identifier] ?? []
-        existing.append(sample)
-        stub.fetchedSamples[identifier] = existing
+        stub.fetchedSamples[identifier, default: []].append(sample)
     }
 }

@@ -150,6 +150,7 @@ final class CoachViewModel {
         }
         if Task.isCancelled { return }
         scheduleRecommendationsRefresh()
+        await Task.yield()
     }
 
     func updateConsent(_ granted: Bool) {
@@ -337,6 +338,14 @@ final class CoachViewModel {
             recommendationsCoalesced = true
         }
 
+        if recommendationsDebounceNanoseconds == 0 {
+            recommendationsDebounceTask?.cancel()
+            recommendationsDebounceTask = nil
+            startRecommendationsRefresh()
+            updateRecommendationsLoadingState()
+            return
+        }
+
         recommendationsDebounceTask?.cancel()
         let debounceNanoseconds = recommendationsDebounceNanoseconds
         recommendationsDebounceTask = Task { [weak self] in
@@ -383,7 +392,7 @@ final class CoachViewModel {
             defer {
                 self.recommendationsTask = nil
                 self.activeRecommendationsRefreshID = nil
-                self.clearRecommendationsSoftTimeout()
+                self.resetRecommendationsSoftTimeout()
                 if self.recommendationsPending {
                     self.recommendationsPending = false
                     self.scheduleRecommendationsRefresh()
@@ -400,7 +409,7 @@ final class CoachViewModel {
                 if shouldApply {
                     self.recommendations = response.cards
                     self.cardErrorMessage = response.notice
-                    self.clearRecommendationsSoftTimeout()
+                    self.resetRecommendationsSoftTimeout()
                 }
                 span.end(additionalFields: [
                     "result": .safeString(.stage(isStale ? "stale" : "applied", allowed: resultAllowlist)),
@@ -436,29 +445,24 @@ final class CoachViewModel {
         recommendationsSoftTimeoutTask?.cancel()
         guard recommendationsSoftTimeoutSeconds > 0 else { return }
         let timeoutNanos = UInt64(max(0, recommendationsSoftTimeoutSeconds) * 1_000_000_000)
-        recommendationsSoftTimeoutTask = Task { @MainActor [weak self] in
+        recommendationsSoftTimeoutTask = Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
-                try await softTimeoutSleep(timeoutNanos)
+                try await self.softTimeoutSleep(timeoutNanos)
             } catch {
                 return
             }
-            guard self.recommendationsTask != nil else { return }
-            guard self.activeRecommendationsRefreshID == refreshID else { return }
-            self.recommendationsSoftTimedOut = true
-            self.recommendationsSoftTimeoutMessage = "Recommendations are taking longer than expected. We'll show them here as soon as they're ready."
-            self.updateRecommendationsLoadingState()
+            await MainActor.run {
+                guard self.recommendationsTask != nil else { return }
+                guard self.activeRecommendationsRefreshID == refreshID else { return }
+                self.recommendationsSoftTimedOut = true
+                self.recommendationsSoftTimeoutMessage = "Recommendations are taking longer than expected. We'll show them here as soon as they're ready."
+                self.updateRecommendationsLoadingState()
+            }
         }
     }
 
     private func resetRecommendationsSoftTimeout() {
-        recommendationsSoftTimeoutTask?.cancel()
-        recommendationsSoftTimeoutTask = nil
-        recommendationsSoftTimedOut = false
-        recommendationsSoftTimeoutMessage = nil
-    }
-
-    private func clearRecommendationsSoftTimeout() {
         recommendationsSoftTimeoutTask?.cancel()
         recommendationsSoftTimeoutTask = nil
         recommendationsSoftTimedOut = false
