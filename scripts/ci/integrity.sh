@@ -8,97 +8,68 @@ pass() { printf "\033[32m%s\033[0m\n" "$1"; }
 fail() { printf "\033[31m%s\033[0m\n" "$1"; exit 1; }
 info() { printf "\033[36m%s\033[0m\n" "$1"; }
 
-select_simulator_destination() {
-  local desired_os="${PULSUM_SIM_OS:-26.0.1}"
-  if ! command -v xcrun >/dev/null || ! command -v python3 >/dev/null; then
-    printf "platform=iOS Simulator,name=iPhone SE (3rd generation),OS=%s" "$desired_os"
-    return
-  fi
+usage() {
+  cat <<'USAGE'
+Usage: scripts/ci/integrity.sh [--strict]
 
-  python3 - <<'PY'
-import json, os, re, subprocess, sys
-preferred = [
-    "iPhone 16 Pro",
-    "iPhone 16",
-    "iPhone 16 Plus",
-    "iPhone 15 Pro",
-    "iPhone 15",
-    "iPhone SE (3rd generation)"
-]
-desired = os.environ.get("PULSUM_SIM_OS", "26.0.1")
-major = desired.split(".", 1)[0]
-try:
-    raw = subprocess.check_output(
-        ["xcrun", "simctl", "list", "-j", "devices", "available"],
-        text=True
-    )
-    data = json.loads(raw)
-except (subprocess.CalledProcessError, json.JSONDecodeError):
-    data = {}
-
-entries = []
-for runtime, devices in (data.get("devices") or {}).items():
-    match = re.search(r"iOS[-\.](\d+)-(\d+)(?:-(\d+))?", runtime or "")
-    if not match:
-        continue
-    parts = [match.group(1), match.group(2)]
-    if match.group(3):
-        parts.append(match.group(3))
-    version = ".".join(parts)
-    for device in devices or []:
-        if device.get("isAvailable") and device.get("udid"):
-            entries.append((device.get("name") or "", version, device["udid"]))
-
-def pick_by_name(prefix):
-    for name in preferred:
-        for entry in entries:
-            if entry[0] == name and entry[1].startswith(prefix):
-                return entry
-    return None
-
-def pick_by_prefix(prefix):
-    for entry in entries:
-        if entry[1].startswith(prefix):
-            return entry
-    return None
-
-selection = None
-for prefix in (desired, major, "26", "18"):
-    selection = pick_by_name(prefix) or pick_by_prefix(prefix)
-    if selection:
-        break
-
-if not selection and entries:
-    selection = entries[0]
-
-if not selection:
-    print(f"platform=iOS Simulator,name=iPhone SE (3rd generation),OS={desired}")
-    sys.exit()
-
-name, version, udid = selection
-if udid:
-    print(f"id={udid}")
-else:
-    print(f"platform=iOS Simulator,name={name},OS={version}")
-PY
+Options:
+  --strict   Require HEAD == origin/main (default allows ahead commits).
+USAGE
 }
+
+STRICT="${PULSUM_INTEGRITY_STRICT:-0}"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --strict)
+      STRICT=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "Unknown argument: $1"
+      ;;
+  esac
+done
 
 info "Pulsum integrity sweep"
 
 info "Git sync"
 git fetch origin >/dev/null 2>&1 || true
+if ! git show-ref --verify --quiet refs/remotes/origin/main; then
+  fail "origin/main not found. Run: git fetch origin main"
+fi
+COUNTS="$(git rev-list --left-right --count origin/main...HEAD)"
+BEHIND="${COUNTS%% *}"
+AHEAD="${COUNTS##* }"
+info "Branch divergence (origin/main...HEAD): behind=$BEHIND ahead=$AHEAD"
+if [ "$BEHIND" -ne 0 ]; then
+  fail "branch is behind origin/main by $BEHIND commit(s). Run: git fetch origin && git rebase origin/main"
+fi
+if [ "$STRICT" -eq 1 ] && [ "$AHEAD" -ne 0 ]; then
+  fail "strict mode requires HEAD == origin/main (ahead by $AHEAD). Use: git checkout origin/main or re-run without --strict"
+fi
+if [ "$AHEAD" -eq 0 ]; then
+  pass "branch is in sync with origin/main"
+else
+  pass "origin/main is an ancestor of HEAD (ahead by $AHEAD)"
+fi
 LOCAL_HEAD="$(git rev-parse HEAD)"
-REMOTE_HEAD="$(git rev-parse origin/main)"
-[ "$LOCAL_HEAD" = "$REMOTE_HEAD" ] || fail "local HEAD != origin/main"
-pass "local HEAD matches origin/main"
 
 info "Tag position (gate0-done-2025-11-09)"
-if git rev-parse -q --verify refs/tags/gate0-done-2025-11-09 >/dev/null; then
-  TAG_HEAD="$(git rev-parse gate0-done-2025-11-09^{})"
-  [ "$TAG_HEAD" = "$LOCAL_HEAD" ] || fail "tag gate0-done-2025-11-09 != HEAD"
-  pass "tag gate0-done-2025-11-09 points at HEAD"
+if [ "$STRICT" -eq 1 ] || { [ "$BEHIND" -eq 0 ] && [ "$AHEAD" -eq 0 ]; }; then
+  if git rev-parse -q --verify refs/tags/gate0-done-2025-11-09 >/dev/null; then
+    TAG_HEAD="$(git rev-parse gate0-done-2025-11-09^{})"
+    [ "$TAG_HEAD" = "$LOCAL_HEAD" ] || fail "tag gate0-done-2025-11-09 != HEAD"
+    pass "tag gate0-done-2025-11-09 points at HEAD"
+  else
+    info "tag gate0-done-2025-11-09 not found (ok if not tagged)"
+  fi
 else
-  info "tag gate0-done-2025-11-09 not found (ok if not tagged)"
+  info "tag check skipped (not on origin/main)"
 fi
 
 info "Git integrity"
@@ -107,7 +78,10 @@ if [ "${CI_ALLOW_DIRTY:-0}" = "1" ]; then
   info "CI_ALLOW_DIRTY=1 → skipping clean working tree enforcement"
 else
   DIRTY_COUNT="$(git status --porcelain=v1 | wc -l | tr -d ' ')"
-  [ "$DIRTY_COUNT" -eq 0 ] || fail "working tree has uncommitted changes"
+  if [ "$DIRTY_COUNT" -ne 0 ]; then
+    git status --porcelain=v1
+    fail "working tree has uncommitted changes. Commit, stash, or set CI_ALLOW_DIRTY=1."
+  fi
   pass "working tree clean"
 fi
 
@@ -198,9 +172,11 @@ else
 fi
 
 info "Release build (signing disabled)"
-DESTINATION="$(select_simulator_destination)"
-info "Using simulator destination: $DESTINATION"
-scripts/ci/build-release.sh -destination "$DESTINATION" -derivedDataPath Build >/tmp/pulsum_xcbuild.log 2>&1 || \
+BUILD_RELEASE_ARGS=()
+if [ -n "${PULSUM_INTEGRITY_DESTINATION:-}" ]; then
+  BUILD_RELEASE_ARGS+=(--destination "$PULSUM_INTEGRITY_DESTINATION")
+fi
+scripts/ci/build-release.sh "${BUILD_RELEASE_ARGS[@]}" >/tmp/pulsum_xcbuild.log 2>&1 || \
 fail "xcodebuild Release failed; see /tmp/pulsum_xcbuild.log"
 pass "Release build ok"
 
@@ -216,8 +192,19 @@ pass "Gate-0 tests ok"
 
 info "Bundle secret rescan"
 if [ -x scripts/ci/scan-secrets.sh ]; then
-  APP_PATH="Build/Build/Products/Release-iphonesimulator/Pulsum.app"
-  if [ -d "$APP_PATH" ]; then
+  APP_PATH=""
+  for candidate in \
+    "Build/DerivedData/Build/Products/Release-iphoneos/Pulsum.app" \
+    "Build/DerivedData/Build/Products/Release-iphonesimulator/Pulsum.app" \
+    "Build/Build/Products/Release-iphoneos/Pulsum.app" \
+    "Build/Build/Products/Release-iphonesimulator/Pulsum.app"
+  do
+    if [ -d "$candidate" ]; then
+      APP_PATH="$candidate"
+      break
+    fi
+  done
+  if [ -n "$APP_PATH" ]; then
     scripts/ci/scan-secrets.sh "$APP_PATH" >/tmp/pulsum_secret_bundle.log 2>&1 || { cat /tmp/pulsum_secret_bundle.log; fail "secret scan (bundle) failed"; }
     pass "secret scan (bundle) passed"
   else

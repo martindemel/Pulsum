@@ -30,7 +30,11 @@ final class CoachAgentKeywordFallbackTests: XCTestCase {
             nonMatch.detail = "A calming pattern for winding down."
             nonMatch.tags = ["calm"]
 
-            try? viewContext.save()
+            do {
+                try viewContext.save()
+            } catch {
+                XCTFail("Failed to save test data: \(error)")
+            }
         }
 
         let coach = try CoachAgent(container: container,

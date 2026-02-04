@@ -30,14 +30,30 @@ final class SettingsViewModelHealthAccessTests: XCTestCase {
 
         viewModel.bind(orchestrator: orchestrator)
         viewModel.refreshHealthAccessStatus()
-        try await Task.sleep(nanoseconds: 100_000_000)
 
-        XCTAssertEqual(viewModel.healthKitSummary, "0/\(requiredTypes.count) granted")
+        let initialSummary = "0/\(requiredTypes.count) granted"
+        let didUpdate = await pollUntil(timeoutSeconds: 1.0) {
+            viewModel.healthKitSummary == initialSummary
+        }
+        XCTAssertTrue(didUpdate, "Expected health kit summary to update after refresh.")
+        XCTAssertEqual(viewModel.healthKitSummary, initialSummary)
 
         await viewModel.requestHealthKitAuthorization()
 
         XCTAssertEqual(viewModel.healthKitSummary, "\(requiredTypes.count)/\(requiredTypes.count) granted")
         XCTAssertFalse(viewModel.showHealthKitUnavailableBanner)
+    }
+
+    private func pollUntil(timeoutSeconds: Double,
+                           intervalNanoseconds: UInt64 = 20_000_000,
+                           condition: @escaping () -> Bool) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(timeoutSeconds)
+        while clock.now < deadline {
+            if condition() { return true }
+            try? await Task.sleep(nanoseconds: intervalNanoseconds)
+        }
+        return condition()
     }
 
     private func makeOrchestrator(dataAgent: any DataAgentProviding) throws -> AgentOrchestrator {

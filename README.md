@@ -143,13 +143,13 @@ Pulsum implements a sophisticated **manager-pattern agent architecture** where a
 
 Pulsum implements a dual-layer safety architecture:
 
-**Wall 1 (On-Device)**
+#### Wall 1 (On-Device)
 - Safety classification via Foundation Models or local ML
 - Topic gating with 0.59 confidence threshold
 - Coverage validation with median-based similarity scoring
 - Blocks unsafe content before any cloud processing
 
-**Wall 2 (Cloud)**
+#### Wall 2 (Cloud)
 - GPT-5 schema validation with structured outputs
 - Grounding score ≥0.5 requirement
 - Response validation against user context
@@ -484,7 +484,7 @@ For questions or educational discussions, please open an issue.
 
 ## Author
 
-**Martin Demel**
+### Martin Demel
 
 - Created: September 2025
 - Platform: iOS 26+

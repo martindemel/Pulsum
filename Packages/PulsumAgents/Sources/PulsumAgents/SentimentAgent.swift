@@ -135,7 +135,7 @@ public final class SentimentAgent {
     }
 
     public func pendingEmbeddingCount() async -> Int {
-        await context.perform { @Sendable [context] in
+        await context.perform { [context] in
             let request = JournalEntry.fetchRequest()
             request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
             return (try? context.count(for: request)) ?? 0
@@ -143,7 +143,7 @@ public final class SentimentAgent {
     }
 
     public func reprocessPendingJournals(traceId: UUID? = nil) async {
-        let pending: [(objectID: NSManagedObjectID, entryID: UUID, transcript: String)] = (try? await context.perform { @Sendable [context] in
+        let pending: [(objectID: NSManagedObjectID, entryID: UUID, transcript: String)] = (try? await context.perform { [context] in
             let request = JournalEntry.fetchRequest()
             request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
             return try context.fetch(request).map { entry in
@@ -198,7 +198,7 @@ public final class SentimentAgent {
         let updatesToApply = updates
 
         do {
-            try await context.perform { @Sendable [context] in
+            try await context.perform { [context] in
                 for update in updatesToApply {
                     guard let entry = try? context.existingObject(with: update.objectID) as? JournalEntry else { continue }
                     entry.embeddedVectorURL = update.vectorURL.lastPathComponent
@@ -278,7 +278,7 @@ public final class SentimentAgent {
         let pendingFlag = embeddingPending
         let finalVectorURL = vectorURL
 
-        let result = try await context.perform { @Sendable [context, calendar] () throws -> JournalResult in
+        let result = try await context.perform { [context, calendar] () throws -> JournalResult in
             let entry = JournalEntry(context: context)
             entry.id = entryID
             entry.date = Date()

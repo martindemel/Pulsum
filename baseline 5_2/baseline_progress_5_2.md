@@ -52,7 +52,7 @@ Started: 2025-11-11
 ## Tracked Files (git ls-files)
 Count: 269
 
-```
+```text
 .github/coderabbit.yaml
 .github/workflows/auto-merge.yml
 .github/workflows/auto-pr.yml
@@ -324,7 +324,7 @@ tests_automation.md
 todolist.md
 ```
 
-## Progress Notes
+## Progress Notes (Completion Log)
 - 2025-11-11: Task 1 completed. Created baseline_progress.md.
 - 2025-11-11: Task 2 completed. Tracked file list recorded (269 files).
 - 2025-11-11: Task 3 completed. Wrote baseline_file_inventory.json with per-file metadata. Category counts: swift 155, tests 68, markdown 40, binary_assets 35, plist/xcprivacy 8, json 8, shell 7, yaml 4, no_ext 4, config 1, text 1, other 6.

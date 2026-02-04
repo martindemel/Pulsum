@@ -33,7 +33,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PulsumDataTests",
-            dependencies: ["PulsumData"],
+            dependencies: ["PulsumData", "PulsumTypes"],
             path: "Tests",
             resources: [
                 .copy("PulsumDataTests/Resources")

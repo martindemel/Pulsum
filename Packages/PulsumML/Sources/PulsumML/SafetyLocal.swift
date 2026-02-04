@@ -73,14 +73,18 @@ public final class SafetyLocal {
             return .crisis(reason: "High-risk language detected")
         }
 
+        guard !localPrototypes.isEmpty else {
+            prototypeQueue.sync { degraded = true }
+            logger.warning("SafetyLocal degraded: prototypes missing; using keyword-only fallback classification.")
+            return fallbackClassification(for: normalized)
+        }
+
         guard
             let embedding = try? embeddingService.embedding(for: normalized),
-            embedding.contains(where: { $0 != 0 }),
-            !localPrototypes.isEmpty
+            embedding.contains(where: { $0 != 0 })
         else {
-            prototypeQueue.sync { degraded = true }
             #if DEBUG
-            logger.debug("SafetyLocal degraded: embedding unavailable or prototypes missing; using fallback classification.")
+            logger.debug("SafetyLocal embedding unavailable; using keyword-only fallback classification.")
             #endif
             return fallbackClassification(for: normalized)
         }
@@ -156,15 +160,15 @@ public final class SafetyLocal {
             }
         }
 
-        let degraded = failures > 0 || built.isEmpty
+        let degraded = built.isEmpty
 
-        #if DEBUG
         if built.isEmpty {
             logger.warning("SafetyLocal prototypes empty; classifier will operate in degraded keyword-only mode.")
         } else if failures > 0 {
+            #if DEBUG
             logger.debug("SafetyLocal built \(built.count, privacy: .public) prototypes with \(failures, privacy: .public) failures. Degraded=\(degraded, privacy: .public)")
+            #endif
         }
-        #endif
 
         return (built, degraded)
     }

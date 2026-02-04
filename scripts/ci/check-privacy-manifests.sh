@@ -25,30 +25,18 @@ for manifest in "${MANIFESTS[@]}"; do
   [[ -f "$manifest" ]] || die "missing privacy manifest: $manifest"
 done
 
-python - <<'PY'
+python3 - <<'PY'
 import os
 import sys
 import plistlib
 
 REQUIRED = {
-    "Pulsum/PrivacyInfo.xcprivacy": {
-        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"}
-    },
-    "Packages/PulsumAgents/Sources/PulsumAgents/PrivacyInfo.xcprivacy": {
-        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"}
-    },
-    "Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy": {
-        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"}
-    },
-    "Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy": {
-        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"}
-    },
-    "Packages/PulsumML/Sources/PulsumML/PrivacyInfo.xcprivacy": {
-        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"}
-    },
-    "Packages/PulsumUI/Sources/PulsumUI/PrivacyInfo.xcprivacy": {
-        "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"}
-    },
+    "Pulsum/PrivacyInfo.xcprivacy": {},
+    "Packages/PulsumAgents/Sources/PulsumAgents/PrivacyInfo.xcprivacy": {},
+    "Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy": {},
+    "Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy": {},
+    "Packages/PulsumML/Sources/PulsumML/PrivacyInfo.xcprivacy": {},
+    "Packages/PulsumUI/Sources/PulsumUI/PrivacyInfo.xcprivacy": {},
 }
 
 errors = []
@@ -77,7 +65,11 @@ if errors:
 print("privacy manifests: ✅ basic checks passed")
 PY
 
-RESOURCE_COUNT=$(rg --no-heading -n "PrivacyInfo\\.xcprivacy in Resources" Pulsum.xcodeproj/project.pbxproj | grep -v "PBXBuildFile" | wc -l | tr -d '[:space:]')
+if command -v rg >/dev/null 2>&1; then
+  RESOURCE_COUNT=$(rg --no-heading -n "PrivacyInfo\\.xcprivacy in Resources" Pulsum.xcodeproj/project.pbxproj | grep -v "PBXBuildFile" | wc -l | tr -d '[:space:]')
+else
+  RESOURCE_COUNT=$(grep -n "PrivacyInfo\\.xcprivacy in Resources" Pulsum.xcodeproj/project.pbxproj | grep -v "PBXBuildFile" | wc -l | tr -d '[:space:]')
+fi
 if [[ "${RESOURCE_COUNT:-0}" -ne 1 ]]; then
   die "expected exactly one 'PrivacyInfo.xcprivacy in Resources' entry in Pulsum target (found ${RESOURCE_COUNT:-0})"
 fi

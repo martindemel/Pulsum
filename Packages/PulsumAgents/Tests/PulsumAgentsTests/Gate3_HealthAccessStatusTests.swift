@@ -36,23 +36,28 @@ final class Gate3_HealthAccessStatusTests: XCTestCase {
         }
     }
 
-    func testReadOnlyAuthorizationDoesNotMarkGrantedAsDenied() async throws {
+    func testUnnecessaryRequestStatusIgnoresSharingDeniedWhenReadAuthorized() async throws {
         let stub = HealthKitServiceStub()
         stub.requestAuthorizationStatus = .unnecessary
-        for type in HealthKitService.orderedReadSampleTypes {
+        let types = HealthKitService.orderedReadSampleTypes
+        guard !types.isEmpty else {
+            XCTFail("Expected at least one HealthKit type for authorization test.")
+            return
+        }
+        for type in types {
             stub.authorizationStatuses[type.identifier] = .sharingDenied
             stub.readProbeResults[type.identifier] = .authorized
         }
         let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
 
         let status = await agent.currentHealthAccessStatus()
-        XCTAssertEqual(status.granted.count, HealthKitService.orderedReadSampleTypes.count)
+        XCTAssertEqual(status.granted.count, types.count)
         XCTAssertTrue(status.denied.isEmpty)
         XCTAssertTrue(status.notDetermined.isEmpty)
 
         try await agent.startIngestionIfAuthorized()
         let observed = Set(stub.observedIdentifiers)
-        XCTAssertEqual(observed.count, HealthKitService.orderedReadSampleTypes.count, "All granted types should start observation even when sharing is denied.")
+        XCTAssertEqual(observed.count, types.count, "Read-authorized types should be observed even if sharing is denied.")
     }
 
     func testMixedProbeResultsClassifyPerType() async throws {
@@ -87,7 +92,7 @@ final class Gate3_HealthAccessStatusTests: XCTestCase {
 
         let observed = Set(stub.observedIdentifiers)
         XCTAssertFalse(observed.contains(deniedType.identifier))
-        XCTAssertFalse(observed.contains(pendingType.identifier))
-        XCTAssertEqual(observed.count, HealthKitService.orderedReadSampleTypes.count - 2)
+        XCTAssertTrue(observed.contains(pendingType.identifier))
+        XCTAssertEqual(observed.count, HealthKitService.orderedReadSampleTypes.count - 1)
     }
 }

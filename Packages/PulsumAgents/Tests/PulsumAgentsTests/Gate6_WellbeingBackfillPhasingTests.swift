@@ -7,21 +7,33 @@ import XCTest
 
 // swiftlint:disable:next type_name
 final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
-    private let calendar = Calendar(identifier: .gregorian)
+    private let timeZone = TimeZone(secondsFromGMT: 0)!
+    private let referenceDate = Date()
+
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
 
     func testWarmStartBackfillsFastWindowAndProducesSnapshot() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 35, calendar: calendar)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 35,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
         let store = BackfillStateStoreSpy()
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
 
         try await agent.start()
 
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: referenceDate)
         let expectedBootstrapStart = calendar.date(byAdding: .day, value: -1, to: today)!
         var firstRequestByType: [String: (Date, Date)] = [:]
         for request in stub.fetchRequests where firstRequestByType[request.identifier] == nil {
@@ -50,11 +62,16 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     func testAggregatedStepsAndNocturnalHRUseStatisticsQueries() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 10, calendar: calendar)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 10,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
 
@@ -70,11 +87,16 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         let stub = HealthKitServiceStub()
         stub.fetchDelayNanoseconds = 200_000_000
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 35, calendar: calendar)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 35,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
 
@@ -100,11 +122,16 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     func testBackgroundBackfillExpandsCoverageAndPersistsAcrossSessions() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 35, calendar: calendar)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 35,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
         try await agent.start()
@@ -118,7 +145,9 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         } else {
             progress = await agent._testBackfillProgress()
         }
-        let targetStart = calendar.date(byAdding: .day, value: -(30 - 1), to: calendar.startOfDay(for: Date()))!
+        let targetStart = calendar.date(byAdding: .day,
+                                        value: -(30 - 1),
+                                        to: calendar.startOfDay(for: referenceDate))!
         for identifier in HealthKitService.orderedReadSampleTypes.map(\.identifier) {
             XCTAssertTrue(progress.fullBackfillCompletedTypes.contains(identifier), "Full backfill should mark \(identifier) complete.")
             if let earliest = progress.earliestProcessedByType[identifier] {
@@ -131,6 +160,7 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         // Simulate app restart; backfill progress should prevent re-running warm start.
         let restartedAgent = DataAgent(healthKit: stub,
                                        container: TestCoreDataStack.makeContainer(),
+                                       calendar: calendar,
                                        estimatorStore: EstimatorStateStore(),
                                        backfillStore: store)
         try await restartedAgent.start()
@@ -142,10 +172,14 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     func testBootstrapFallbackFindsOlderDataWhenRecentWindowIsEmpty() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 5, calendar: calendar)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 5,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
 
         // Remove samples from the last two days so the 2-day bootstrap window is empty.
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: referenceDate)
         let cutoff = calendar.date(byAdding: .day, value: -2, to: today)!
         for (key, samples) in stub.fetchedSamples {
             let filtered = samples.filter { $0.startDate < cutoff }
@@ -155,6 +189,7 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         let store = BackfillStateStoreSpy()
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
 
@@ -170,12 +205,17 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     func testSleepDebtMissingDataIsImputedButScoreStillComputes() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 5, calendar: calendar)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 5,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
         stub.fetchedSamples[HKCategoryTypeIdentifier.sleepAnalysis.rawValue] = []
         let store = BackfillStateStoreSpy()
 
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
         try await agent.start()
@@ -193,10 +233,11 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         let store = BackfillStateStoreSpy()
         let agent = DataAgent(healthKit: stub,
                               container: container,
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: store)
 
-        let day = calendar.startOfDay(for: Date())
+        let day = calendar.startOfDay(for: referenceDate)
         let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
         let sleepStart = calendar.date(byAdding: .hour, value: 22, to: day)!
         let sleepEnd = calendar.date(byAdding: .hour, value: 30, to: day)!
@@ -262,7 +303,9 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
 
     private func waitForWarmStart(store: BackfillStateStoreSpy, agent: DataAgent) async -> BackfillProgress {
         let requiredCount = HealthKitService.orderedReadSampleTypes.count
-        for _ in 0..<40 {
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(5)
+        while clock.now < deadline {
             if let saved = store.loadState(), saved.warmStartCompletedTypes.count == requiredCount {
                 return saved
             }

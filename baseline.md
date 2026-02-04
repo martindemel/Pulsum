@@ -410,7 +410,7 @@ graph TD
 - `PulsumUITests/PulsumUITestsLaunchTests.swift` — Default launch performance UITest with screenshot capture.
 - `PulsumUITests/SettingsAndCoachUITests.swift` — UITests for coach chat stub response and consent toggle persistence.
 - `Pulsum.xcodeproj/project.pbxproj` — Xcode project defining app/test targets, package dependencies, build settings (iOS 26), entitlements, resources, and shared configurations.
-- `Pulsum.xcodeproj/project.xcworkspace/contents.xcworkspacedata` — Workspace metadata pointing to self project.
+- `Pulsum.xcodeproj/project.xcworkspace/contents.xcworkspacedata` — Workspace metadata pointing to self-project.
 - `Pulsum.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` — Empty SwiftPM pins manifest (no remote dependencies).
 - `Pulsum.xcodeproj/xcshareddata/xcschemes/Pulsum.xcscheme` — Shared scheme building app and running UITests plus package test bundles with UITest env vars.
 - `Pulsum.xcodeproj/xcuserdata/martin.demel.xcuserdatad/xcschemes/xcschememanagement.plist` — User scheme management metadata ordering Pulsum scheme.

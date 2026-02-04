@@ -4,6 +4,7 @@ import XCTest
 @MainActor
 final class PulsumRootViewTests: XCTestCase {
     func testRootViewHealthCheckPrecondition() {
-        XCTAssertNotNil(PulsumRootView.self)
+        // Ensure the root view can be constructed without crashing.
+        _ = PulsumRootView()
     }
 }

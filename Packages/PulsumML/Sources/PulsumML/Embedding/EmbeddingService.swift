@@ -215,8 +215,8 @@ public final class EmbeddingService {
         for (index, segment) in segments.enumerated() where !segment.isEmpty {
             do {
                 let vector = try embedding(for: segment)
-                for index in 0..<dimension {
-                    accumulator[index] += vector[index]
+                for i in 0..<dimension {
+                    accumulator[i] += vector[i]
                 }
                 count += 1
             } catch {

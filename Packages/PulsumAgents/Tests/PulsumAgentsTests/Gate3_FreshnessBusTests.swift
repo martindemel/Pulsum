@@ -14,6 +14,7 @@ final class Gate3_FreshnessBusTests: XCTestCase {
         let today = Date()
         try await agent.reprocessDay(date: today)
 
+        // Debounce window: allow notification coalescing to complete.
         try await Task.sleep(nanoseconds: 700_000_000)
         let posts = center.notifications(named: .pulsumScoresUpdated)
         XCTAssertEqual(posts.count, 1)
@@ -30,9 +31,10 @@ final class Gate3_FreshnessBusTests: XCTestCase {
         await agent._testPublishSnapshotUpdate(for: day)
         await agent._testPublishSnapshotUpdate(for: day)
 
+        // Debounce window: allow coalesced notifications to flush.
         try await Task.sleep(nanoseconds: 1_000_000_000)
         let posts = center.notifications(named: .pulsumScoresUpdated)
-        XCTAssertGreaterThan(posts.count, 0)
+        XCTAssertGreaterThanOrEqual(posts.count, 1)
         let expectedDay = Calendar(identifier: .gregorian).startOfDay(for: day)
         let postedDay = posts.first?.userInfo?[AgentNotificationKeys.date] as? Date
         XCTAssertEqual(postedDay, expectedDay)

@@ -268,11 +268,14 @@ public final class HealthKitService: @unchecked Sendable {
             let query = HKSampleQuery(sampleType: type,
                                       predicate: predicate,
                                       limit: 1,
-                                      sortDescriptors: nil) { _, _, error in
+                                      sortDescriptors: nil) { _, samples, error in
                 if let error {
                     continuation.resume(returning: self.readProbeResult(for: error))
-                } else {
+                } else if let samples, !samples.isEmpty {
                     continuation.resume(returning: .authorized)
+                } else {
+                    // A successful query doesn't confirm read authorization; it may just return no data.
+                    continuation.resume(returning: .notDetermined)
                 }
             }
 
@@ -768,7 +771,7 @@ private extension HealthKitService {
         case .errorHealthDataUnavailable, .errorHealthDataRestricted:
             return .healthDataUnavailable
         case .errorNoData:
-            return .authorized
+            return .notDetermined
 #if compiler(>=6.0)
         case .errorNotPermissibleForGuestUserMode:
             return .healthDataUnavailable

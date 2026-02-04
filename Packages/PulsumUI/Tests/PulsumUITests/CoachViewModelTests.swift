@@ -199,7 +199,7 @@ final class CoachViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.recommendations, fresh.cards)
     }
 
-    func testRecommendationsSoftTimeoutStopsSpinnerAndAppliesLater() async {
+    func testRecommendationsSoftTimeoutStopsSpinnerAndAppliesLaterWithoutManualRefresh() async {
         let snapshot = WellbeingSnapshotResponse(
             wellbeingState: .ready(score: 0.72, contributions: ["z_hrv": 0.12]),
             snapshotKind: .real,
@@ -212,24 +212,31 @@ final class CoachViewModelTests: XCTestCase {
             wellbeingState: .noData(.insufficientSamples),
             notice: nil
         )
+        let softTimeoutSleeper = TestSleeper()
+        let recommendationsSleeper = TestSleeper()
         let orchestrator = TestCoachOrchestrator(
             snapshotResponse: snapshot,
             recommendationsResponses: [response],
-            recommendationsDelay: 300_000_000
+            recommendationsDelay: 1,
+            recommendationsSleep: recommendationsSleeper.sleep
         )
         let viewModel = CoachViewModel(recommendationsDebounceNanoseconds: 0,
-                                       recommendationsSoftTimeoutSeconds: 0.05)
+                                       recommendationsSoftTimeoutSeconds: 9,
+                                       softTimeoutSleep: softTimeoutSleeper.sleep)
         viewModel.bind(orchestrator: orchestrator, consentProvider: { true })
 
         await viewModel.refreshRecommendations()
         XCTAssertTrue(viewModel.isLoadingCards)
 
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        await softTimeoutSleeper.advanceAll()
+        await Task.yield()
         XCTAssertFalse(viewModel.isLoadingCards)
+        XCTAssertTrue(viewModel.recommendations.isEmpty)
         XCTAssertEqual(viewModel.recommendationsSoftTimeoutMessage,
                        "Recommendations are taking longer than expected. We'll show them here as soon as they're ready.")
 
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        await recommendationsSleeper.advanceAll()
+        await Task.yield()
         XCTAssertEqual(viewModel.recommendations, response.cards)
         XCTAssertNil(viewModel.recommendationsSoftTimeoutMessage)
     }
@@ -301,6 +308,8 @@ private final class TestCoachOrchestrator: CoachOrchestrating {
     let recommendationsResponses: [RecommendationResponse]
     let snapshotDelay: UInt64
     let recommendationsDelay: UInt64
+    let snapshotSleep: @Sendable (UInt64) async throws -> Void
+    let recommendationsSleep: @Sendable (UInt64) async throws -> Void
 
     private(set) var recommendationsCallCount = 0
     private(set) var maxConcurrentRecommendations = 0
@@ -311,17 +320,21 @@ private final class TestCoachOrchestrator: CoachOrchestrating {
     init(snapshotResponse: WellbeingSnapshotResponse,
          recommendationsResponses: [RecommendationResponse],
          snapshotDelay: UInt64 = 0,
-         recommendationsDelay: UInt64 = 0) {
+         recommendationsDelay: UInt64 = 0,
+         snapshotSleep: @escaping @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) },
+         recommendationsSleep: @escaping @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }) {
         self.snapshotResponse = snapshotResponse
         self.recommendationsResponses = recommendationsResponses
         self.snapshotDelay = snapshotDelay
         self.recommendationsDelay = recommendationsDelay
+        self.snapshotSleep = snapshotSleep
+        self.recommendationsSleep = recommendationsSleep
     }
 
     func wellbeingSnapshotState(consentGranted: Bool) async throws -> WellbeingSnapshotResponse {
         _ = consentGranted
         if snapshotDelay > 0 {
-            try await Task.sleep(nanoseconds: snapshotDelay)
+            try await snapshotSleep(snapshotDelay)
         }
         return snapshotResponse
     }
@@ -337,7 +350,7 @@ private final class TestCoachOrchestrator: CoachOrchestrating {
             onRecommendationsComplete?(callIndex)
         }
         if recommendationsDelay > 0 {
-            try await Task.sleep(nanoseconds: recommendationsDelay)
+            try await recommendationsSleep(recommendationsDelay)
         }
         if callIndex <= recommendationsResponses.count {
             return recommendationsResponses[callIndex - 1]
@@ -356,5 +369,34 @@ private final class TestCoachOrchestrator: CoachOrchestrating {
     func chat(userInput: String, consentGranted: Bool) async throws -> String {
         _ = (userInput, consentGranted)
         return "OK"
+    }
+}
+
+private actor TestSleeper {
+    private var continuations: [UUID: CheckedContinuation<Void, Error>] = [:]
+
+    func sleep(nanoseconds: UInt64) async throws {
+        _ = nanoseconds
+        let id = UUID()
+        try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                continuations[id] = continuation
+            }
+        }, onCancel: {
+            Task { await self.cancelSleep(id: id) }
+        })
+    }
+
+    func advanceAll() {
+        for (_, continuation) in continuations {
+            continuation.resume()
+        }
+        continuations.removeAll()
+    }
+
+    private func cancelSleep(id: UUID) {
+        if let continuation = continuations.removeValue(forKey: id) {
+            continuation.resume(throwing: CancellationError())
+        }
     }
 }

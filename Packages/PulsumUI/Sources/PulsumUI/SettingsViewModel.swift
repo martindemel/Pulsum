@@ -104,6 +104,8 @@ final class SettingsViewModel {
         guard let orchestrator else {
             healthKitSummary = "Agent unavailable"
             canRequestHealthKitAccess = false
+            healthKitDebugSummary = ""
+            debugLogSnapshot = ""
             return
         }
         Task { [weak self] in

@@ -116,8 +116,7 @@ git fetch origin
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" && echo SYNC_OK || echo SYNC_MISMATCH
 scripts/ci/scan-secrets.sh
 scripts/ci/check-privacy-manifests.sh
-scripts/ci/build-release.sh -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0' -derivedDataPath Build || \
-scripts/ci/build-release.sh -destination 'platform=iOS Simulator,name=iPhone 15,OS=26.0' -derivedDataPath Build
+scripts/ci/build-release.sh
 swift test --package-path Packages/PulsumServices --filter Gate0_
 swift test --package-path Packages/PulsumData     --filter Gate0_
 swift test --package-path Packages/PulsumML       --filter Gate0_
@@ -126,7 +125,9 @@ swift test --package-path Packages/PulsumML       --filter Gate0_
 **One-off build (signing disabled)**
 
 ```bash
-scripts/ci/build-release.sh -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0' -derivedDataPath Build
+scripts/ci/build-release.sh
+# If you need a simulator build:
+# scripts/ci/build-release.sh --destination 'platform=iOS Simulator,OS=latest'
 ```
 
 ---
@@ -142,7 +143,8 @@ scripts/ci/scan-secrets.sh
 **Bundle scan (after building)**
 
 ```bash
-scripts/ci/scan-secrets.sh Build/Build/Products/Release-iphonesimulator/Pulsum.app
+scripts/ci/scan-secrets.sh Build/DerivedData/Build/Products/Release-iphoneos/Pulsum.app
+# If you built for simulator, use Release-iphonesimulator instead.
 ```
 
 **Privacy manifests**
@@ -314,7 +316,7 @@ scripts/ci/scan-secrets.sh
 **Build (signing off)**
 
 ```bash
-scripts/ci/build-release.sh -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.0' -derivedDataPath Build
+scripts/ci/build-release.sh
 ```
 
 **Gate-0 tests**

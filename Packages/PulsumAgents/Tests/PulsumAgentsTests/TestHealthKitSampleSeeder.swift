@@ -11,8 +11,12 @@ enum TestHealthKitSampleSeeder {
 
     static func populateSamples(_ stub: HealthKitServiceStub,
                                 days: Int,
-                                calendar: Calendar = Calendar(identifier: .gregorian)) {
-        let today = calendar.startOfDay(for: Date())
+                                referenceDate: Date = Date(),
+                                calendar: Calendar = Calendar(identifier: .gregorian),
+                                timeZone: TimeZone = .current) {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+        let today = calendar.startOfDay(for: referenceDate)
         for offset in 0..<days {
             let dayStart = calendar.date(byAdding: .day, value: -offset, to: today) ?? today
             let sleepStart = calendar.date(byAdding: .hour, value: 22, to: dayStart) ?? dayStart

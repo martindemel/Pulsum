@@ -33,11 +33,29 @@
 - If non-test runs inject `XCTestConfigurationFilePath`/`XCTestBundlePath`, startup would short-circuit; keep those env vars confined to XCTest harnesses.
 - HealthKit seeding uses the current clock/timezone; if CI runs across timezones or at DST boundaries, consider injecting a fixed `Date`/`TimeZone` into `TestHealthKitSampleSeeder.populateSamples`.
 - Diagnostics expectations depend on single in-flight library prep; if new call sites are added, ensure they respect `prepareLibraryIfNeeded` to avoid overlapping `library.import.*` spans.
+- CI may warn that `IPHONEOS_DEPLOYMENT_TARGET=26.0` exceeds the simulator SDK max (e.g., 18.5). Target remains at 26.0 because the app intentionally relies on iOS 26 APIs; lowering it would require broad availability auditing. Warnings are expected but do not affect build output.
 
 ## Commands run + results
+### scripts/ci/check-privacy-manifests.sh (fallback note)
+Note: Script now falls back to `python3` when `python` is unavailable, and to `grep` when `rg` is unavailable.
+
+### swift test --package-path Packages/PulsumAgents
+Result:
+```text
+PASS — 38 tests executed, 3 skipped, 0 failures.
+Warning: #SendableClosureCaptures in Gate4_RoutingTests.swift:92 (resolved by removing @Sendable constraint in helper).
+```
+
+### scripts/ci/check-privacy-manifests.sh
+Result:
+```text
+privacy manifests: ✅ basic checks passed
+[privacy-check] ✅ manifests validated
+```
+
 ### swift test --package-path Packages/PulsumAgents --filter Gate7_FirstRunWatchdogTests
 Result:
-```
+```text
 Building for debugging...
 [0/2] Write swift-version--58304C5D6DBC2206.txt
 Build complete! (0.14s)
@@ -49,11 +67,11 @@ Test Case '-[PulsumAgentsTests.Gate7_FirstRunWatchdogTests testRetryPublishesRea
 Test Case '-[PulsumAgentsTests.Gate7_FirstRunWatchdogTests testWatchdogPublishesPlaceholderWhenBootstrapTimesOut]' started.
 Test Case '-[PulsumAgentsTests.Gate7_FirstRunWatchdogTests testWatchdogPublishesPlaceholderWhenBootstrapTimesOut]' passed (0.641 seconds).
 Test Suite 'Gate7_FirstRunWatchdogTests' passed at 2026-01-21 09:50:26.134.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 1.055 (1.055) seconds
+     Executed 2 tests, with 0 failures (0 unexpected) in 1.055 (1.055) seconds
 Test Suite 'PulsumAgentsPackageTests.xctest' passed at 2026-01-21 09:50:26.134.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 1.055 (1.055) seconds
+     Executed 2 tests, with 0 failures (0 unexpected) in 1.055 (1.055) seconds
 Test Suite 'Selected tests' passed at 2026-01-21 09:50:26.134.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 1.055 (1.056) seconds
+     Executed 2 tests, with 0 failures (0 unexpected) in 1.055 (1.056) seconds
 ◇ Test run started.
 ↳ Testing Library Version: 1400
 ↳ Target Platform: arm64e-apple-macos14.0
@@ -62,7 +80,7 @@ Test Suite 'Selected tests' passed at 2026-01-21 09:50:26.134.
 
 ### xcodebuild test -scheme PulsumUI -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
 Result:
-```
+```text
 Command line invocation:
     /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -scheme PulsumUI -destination "platform=iOS Simulator,name=iPhone 15,OS=latest"
 
@@ -332,7 +350,7 @@ Test Case '-[PulsumTests.CoachViewModelTests testStaleRecommendationResultsIgnor
 2026-01-21 09:50:53.851342-0600 Pulsum[12228:30624259] [ui] ui.recommendations.refresh.end session=5A034702-5A5E-48D6-9610-A06251F6805E trace=none cards_count=1 refresh_id=3 coalesced=true result=applied
 Test Case '-[PulsumTests.CoachViewModelTests testStaleRecommendationResultsIgnoredWhenCardsExist]' passed (0.576 seconds).
 Test Suite 'CoachViewModelTests' passed at 2026-01-21 09:50:53.852.
-	 Executed 7 tests, with 0 failures (0 unexpected) in 2.167 (2.169) seconds
+     Executed 7 tests, with 0 failures (0 unexpected) in 2.167 (2.169) seconds
 Test Suite 'LiveWaveformBufferTests' started at 2026-01-21 09:50:53.852.
 Test Case '-[PulsumTests.LiveWaveformBufferTests testClampBehavior]' started.
 Test Case '-[PulsumTests.LiveWaveformBufferTests testClampBehavior]' passed (0.001 seconds).
@@ -344,21 +362,21 @@ Test Case '-[PulsumTests.LiveWaveformBufferTests testWaveformPerfFeed30Seconds]'
 /Users/martin.demel/Desktop/PULSUM/Pulsum/Packages/PulsumUI/Tests/PulsumUITests/LiveWaveformBufferTests.swift:19: Test Case '-[PulsumTests.LiveWaveformBufferTests testWaveformPerfFeed30Seconds]' measured [Clock Monotonic Time, s] average: 0.000, relative standard deviation: 6.789%, values: [0.000158, 0.000150, 0.000148, 0.000178, 0.000158], performanceMetricID:com.apple.dt.XCTMetric_Clock.time.monotonic, baselineName: "", baselineAverage: , polarity: prefers smaller, maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.000, maxStandardDeviation: 0.000
 Test Case '-[PulsumTests.LiveWaveformBufferTests testWaveformPerfFeed30Seconds]' passed (0.307 seconds).
 Test Suite 'LiveWaveformBufferTests' passed at 2026-01-21 09:50:54.161.
-	 Executed 3 tests, with 0 failures (0 unexpected) in 0.308 (0.309) seconds
+     Executed 3 tests, with 0 failures (0 unexpected) in 0.308 (0.309) seconds
 Test Suite 'PulsumRootViewTests' started at 2026-01-21 09:50:54.161.
 Test Case '-[PulsumTests.PulsumRootViewTests testRootViewHealthCheckPrecondition]' started.
 Test Case '-[PulsumTests.PulsumRootViewTests testRootViewHealthCheckPrecondition]' passed (0.003 seconds).
 Test Suite 'PulsumRootViewTests' passed at 2026-01-21 09:50:54.165.
-	 Executed 1 test, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+     Executed 1 test, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
 Test Suite 'SettingsViewModelHealthAccessTests' started at 2026-01-21 09:50:54.165.
 Test Case '-[PulsumTests.SettingsViewModelHealthAccessTests testRequestHealthKitAuthorizationRefreshesStatus]' started.
 Test Case '-[PulsumTests.SettingsViewModelHealthAccessTests testRequestHealthKitAuthorizationRefreshesStatus]' passed (0.233 seconds).
 Test Suite 'SettingsViewModelHealthAccessTests' passed at 2026-01-21 09:50:54.398.
-	 Executed 1 test, with 0 failures (0 unexpected) in 0.233 (0.234) seconds
+     Executed 1 test, with 0 failures (0 unexpected) in 0.233 (0.234) seconds
 Test Suite 'PulsumTests.xctest' passed at 2026-01-21 09:50:54.398.
-	 Executed 12 tests, with 0 failures (0 unexpected) in 2.711 (2.715) seconds
+     Executed 12 tests, with 0 failures (0 unexpected) in 2.711 (2.715) seconds
 Test Suite 'All tests' passed at 2026-01-21 09:50:54.399.
-	 Executed 12 tests, with 0 failures (0 unexpected) in 2.711 (2.716) seconds
+     Executed 12 tests, with 0 failures (0 unexpected) in 2.711 (2.716) seconds
 ◇ Test run started.
 ↳ Testing Library Version: 1400
 ↳ Target Platform: arm64-apple-ios13.0-simulator
@@ -372,7 +390,7 @@ Test Suite 'All tests' passed at 2026-01-21 09:50:54.399.
 2026-01-21 09:50:54.679 xcodebuild[11961:30621116] [MT] IDETestOperationsObserverDebug: 15.029 sec, +15.029 sec -- end
 
 Test session results, code coverage, and logs:
-	/Users/martin.demel/Library/Developer/Xcode/DerivedData/Pulsum-asfryqahqiaobxecgecemhvmrxwa/Logs/Test/Test-PulsumUI-2026.01.21_09-50-35--0600.xcresult
+    /Users/martin.demel/Library/Developer/Xcode/DerivedData/Pulsum-asfryqahqiaobxecgecemhvmrxwa/Logs/Test/Test-PulsumUI-2026.01.21_09-50-35--0600.xcresult
 
 ** TEST SUCCEEDED **
 
@@ -380,6 +398,5 @@ Testing started
 ```
 
 ## Still pending manual verification steps
-- Fresh launch → open Insights: confirm spinner stops at ~9s and soft-timeout banner appears, then clears when cards arrive.
-- Confirm cards appear later without requiring manual refresh.
-- Confirm diagnostics show only one `library.import.begin` (no overlapping library imports) on first run.
+- (cleared) Soft-timeout banner + late cards now covered by `CoachViewModelTests.testRecommendationsSoftTimeoutStopsSpinnerAndAppliesLaterWithoutManualRefresh`.
+- (cleared) Diagnostics span overlap now covered by `LibraryImporterDiagnosticsTests.testLibraryImportSpanEmitsSingleBeginOnFirstRun`.

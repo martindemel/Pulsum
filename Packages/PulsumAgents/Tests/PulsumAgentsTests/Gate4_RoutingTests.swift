@@ -86,7 +86,7 @@ private func makeSnapshot(features: [String: Double]) throws -> FeatureVectorSna
 }
 
 private extension NSManagedObjectContext {
-    func performAndWaitThrowing<T: Sendable>(_ block: @Sendable () throws -> T) throws -> T {
+    func performAndWaitThrowing<T>(_ block: () throws -> T) throws -> T {
         var result: Result<T, Error>!
         performAndWait {
             result = Result { try block() }

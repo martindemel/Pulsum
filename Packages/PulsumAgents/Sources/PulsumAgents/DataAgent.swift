@@ -86,7 +86,7 @@ struct DataAgentBootstrapPolicy: Sendable {
 
 actor DataAgent {
     private let healthKit: any HealthKitServicing
-    private let calendar = Calendar(identifier: .gregorian)
+    private let calendar: Calendar
     private let estimatorStore: EstimatorStateStoring
     private var stateEstimator: StateEstimator
     private let context: NSManagedObjectContext
@@ -107,6 +107,7 @@ actor DataAgent {
     private var cachedReadAccess: (timestamp: Date, results: [String: ReadAuthorizationProbeResult])?
     private let readProbeCacheTTL: TimeInterval = 30
     private var diagnosticsTraceId: UUID?
+    private var lastAuthorizationRequestStatus: HKAuthorizationRequestStatus?
 
     // Phase 1: small foreground window for fast first score; Phase 2: full context restored in background.
     private let warmStartWindowDays = 7
@@ -120,10 +121,12 @@ actor DataAgent {
     init(healthKit: any HealthKitServicing = PulsumServices.healthKit,
          container: NSPersistentContainer = PulsumData.container,
          notificationCenter: NotificationCenter = .default,
+         calendar: Calendar = Calendar(identifier: .gregorian),
          estimatorStore: EstimatorStateStoring = EstimatorStateStore(),
          backfillStore: BackfillStateStoring = BackfillStateStore(),
          bootstrapPolicy: DataAgentBootstrapPolicy = .default) {
         self.healthKit = healthKit
+        self.calendar = calendar
         self.estimatorStore = estimatorStore
         self.backfillStore = backfillStore
         self.bootstrapPolicy = bootstrapPolicy
@@ -160,24 +163,8 @@ actor DataAgent {
         let span = Diagnostics.span(category: .dataAgent,
                                     name: "data.start",
                                     traceId: diagnosticsTraceId)
-        // Always re-request to refresh HealthKit's internal state; authorized paths return immediately.
-        do {
-            try await healthKit.requestAuthorization()
-            logDiagnostics(level: .info,
-                           category: .healthkit,
-                           name: "data.healthkit.authorization",
-                           fields: ["state": .safeString(.stage("authorized", allowed: ["authorized", "failed"]))])
-            invalidateReadAccessCache()
-        } catch {
-            logDiagnostics(level: .error,
-                           category: .healthkit,
-                           name: "data.healthkit.authorization",
-                           fields: ["state": .safeString(.stage("failed", allowed: ["authorized", "failed"]))],
-                           error: error)
-            span.end(error: error)
-            throw error
-        }
-
+        // Avoid prompting at startup; defer requests to explicit user actions.
+        invalidateReadAccessCache()
         let refreshedStatus = await currentHealthAccessStatus()
         scheduleBootstrapWatchdog(for: refreshedStatus)
         await bootstrapFirstScore(for: refreshedStatus)
@@ -236,12 +223,15 @@ actor DataAgent {
         var probeResults: [String: ReadAuthorizationProbeResult] = [:]
 
         let requestStatus = await healthKit.requestStatusForAuthorization(readTypes: Set(requiredSampleTypes))
+        lastAuthorizationRequestStatus = requestStatus
 
         if requestStatus == .shouldRequest || requestStatus == nil {
             pending = Set(requiredSampleTypes)
         } else {
             probeResults = await readAuthorizationProbeResults()
             for type in requiredSampleTypes {
+                // `authorizationStatus(for:)` reflects sharing (write) permission, not read access.
+                // For read-only authorization, rely on the probe result.
                 switch probeResults[type.identifier] ?? .notDetermined {
                 case .authorized:
                     granted.insert(type)
@@ -312,17 +302,26 @@ actor DataAgent {
         return nsError.localizedDescription.localizedCaseInsensitiveContains("background-delivery")
     }
 
+    private func observationTypes(for status: HealthAccessStatus) -> Set<HKSampleType> {
+        guard case .available = status.availability else { return [] }
+        if lastAuthorizationRequestStatus == .unnecessary {
+            return Set(status.required).subtracting(status.denied)
+        }
+        return status.granted
+    }
+
     private func configureObservation(for status: HealthAccessStatus,
                                       resetRevokedAnchors: Bool) async throws {
-        await DebugLogBuffer.shared.append("configureObservation availability=\(status.availability) granted=\(status.granted.map { $0.identifier })")
+        let observationTypes = observationTypes(for: status)
+        await DebugLogBuffer.shared.append("configureObservation availability=\(status.availability) granted=\(status.granted.map { $0.identifier }) observation=\(observationTypes.map { $0.identifier })")
         guard case .available = status.availability else {
             stopAllObservers(resetAnchors: resetRevokedAnchors)
             return
         }
 
-        try await enableBackgroundDelivery(for: status.granted)
-        try await startObserversIfNeeded(for: status.granted)
-        stopRevokedObservers(keeping: status.granted, resetAnchors: resetRevokedAnchors)
+        try await enableBackgroundDelivery(for: observationTypes)
+        try await startObserversIfNeeded(for: observationTypes)
+        stopRevokedObservers(keeping: observationTypes, resetAnchors: resetRevokedAnchors)
     }
 
     private func backfillHistoricalSamplesIfNeeded(for status: HealthAccessStatus) async {
@@ -336,8 +335,8 @@ actor DataAgent {
                            ])
             return
         }
-        let grantedTypes = status.granted
-        guard !grantedTypes.isEmpty else {
+        let observationTypes = observationTypes(for: status)
+        guard !observationTypes.isEmpty else {
             logDiagnostics(level: .info,
                            category: .backfill,
                            name: "data.backfill.phase.skip",
@@ -352,7 +351,7 @@ actor DataAgent {
         let warmStartStart = calendar.date(byAdding: .day, value: -(warmStartWindowDays - 1), to: today) ?? today
         let fullWindowStart = calendar.date(byAdding: .day, value: -(fullAnalysisWindowDays - 1), to: today) ?? today
 
-        let warmStartTypes = grantedTypes.filter { !backfillProgress.warmStartCompletedTypes.contains($0.identifier) }
+        let warmStartTypes = observationTypes.filter { !backfillProgress.warmStartCompletedTypes.contains($0.identifier) }
         if warmStartTypes.isEmpty {
             logDiagnostics(level: .info,
                            category: .backfill,
@@ -401,7 +400,7 @@ actor DataAgent {
                                                 allowed: ["bootstrap", "warm_backfill", "full_backfill", "journal", "reprocess", "refresh", "unknown"]))
         }
 
-        scheduleBackgroundFullBackfillIfNeeded(grantedTypes: grantedTypes, targetStartDate: fullWindowStart)
+        scheduleBackgroundFullBackfillIfNeeded(grantedTypes: observationTypes, targetStartDate: fullWindowStart)
     }
 
     private func bootstrapFirstScore(for status: HealthAccessStatus) async {
@@ -2311,7 +2310,20 @@ actor DataAgent {
             var dirty: Set<Date> = []
             for metric in metrics {
                 var flags = DataAgent.decodeFlags(from: metric)
+                let stepCount = flags.stepBuckets.count
+                let sleepCount = flags.sleepSegments.count
+                let heartRateCount = flags.heartRateSamples.count
                 if flags.pruneDeletedSamples(identifiers) {
+                    if flags.stepBuckets.count < stepCount {
+                        flags.aggregatedStepTotal = nil
+                    }
+                    if flags.sleepSegments.count < sleepCount {
+                        flags.aggregatedSleepDurationSeconds = nil
+                    }
+                    if flags.heartRateSamples.count < heartRateCount {
+                        flags.aggregatedNocturnalAverage = nil
+                        flags.aggregatedNocturnalMin = nil
+                    }
                     metric.flags = DataAgent.encodeFlags(flags)
                     dirty.insert(metric.date)
                 }

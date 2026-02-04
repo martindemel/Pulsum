@@ -5,6 +5,9 @@ import PulsumTypes
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
@@ -577,6 +580,10 @@ struct SettingsScreen: View {
     private func copyToClipboard(_ text: String) {
 #if canImport(UIKit)
         UIPasteboard.general.string = text
+#elseif canImport(AppKit)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
 #endif
     }
 

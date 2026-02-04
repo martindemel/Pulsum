@@ -4,6 +4,13 @@ import PulsumTypes
 import XCTest
 
 final class Gate7_FirstRunWatchdogTests: XCTestCase {
+    private let timeZone = TimeZone(secondsFromGMT: 0)!
+    private let referenceDate = Date()
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
     func testWatchdogPublishesPlaceholderWhenBootstrapTimesOut() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
@@ -19,6 +26,7 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
                                               retryMaxElapsedSeconds: 1)
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: BackfillStateStore(),
                               bootstrapPolicy: policy)
@@ -45,7 +53,11 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
     func testRetryPublishesRealSnapshotAfterTimeout() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        TestHealthKitSampleSeeder.populateSamples(stub, days: 2)
+        TestHealthKitSampleSeeder.populateSamples(stub,
+                                                  days: 2,
+                                                  referenceDate: referenceDate,
+                                                  calendar: calendar,
+                                                  timeZone: timeZone)
         stub.fetchDelayNanoseconds = 50_000_000
 
         let policy = DataAgentBootstrapPolicy(bootstrapTimeoutSeconds: 0.03,
@@ -58,6 +70,7 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
                                               retryMaxElapsedSeconds: 1)
         let agent = DataAgent(healthKit: stub,
                               container: TestCoreDataStack.makeContainer(),
+                              calendar: calendar,
                               estimatorStore: EstimatorStateStore(),
                               backfillStore: BackfillStateStore(),
                               bootstrapPolicy: policy)

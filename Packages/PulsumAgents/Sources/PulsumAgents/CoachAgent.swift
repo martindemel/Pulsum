@@ -154,7 +154,15 @@ public final class CoachAgent {
                 }
             }
 
-            guard !candidates.isEmpty else { return [] }
+            guard !candidates.isEmpty else {
+                candidateCount = 0
+                span.end(additionalFields: [
+                    "route": .safeString(.stage(route, allowed: ["library", "fallback_embeddings_unavailable", "fallback_no_matches"])),
+                    "candidate_count": .int(candidateCount),
+                    "matches_considered": .int(matches.count)
+                ], error: nil)
+                return []
+            }
 
             try Task.checkCancellation()
             let rankedFeatures = ranker.rank(candidates.map { $0.features })

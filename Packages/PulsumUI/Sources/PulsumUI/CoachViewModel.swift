@@ -48,6 +48,7 @@ final class CoachViewModel {
     @ObservationIgnored private var consentProvider: () -> Bool = { false }
     private let recommendationsDebounceNanoseconds: UInt64
     private let recommendationsSoftTimeoutSeconds: Double
+    @ObservationIgnored private let softTimeoutSleep: @Sendable (UInt64) async throws -> Void
 
     var recommendations: [RecommendationCard] = []
     var wellbeingScore: Double?
@@ -103,9 +104,11 @@ final class CoachViewModel {
     }
 
     init(recommendationsDebounceNanoseconds: UInt64 = 750_000_000,
-         recommendationsSoftTimeoutSeconds: Double = 9) {
+         recommendationsSoftTimeoutSeconds: Double = 9,
+         softTimeoutSleep: @escaping @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }) {
         self.recommendationsDebounceNanoseconds = recommendationsDebounceNanoseconds
         self.recommendationsSoftTimeoutSeconds = recommendationsSoftTimeoutSeconds
+        self.softTimeoutSleep = softTimeoutSleep
     }
 
     func bind(orchestrator: any CoachOrchestrating, consentProvider: @escaping () -> Bool) {
@@ -436,7 +439,7 @@ final class CoachViewModel {
         recommendationsSoftTimeoutTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await Task.sleep(nanoseconds: timeoutNanos)
+                try await softTimeoutSleep(timeoutNanos)
             } catch {
                 return
             }
