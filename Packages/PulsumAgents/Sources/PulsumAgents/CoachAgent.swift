@@ -344,11 +344,12 @@ public final class CoachAgent {
         return "wellbeing=\(String(format: "%.2f", snapshot.wellbeingScore)) \(leadingSignals)"
     }
 
-    private func fetchMicroMoments(ids: [String]) async throws -> [MicroMoment] {
+    private func fetchMicroMoments(ids: [String]) async throws -> [MicroMomentSnapshot] {
         try await context.perform { [context] in
             let request = MicroMoment.fetchRequest()
             request.predicate = NSPredicate(format: "id IN %@", ids)
-            return try context.fetch(request)
+            let moments = try context.fetch(request)
+            return moments.map(MicroMomentSnapshot.init)
         }
     }
 
@@ -389,7 +390,7 @@ public final class CoachAgent {
     }
 
     private func keywordBackfillMoments(for topic: String,
-                                        limit: Int) async throws -> [MicroMoment] {
+                                        limit: Int) async throws -> [MicroMomentSnapshot] {
         try await context.perform { [context] in
             let request = NSFetchRequest<MicroMoment>(entityName: "MicroMoment")
             let candidateLimit = max(limit * 20, 200)
@@ -422,7 +423,7 @@ public final class CoachAgent {
                 return comparison == .orderedAscending
             }
 
-            return Array(sorted.prefix(limit))
+            return Array(sorted.prefix(limit)).map(MicroMomentSnapshot.init)
         }
     }
 
@@ -447,7 +448,7 @@ public final class CoachAgent {
         )
     }
 
-    private func makeCandidate(moment: MicroMoment,
+    private func makeCandidate(moment: MicroMomentSnapshot,
                                distance: Float,
                                snapshot: FeatureVectorSnapshot) async -> CardCandidate? {
         let evidenceStrength = badgeScore(moment.evidenceBadge)
@@ -492,7 +493,7 @@ public final class CoachAgent {
         try await llmGateway.testAPIConnection()
     }
 
-    private func buildBody(for moment: MicroMoment) -> String {
+    private func buildBody(for moment: MicroMomentSnapshot) -> String {
         var paragraphs: [String] = [moment.shortDescription]
         if let detail = moment.detail, !detail.isEmpty {
             let filteredDetail = detail
@@ -506,13 +507,14 @@ public final class CoachAgent {
                 paragraphs.append(filteredDetail)
             }
         }
-        if let activity = moment.cooldownSec?.intValue, activity > 0 {
-            paragraphs.append("Cooldown: \(activity / 60) min between repeats")
+        if let cooldownSec = moment.cooldownSec, cooldownSec > 0 {
+            let minutes = Int(cooldownSec) / 60
+            paragraphs.append("Cooldown: \(minutes) min between repeats")
         }
         return paragraphs.prefix(2).joined(separator: "\n\n")
     }
 
-    private func cautionMessage(for moment: MicroMoment, snapshot: FeatureVectorSnapshot) async -> String? {
+    private func cautionMessage(for moment: MicroMomentSnapshot, snapshot: FeatureVectorSnapshot) async -> String? {
 #if canImport(FoundationModels) && os(iOS)
         // Use Foundation Models for intelligent caution assessment instead of simple rules
         if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
@@ -532,7 +534,7 @@ public final class CoachAgent {
 
 #if canImport(FoundationModels) && os(iOS)
     @available(iOS 26.0, *)
-    private func generateFoundationModelsCaution(for moment: MicroMoment, snapshot: FeatureVectorSnapshot) async -> String? {
+    private func generateFoundationModelsCaution(for moment: MicroMomentSnapshot, snapshot: FeatureVectorSnapshot) async -> String? {
         let session = LanguageModelSession(
             instructions: Instructions("""
             You are assessing whether a wellness activity needs a caution message.
@@ -576,8 +578,8 @@ public final class CoachAgent {
         }
     }
 
-    private func cooldownScore(for moment: MicroMoment) async -> Double {
-        guard let cooldown = moment.cooldownSec?.doubleValue, cooldown > 0 else { return 0 }
+    private func cooldownScore(for moment: MicroMomentSnapshot) async -> Double {
+        guard let cooldown = moment.cooldownSec, cooldown > 0 else { return 0 }
         let momentId = moment.id
         let elapsed: TimeInterval? = await context.perform { [context] in
             let request = RecommendationEvent.fetchRequest()
@@ -645,8 +647,8 @@ public final class CoachAgent {
         }
     }
 
-    private func timeCostFit(for moment: MicroMoment) -> Double {
-        guard let seconds = moment.estimatedTimeSec?.doubleValue else { return 0.5 }
+    private func timeCostFit(for moment: MicroMomentSnapshot) -> Double {
+        guard let seconds = moment.estimatedTimeSec else { return 0.5 }
         let normalized = max(0, min(1, 1 - (seconds / 1800)))
         return normalized
     }
@@ -665,6 +667,32 @@ public final class CoachAgent {
 private struct CardCandidate {
     let card: RecommendationCard
     let features: RecommendationFeatures
+}
+
+private struct MicroMomentSnapshot: Sendable {
+    let id: String
+    let title: String
+    let shortDescription: String
+    let detail: String?
+    let tags: [String]?
+    let estimatedTimeSec: Double?
+    let difficulty: String?
+    let category: String?
+    let evidenceBadge: String?
+    let cooldownSec: Double?
+
+    init(moment: MicroMoment) {
+        id = moment.id
+        title = moment.title
+        shortDescription = moment.shortDescription
+        detail = moment.detail
+        tags = moment.tags
+        estimatedTimeSec = moment.estimatedTimeSec?.doubleValue
+        difficulty = moment.difficulty
+        category = moment.category
+        evidenceBadge = moment.evidenceBadge
+        cooldownSec = moment.cooldownSec?.doubleValue
+    }
 }
 
 private extension CoachAgent {

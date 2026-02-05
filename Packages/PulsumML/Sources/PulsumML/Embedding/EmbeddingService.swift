@@ -104,9 +104,10 @@ public final class EmbeddingService {
         }
 
         let result = probeAvailability(trigger: trigger)
+        let completion = dateProvider()
 
         availabilityQueue.sync {
-            availabilityState = result ? .available : .unavailable(lastChecked: now)
+            availabilityState = result ? .available : .unavailable(lastChecked: completion)
             logAvailabilityChangeIfNeeded(newMode: result ? .available : .unavailable, trigger: trigger)
         }
         return result
@@ -157,11 +158,10 @@ public final class EmbeddingService {
                 }
 
                 self.availabilityState = .probing(previous: cached == .available)
-                Task.detached(priority: .utility) { [weak self] in
-                    guard let self else { return }
-                    let result = self.probeAvailability(trigger: trigger)
+                Task.detached(priority: .utility) { [self] in
+                    let result = probeAvailability(trigger: trigger)
                     let mode: AvailabilityMode = result ? .available : .unavailable
-                    self.availabilityQueue.async {
+                    availabilityQueue.async {
                         let completionDate = self.dateProvider()
                         self.availabilityState = mode == .available ? .available : .unavailable(lastChecked: completionDate)
                         self.logAvailabilityChangeIfNeeded(newMode: mode, trigger: trigger)
@@ -202,6 +202,7 @@ public final class EmbeddingService {
             }
         }
 
+        let terminalError = lastError ?? EmbeddingError.generatorUnavailable
         Diagnostics.log(level: .error,
                         category: .embeddings,
                         name: "embeddings.embedding.failed",
@@ -209,8 +210,8 @@ public final class EmbeddingService {
                             "provider": .safeString(lastProvider ?? DiagnosticsSafeString.stage("none", allowed: Set(["none", "primary", "fallback"]))),
                             "dimension": .int(dimension)
                         ],
-                        error: lastError)
-        throw lastError ?? EmbeddingError.generatorUnavailable
+                        error: terminalError)
+        throw terminalError
     }
 
     /// Generates a combined embedding for multiple text segments (averaged element-wise).

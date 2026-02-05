@@ -450,6 +450,10 @@ private final class FakeSpeechBackend: SpeechBackending {
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     continuation.yield(segment)
                 }
+                let deadline = Date().addingTimeInterval(maxDuration)
+                while !Task.isCancelled && Date() < deadline {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
                 continuation.finish()
             }
         }
@@ -472,6 +476,10 @@ private final class FakeSpeechBackend: SpeechBackending {
             self.levelTask?.cancel()
             self.streamContinuation?.finish()
             self.levelContinuation?.finish()
+            self.streamTask = nil
+            self.levelTask = nil
+            self.streamContinuation = nil
+            self.levelContinuation = nil
         }
         stopHandler = stop
 
@@ -488,9 +496,9 @@ private final class FakeSpeechBackend: SpeechBackending {
     }
 
     private static let scriptedSegments: [SpeechSegment] = [
-        SpeechSegment(transcript: "Quick calm check-in for Pulsum.", isFinal: false, confidence: 0.92),
         SpeechSegment(transcript: "Energy feels steady and focus is clear.", isFinal: false, confidence: 0.95),
-        SpeechSegment(transcript: "Plan is to stretch after meetings.", isFinal: true, confidence: 0.97)
+        SpeechSegment(transcript: "Energy feels steady and focus is clear. Quick calm check-in for Pulsum.", isFinal: false, confidence: 0.94),
+        SpeechSegment(transcript: "Energy feels steady and focus is clear. Plan is to stretch after meetings.", isFinal: true, confidence: 0.97)
     ]
 }
 extension FakeSpeechBackend: @unchecked Sendable {}

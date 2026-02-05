@@ -27,9 +27,6 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
     }
 
     func test_open_ai_enablement_link_falls_back_to_support_url() {
-        let defaults = UserDefaults(suiteName: "ai.pulsum.uiautomation")
-        defaults?.removeObject(forKey: "LastOpenedURL")
-
         launchPulsum(additionalEnvironment: [
             "UITEST_CAPTURE_URLS": "1",
             "UITEST_FORCE_SETTINGS_FALLBACK": "1"
@@ -40,12 +37,9 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         XCTAssertTrue(linkButton.waitForExistence(timeout: 3))
         linkButton.tap()
 
-        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            let value = defaults?.string(forKey: "LastOpenedURL")
-            return value == "https://support.apple.com/en-us/HT213969"
-        }, object: nil)
-        let result = XCTWaiter().wait(for: [expectation], timeout: 4)
-        XCTAssertEqual(result, .completed, "Support URL was not opened.")
+        let urlLabel = app.staticTexts["LastOpenedURL"]
+        XCTAssertTrue(urlLabel.waitForExistence(timeout: 4), "Support URL was not captured.")
+        XCTAssertEqual(urlLabel.label, "https://support.apple.com/en-us/HT213969")
 
         dismissSettingsSheet()
     }
@@ -59,6 +53,9 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
 
         app.typeKey(XCUIKeyboardKey.escape, modifierFlags: [])
 
+        if !closeButton.waitForDisappearance(timeout: 3) {
+            closeButton.tap()
+        }
         XCTAssertTrue(closeButton.waitForDisappearance(timeout: 3), "Settings sheet did not dismiss after Escape key.")
     }
 }

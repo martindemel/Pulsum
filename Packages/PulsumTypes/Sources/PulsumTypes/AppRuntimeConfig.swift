@@ -23,7 +23,7 @@ public enum AppRuntimeConfig {
     }
 
     public static var skipHeavyStartupWork: Bool {
-        isUITesting || environment["UITEST_SKIP_STARTUP"] == "1"
+        environment["UITEST_SKIP_STARTUP"] == "1"
     }
 
     public static var useStubLLM: Bool {
@@ -51,11 +51,11 @@ public enum AppRuntimeConfig {
     }
 
     public static var useFakeSpeechBackend: Bool {
-        environment["UITEST_FAKE_SPEECH"] == "1"
+        isUITesting || environment["UITEST_FAKE_SPEECH"] == "1"
     }
 
     public static var autoGrantSpeechPermissions: Bool {
-        environment["UITEST_AUTOGRANT"] == "1"
+        isUITesting || environment["UITEST_AUTOGRANT"] == "1"
     }
 
     public static var uiTestDefaults: UserDefaults {

@@ -123,7 +123,7 @@ public final class SentimentAgent {
     }
 
     public func stopRecording() {
-        sessionState.stopActiveSession()
+        sessionState.stopStreaming()
     }
 
     func latestTranscriptSnapshot() -> String {
@@ -376,6 +376,12 @@ final class JournalSessionState: @unchecked Sendable {
             activeSession?.stop()
             activeSession = nil
             latestTranscript = ""
+        }
+    }
+
+    func stopStreaming() {
+        queue.sync {
+            activeSession?.stop()
         }
     }
 

@@ -45,7 +45,7 @@ public struct RecommendationFeatures {
     }
 }
 
-public struct AcceptanceHistory {
+public struct AcceptanceHistory: Sendable {
     public let rollingAcceptance: Double
     public let sampleCount: Int
 
