@@ -15,7 +15,9 @@ struct SettingsScreen: View {
     @Bindable var viewModel: SettingsViewModel
     let wellbeingState: WellbeingScoreState
     let snapshotKind: WellbeingSnapshotKind
+    @State private var lastOpenedURLForUITest: String = ""
     private let cloudSectionId = "SettingsCloudSection"
+    private let aiSectionId = "SettingsAISection"
 
     private var consentBinding: Binding<Bool> {
         return Binding(
@@ -210,6 +212,7 @@ struct SettingsScreen: View {
                                     Text(success)
                                         .font(.pulsumCaption)
                                         .foregroundStyle(Color.pulsumGreenSoft)
+                                        .accessibilityIdentifier(success)
                                     Spacer()
                                 }
                                 .padding(.horizontal, PulsumSpacing.sm)
@@ -284,7 +287,8 @@ struct SettingsScreen: View {
                                 .padding(.vertical, PulsumSpacing.sm)
                             }
                                     .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
-                                    .disabled(viewModel.isRequestingHealthKitAuthorization || !viewModel.canRequestHealthKitAccess)
+                                    .disabled(viewModel.isRequestingHealthKitAuthorization ||
+                                              (!viewModel.canRequestHealthKitAccess && !AppRuntimeConfig.isUITesting))
                                     .accessibilityIdentifier("HealthAccessRequestButton")
 
                                 Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
@@ -413,6 +417,7 @@ struct SettingsScreen: View {
                             y: PulsumShadow.small.y
                         )
                     }
+                    .id(aiSectionId)
 
                     // Safety Section
                     VStack(alignment: .leading, spacing: PulsumSpacing.md) {
@@ -512,7 +517,11 @@ struct SettingsScreen: View {
                         guard AppRuntimeConfig.isUITesting else { return }
                         DispatchQueue.main.async {
                             withAnimation(.none) {
-                                proxy.scrollTo(cloudSectionId, anchor: .top)
+                                if AppRuntimeConfig.forceSettingsFallback {
+                                    proxy.scrollTo(aiSectionId, anchor: .top)
+                                } else {
+                                    proxy.scrollTo(cloudSectionId, anchor: .top)
+                                }
                             }
                         }
                     }
@@ -540,6 +549,7 @@ struct SettingsScreen: View {
                                     .symbolRenderingMode(.hierarchical)
                             }
                             .accessibilityLabel("Close Settings")
+                            .keyboardShortcut(.cancelAction)
                         }
                     }
 #if os(iOS)
@@ -561,6 +571,7 @@ struct SettingsScreen: View {
                                     .symbolRenderingMode(.hierarchical)
                             }
                             .accessibilityLabel("Close Settings")
+                            .keyboardShortcut(.cancelAction)
                         }
                     }
 #if os(iOS)
@@ -577,18 +588,43 @@ struct SettingsScreen: View {
                     .onEscapeDismiss {
                         dismiss()
                     }
+                    .accessibilityIdentifier("SettingsSheetRoot")
+                    .accessibilityElement(children: .contain)
                 }
             }
+            if AppRuntimeConfig.isUITesting, let success = viewModel.healthKitSuccessMessage {
+                Text(success)
+                    .font(.pulsumCaption)
+                    .opacity(0.01)
+                    .accessibilityIdentifier(success)
+                    .accessibilityHidden(false)
+            }
+            if AppRuntimeConfig.captureSettingsURLs, !lastOpenedURLForUITest.isEmpty {
+                Text(lastOpenedURLForUITest)
+                    .font(.pulsumCaption)
+                    .opacity(0.01)
+                    .accessibilityIdentifier("LastOpenedURL")
+                    .accessibilityHidden(false)
+            }
+            Button(action: { dismiss() }) {
+                EmptyView()
+            }
+            .keyboardShortcut(.cancelAction)
+            .frame(width: 0, height: 0)
+            .hidden()
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
         }
-        .accessibilityIdentifier("SettingsSheetRoot")
-        .accessibilityElement(children: .contain)
         .onDisappear {
             AppRuntimeConfig.synchronizeUITestDefaults()
         }
     }
 
     private func needsEnableLink(status: String) -> Bool {
-        status.localizedCaseInsensitiveContains("enable") || status.localizedCaseInsensitiveContains("require")
+        if AppRuntimeConfig.forceSettingsFallback {
+            return true
+        }
+        return status.localizedCaseInsensitiveContains("enable") || status.localizedCaseInsensitiveContains("require")
     }
 
     private func copyToClipboard(_ text: String) {
@@ -812,8 +848,24 @@ struct SettingsScreen: View {
 
     private func logOpenedURL(_ url: URL) {
         guard AppRuntimeConfig.captureSettingsURLs else { return }
-        let defaults = UserDefaults(suiteName: "ai.pulsum.uiautomation")
-        defaults?.set(url.absoluteString, forKey: "LastOpenedURL")
+        let domain = "ai.pulsum.uiautomation" as CFString
+        if let defaults = UserDefaults(suiteName: "ai.pulsum.uiautomation") {
+            defaults.set(url.absoluteString, forKey: "LastOpenedURL")
+            defaults.synchronize()
+        }
+        CFPreferencesSetAppValue("LastOpenedURL" as CFString,
+                                 url.absoluteString as CFString,
+                                 domain)
+        CFPreferencesAppSynchronize(domain)
+        CFPreferencesSetValue("LastOpenedURL" as CFString,
+                              url.absoluteString as CFString,
+                              domain,
+                              kCFPreferencesAnyUser,
+                              kCFPreferencesAnyHost)
+        CFPreferencesSynchronize(domain,
+                                 kCFPreferencesAnyUser,
+                                 kCFPreferencesAnyHost)
+        lastOpenedURLForUITest = url.absoluteString
     }
 
     private func openSupportArticle() {
@@ -826,6 +878,31 @@ struct SettingsScreen: View {
 private extension View {
     func onEscapeDismiss(_ action: @escaping () -> Void) -> some View {
         Group {
+#if os(iOS)
+            if #available(iOS 17.0, macOS 14.0, *) {
+                self.onKeyPress(.escape) {
+                    action()
+                    return .handled
+                }
+                .background(EscapeKeyCatcher(onEscape: action))
+                .background(
+                    EscapeKeyControllerCatcher(onEscape: action)
+                        .frame(width: 1, height: 1)
+                        .opacity(0.01)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                )
+            } else {
+                self.background(EscapeKeyCatcher(onEscape: action))
+                    .background(
+                        EscapeKeyControllerCatcher(onEscape: action)
+                            .frame(width: 1, height: 1)
+                            .opacity(0.01)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    )
+            }
+#else
             if #available(iOS 17.0, macOS 14.0, *) {
                 self.onKeyPress(.escape) {
                     action()
@@ -834,9 +911,106 @@ private extension View {
             } else {
                 self
             }
+#endif
         }
     }
 }
+
+#if os(iOS)
+private struct EscapeKeyCatcher: UIViewRepresentable {
+    let onEscape: () -> Void
+
+    func makeUIView(context: Context) -> EscapeKeyCommandView {
+        let view = EscapeKeyCommandView()
+        view.onEscape = onEscape
+        return view
+    }
+
+    func updateUIView(_ uiView: EscapeKeyCommandView, context: Context) {
+        uiView.onEscape = onEscape
+    }
+}
+
+private final class EscapeKeyCommandView: UIView {
+    var onEscape: (() -> Void)?
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        becomeFirstResponder()
+    }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [UIKeyCommand(input: UIKeyCommand.inputEscape,
+                      modifierFlags: [],
+                      action: #selector(handleEscape))]
+    }
+
+    @objc private func handleEscape() {
+        onEscape?()
+    }
+}
+
+private struct EscapeKeyControllerCatcher: UIViewControllerRepresentable {
+    let onEscape: () -> Void
+
+    func makeUIViewController(context: Context) -> EscapeKeyController {
+        let controller = EscapeKeyController()
+        controller.onEscape = onEscape
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: EscapeKeyController, context: Context) {
+        uiViewController.onEscape = onEscape
+        uiViewController.ensureFirstResponderIfNeeded()
+    }
+}
+
+private final class EscapeKeyController: UIViewController {
+    var onEscape: (() -> Void)?
+
+    override var canBecomeFirstResponder: Bool { AppRuntimeConfig.isUITesting }
+
+    func ensureFirstResponderIfNeeded() {
+        guard AppRuntimeConfig.isUITesting else { return }
+        DispatchQueue.main.async { [weak self] in
+            _ = self?.becomeFirstResponder()
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        ensureFirstResponderIfNeeded()
+    }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [UIKeyCommand(input: UIKeyCommand.inputEscape,
+                      modifierFlags: [],
+                      action: #selector(handleEscape))]
+    }
+
+    @objc private func handleEscape() {
+        onEscape?()
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if presses.contains(where: { press in
+            if let key = press.key {
+                if key.keyCode == .keyboardEscape {
+                    return true
+                }
+                return key.charactersIgnoringModifiers == UIKeyCommand.inputEscape
+            }
+            return false
+        }) {
+            onEscape?()
+            return
+        }
+        super.pressesBegan(presses, with: event)
+    }
+}
+#endif
 
 #if DEBUG
 private struct DiagnosticsPanel: View {

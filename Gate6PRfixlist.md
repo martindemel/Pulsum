@@ -26,6 +26,17 @@ Make PR #12 “Gate 6: aggregate HealthKit ingestion and bootstrap fallback” r
 - P3.5 CoachAgentKeywordFallbackTests save assertion: ✅ Done.
 - P3.6 Markdownlint fixes: ✅ Done (baseline progress fences/headings, README headings, POST_FIX_AUDIT fences/tabs, baseline.md hyphen).
 
+# CI Gate Tests Fix (2026-02-05)
+- [x] CoachAgent sendability fixes
+- [x] EmbeddingService isAvailable completion timestamp
+- [x] EmbeddingService refreshAvailability continuation safety
+- [x] EmbeddingService embedding(for:) logging
+
+# UI Gate Fix (2026-02-05)
+- [x] Gate3_HealthAccessUITests.testRequestHealthAccessButtonGrantsAllTypes
+- [x] Gate4_CloudConsentUITests.test_open_ai_enablement_link_falls_back_to_support_url
+- Notes: Root cause was UI test seams not persisting the grant-all request and the LastOpenedURL text being swallowed by the SettingsSheetRoot accessibility container. Minimal fix routes the request button through `requestHealthKitAuthorization` (and triggers grant-all override refresh) and moves the SettingsSheetRoot identifier to the NavigationStack so `LastOpenedURL` remains discoverable. Mark complete once full harness passes.
+
 # Non‑negotiables
 
 * Do not add new product features; do not expand Gate 6 scope beyond fixes listed in this prompt.

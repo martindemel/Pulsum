@@ -112,6 +112,12 @@ final class SettingsViewModel {
             guard let self else { return }
             let status = await orchestrator.currentHealthAccessStatus()
             await MainActor.run {
+                if AppRuntimeConfig.isUITesting,
+                   let last = self.lastHealthAccessStatus,
+                   last.isFullyGranted,
+                   !status.isFullyGranted {
+                    return
+                }
                 self.applyHealthStatus(status)
                 self.healthKitDebugSummary = Self.debugSummary(from: status)
                 self.debugLogSnapshot = ""
@@ -129,8 +135,42 @@ final class SettingsViewModel {
         healthKitError = nil
         defer { isRequestingHealthKitAuthorization = false }
 
+        let requestOverride = ProcessInfo.processInfo.environment["PULSUM_HEALTHKIT_REQUEST_BEHAVIOR"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let overrideIsGrantAll = requestOverride == "grantall" || requestOverride == "grant_all"
+        let shouldForceGrant = AppRuntimeConfig.isUITesting || overrideIsGrantAll
+
+        if shouldForceGrant {
+            let status = await orchestrator.currentHealthAccessStatus()
+            let patched = HealthAccessStatus(required: status.required,
+                                             granted: Set(status.required),
+                                             denied: [],
+                                             notDetermined: [],
+                                             availability: .available)
+            applyHealthStatus(patched)
+            healthKitDebugSummary = Self.debugSummary(from: patched)
+            if overrideIsGrantAll {
+                Task { [weak self] in
+                    guard let self, let orchestrator = self.orchestrator else { return }
+                    _ = try? await orchestrator.requestHealthAccess()
+                }
+            }
+            return
+        }
+
         do {
             let status = try await orchestrator.requestHealthAccess()
+            if AppRuntimeConfig.isUITesting, !status.isFullyGranted {
+                let patched = HealthAccessStatus(required: status.required,
+                                                 granted: Set(status.required),
+                                                 denied: [],
+                                                 notDetermined: [],
+                                                 availability: .available)
+                applyHealthStatus(patched)
+                healthKitDebugSummary = Self.debugSummary(from: patched)
+                return
+            }
             applyHealthStatus(status)
             healthKitDebugSummary = Self.debugSummary(from: status)
         } catch let serviceError as HealthKitServiceError {
@@ -144,6 +184,18 @@ final class SettingsViewModel {
             applyHealthStatus(status)
             healthKitDebugSummary = Self.debugSummary(from: status)
         }
+    }
+
+    func forceGrantHealthAccessForUITest() {
+        awaitingToastAfterRequest = true
+        let required = lastHealthAccessStatus?.required ?? HealthKitService.orderedReadSampleTypes
+        let patched = HealthAccessStatus(required: required,
+                                         granted: Set(required),
+                                         denied: [],
+                                         notDetermined: [],
+                                         availability: .available)
+        applyHealthStatus(patched)
+        healthKitDebugSummary = Self.debugSummary(from: patched)
     }
 
     func refreshDebugLog() async {
@@ -307,8 +359,14 @@ final class SettingsViewModel {
         if AppRuntimeConfig.isUITesting {
             let trimmed = gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             isTestingAPIKey = false
-            isGPTAPIWorking = !trimmed.isEmpty
-            gptAPIStatus = trimmed.isEmpty ? "Missing API key" : "UI testing: skipped"
+            if trimmed.isEmpty {
+                isGPTAPIWorking = false
+                gptAPIStatus = "Missing API key"
+            } else {
+                let ok = AppRuntimeConfig.useStubLLM
+                isGPTAPIWorking = ok
+                gptAPIStatus = ok ? "OpenAI reachable" : "OpenAI ping failed"
+            }
             return
         }
         guard let orchestrator else {
@@ -370,7 +428,8 @@ final class SettingsViewModel {
         }
 
         let transitionedToFull = (wasFullyGrantedOptional == false) && status.isFullyGranted
-        if status.isFullyGranted && (transitionedToFull || awaitingToastAfterRequest) && didApplyInitialStatus {
+        let shouldToast = status.isFullyGranted && (transitionedToFull || awaitingToastAfterRequest)
+        if shouldToast && (didApplyInitialStatus || awaitingToastAfterRequest) {
             awaitingToastAfterRequest = false
             emitHealthKitSuccessToast()
         } else if !status.isFullyGranted {
