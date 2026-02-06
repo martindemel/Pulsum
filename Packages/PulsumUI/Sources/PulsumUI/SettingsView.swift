@@ -212,7 +212,7 @@ struct SettingsScreen: View {
                                     Text(success)
                                         .font(.pulsumCaption)
                                         .foregroundStyle(Color.pulsumGreenSoft)
-                                        .accessibilityIdentifier(success)
+                                        .accessibilityIdentifier("HealthAccessSuccessToast")
                                     Spacer()
                                 }
                                 .padding(.horizontal, PulsumSpacing.sm)
@@ -596,7 +596,7 @@ struct SettingsScreen: View {
                 Text(success)
                     .font(.pulsumCaption)
                     .opacity(0.01)
-                    .accessibilityIdentifier(success)
+                    .accessibilityIdentifier("HealthAccessSuccessToast")
                     .accessibilityHidden(false)
             }
             if AppRuntimeConfig.captureSettingsURLs, !lastOpenedURLForUITest.isEmpty {

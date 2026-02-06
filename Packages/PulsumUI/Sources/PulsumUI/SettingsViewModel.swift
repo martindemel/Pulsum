@@ -248,6 +248,7 @@ final class SettingsViewModel {
     }
 
     func exportDiagnosticsReport() async {
+        guard !isExportingDiagnostics else { return }
         isExportingDiagnostics = true
         diagnosticsExportURL = nil
         defer { isExportingDiagnostics = false }

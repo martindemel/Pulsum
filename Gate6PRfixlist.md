@@ -26,11 +26,20 @@ Make PR #12 “Gate 6: aggregate HealthKit ingestion and bootstrap fallback” r
 - P3.5 CoachAgentKeywordFallbackTests save assertion: ✅ Done.
 - P3.6 Markdownlint fixes: ✅ Done (baseline progress fences/headings, README headings, POST_FIX_AUDIT fences/tabs, baseline.md hyphen).
 
-# CI Gate Tests Fix (2026-02-05)
+# CI Fixes (2026-02-05/06)
 - [x] CoachAgent sendability fixes
 - [x] EmbeddingService isAvailable completion timestamp
 - [x] EmbeddingService refreshAvailability continuation safety
 - [x] EmbeddingService embedding(for:) logging
+- [x] CoachAgent: remove Swift 6.1.2 “sending self.context” errors by switching to performAndWait helper
+  - Status: Done
+  - Notes: Replaced all async `context.perform` usages in `CoachAgent` with shared `contextPerformAndWait` helpers, preserving fetch/save behavior while removing sendability crossings. `scripts/ci/test-harness.sh` passes with Swift 6.1.2 strict-concurrency builds.
+- [x] SettingsView: HealthAccessSuccessToast identifier
+  - Status: Done
+  - Notes: Updated both health-success UI paths to use constant identifier `HealthAccessSuccessToast` and left user-visible success text unchanged. UI gate tests passed in the harness run.
+- [x] SettingsViewModel: guard exportDiagnosticsReport re-entry
+  - Status: Done
+  - Notes: Added `guard !isExportingDiagnostics else { return }` at entry to prevent overlapping exports while keeping the existing flag lifecycle (`isExportingDiagnostics = true` + `defer`) intact. Diagnostics behavior remains unchanged except re-entrant calls now no-op safely.
 
 # UI Gate Fix (2026-02-05)
 - [x] Gate3_HealthAccessUITests.testRequestHealthAccessButtonGrantsAllTypes
