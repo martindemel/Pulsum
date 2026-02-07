@@ -139,6 +139,7 @@ struct SettingsScreen: View {
                                             .font(.pulsumFootnote)
                                             .foregroundStyle(Color.pulsumTextSecondary)
                                             .lineSpacing(2)
+                                            .accessibilityIdentifier("GPTAPIStatusText")
                                     }
                                 }
                             }

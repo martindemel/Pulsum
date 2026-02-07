@@ -19,12 +19,19 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 3), "Save Key button missing.")
         saveButton.tapWhenHittable(timeout: 3)
 
-        let testButton = app.buttons["CloudTestConnectionButton"]
-        XCTAssertTrue(testButton.waitForExistence(timeout: 3), "Test Connection button missing.")
-        testButton.tapWhenHittable(timeout: 3)
+        // Wait for the save Task to complete on MainActor before tapping Test Connection.
+        // The status changes to "API key saved" or "Agent unavailable" on completion.
+        let saved = app.staticTexts["API key saved"]
+        _ = saved.waitForExistence(timeout: 3)
 
-        let statusText = app.staticTexts["OpenAI reachable"]
-        XCTAssertTrue(statusText.waitForExistence(timeout: 5), "API status did not report OpenAI reachable.")
+        let testButton = app.buttons["CloudTestConnectionButton"]
+        XCTAssertTrue(testButton.waitForExistence(timeout: 5), "Test Connection button missing.")
+        testButton.tapWhenHittable(timeout: 5)
+
+        let statusElement = app.staticTexts["GPTAPIStatusText"]
+        XCTAssertTrue(statusElement.waitForExistence(timeout: 8), "GPT API status text element missing.")
+        let actualStatus = statusElement.label
+        XCTAssertEqual(actualStatus, "OpenAI reachable", "Expected 'OpenAI reachable' but got '\(actualStatus)'")
 
         dismissSettingsSheet()
     }
