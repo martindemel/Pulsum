@@ -115,6 +115,19 @@ class PulsumUITestCase: XCTestCase {
         return true
     }
 
+    func dismissKeyboardIfPresent() {
+        guard app.keyboards.count > 0 else { return }
+        // Tap the navigation bar area to resign first responder
+        let navBar = app.navigationBars.firstMatch
+        if navBar.exists {
+            navBar.tap()
+        } else {
+            app.swipeDown()
+        }
+        // Wait briefly for keyboard dismissal animation
+        _ = app.keyboards.firstMatch.waitForDisappearance(timeout: 2)
+    }
+
     func dismissSettingsSheet() {
         let closeButton = app.buttons["Close Settings"]
         if closeButton.exists {

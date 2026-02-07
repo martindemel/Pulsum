@@ -12,6 +12,9 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         keyField.tapWhenHittable(timeout: 3)
         keyField.typeText("sk-test-ui-123")
 
+        // Dismiss keyboard so buttons below are hittable on small screens (iPhone SE)
+        dismissKeyboardIfPresent()
+
         let saveButton = app.buttons["Save Key"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 3), "Save Key button missing.")
         saveButton.tapWhenHittable(timeout: 3)
