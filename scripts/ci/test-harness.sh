@@ -171,7 +171,8 @@ discover_and_run_spm_gate_tests() {
   local package_dir="$1"
   local package_name
   package_name="$(basename "$package_dir")"
-  local list_output
+  local list_output=""
+  local patterns=""
 
   if [ ! -d "$package_dir" ]; then
     info "[gate-ci] $package_dir not found; skipping"
@@ -179,12 +180,19 @@ discover_and_run_spm_gate_tests() {
   fi
 
   info "[gate-ci] Enumerating Gate suites in $package_name"
-  if ! list_output="$(cd "$package_dir" && swift test --list-tests -Xswiftc -strict-concurrency=complete 2>/dev/null)"; then
-    fail "[gate-ci] swift test --list-tests failed for $package_name"
+  if list_output="$(cd "$package_dir" && swift test list -Xswiftc -strict-concurrency=complete 2>/dev/null)"; then
+    patterns="$(printf "%s\n" "$list_output" | sed -En 's/.*(Gate[0-9]+_).*/\1/p' | sort -u)"
+  elif list_output="$(cd "$package_dir" && swift test --list-tests -Xswiftc -strict-concurrency=complete 2>/dev/null)"; then
+    patterns="$(printf "%s\n" "$list_output" | sed -En 's/.*(Gate[0-9]+_).*/\1/p' | sort -u)"
   fi
 
-  local patterns
-  patterns="$(printf "%s\n" "$list_output" | sed -En 's/.*(Gate[0-9]+_).*/\1/p' | sort -u)"
+  if [ -z "$patterns" ] && [ -d "$package_dir/Tests" ]; then
+    patterns="$(rg --no-filename --only-matching 'Gate[0-9]+_' "$package_dir/Tests" 2>/dev/null | sort -u || true)"
+    if [ -n "$patterns" ]; then
+      info "[gate-ci] Using source-based Gate discovery fallback for $package_name"
+    fi
+  fi
+
   if [ -z "$patterns" ]; then
     info "[gate-ci] No Gate suites found in $package_name — skipping"
     return
