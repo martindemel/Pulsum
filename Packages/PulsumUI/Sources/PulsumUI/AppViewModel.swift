@@ -48,11 +48,7 @@ final class AppViewModel {
 
     private let consentStore: ConsentStore
     @ObservationIgnored private(set) var orchestrator: AgentOrchestrator?
-    @ObservationIgnored private var scoreRefreshObserver: NSObjectProtocol?
-    #if canImport(UIKit)
-    @ObservationIgnored private var appActiveObserver: NSObjectProtocol?
-    @ObservationIgnored private var appBackgroundObserver: NSObjectProtocol?
-    #endif
+    @ObservationIgnored private let observerBag = NotificationObserverBag()
 
     var startupState: StartupState = .idle
     var selectedTab: Tab = .main
@@ -132,33 +128,36 @@ final class AppViewModel {
             }
         }
 
-        scoreRefreshObserver = NotificationCenter.default.addObserver(forName: .pulsumScoresUpdated,
-                                                                      object: nil,
-                                                                      queue: .main) { [weak self] _ in
+        let scoreRefreshObserver = NotificationCenter.default.addObserver(forName: .pulsumScoresUpdated,
+                                                                          object: nil,
+                                                                          queue: .main) { [weak self] _ in
             guard let self else { return }
             Task { [weak self] in
                 await self?.coachViewModel.refreshRecommendations()
             }
         }
+        observerBag.add(scoreRefreshObserver)
 
         #if canImport(UIKit)
-        appActiveObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
-                                                                   object: nil,
-                                                                   queue: .main) { [weak self] _ in
+        let appActiveObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                                                       object: nil,
+                                                                       queue: .main) { [weak self] _ in
             Diagnostics.log(level: .info,
                             category: .app,
                             name: "app.lifecycle.didBecomeActive",
                             traceId: self?.startupTraceId)
             self?.refreshOnForeground()
         }
-        appBackgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
-                                                                       object: nil,
-                                                                       queue: .main) { [weak self] _ in
+        observerBag.add(appActiveObserver)
+        let appBackgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                                                                           object: nil,
+                                                                           queue: .main) { [weak self] _ in
             Diagnostics.log(level: .info,
                             category: .app,
                             name: "app.lifecycle.didEnterBackground",
                             traceId: self?.startupTraceId)
         }
+        observerBag.add(appBackgroundObserver)
         #endif
 
         logSessionStart()
@@ -344,19 +343,19 @@ final class AppViewModel {
         }
     }
 
-    @MainActor
+}
+
+private final class NotificationObserverBag {
+    private var tokens: [NSObjectProtocol] = []
+
+    func add(_ token: NSObjectProtocol) {
+        tokens.append(token)
+    }
+
     deinit {
-        if let scoreRefreshObserver {
-            NotificationCenter.default.removeObserver(scoreRefreshObserver)
+        for token in tokens {
+            NotificationCenter.default.removeObserver(token)
         }
-        #if canImport(UIKit)
-        if let appActiveObserver {
-            NotificationCenter.default.removeObserver(appActiveObserver)
-        }
-        if let appBackgroundObserver {
-            NotificationCenter.default.removeObserver(appBackgroundObserver)
-        }
-        #endif
     }
 }
 
