@@ -146,7 +146,9 @@ final class AppViewModel {
                             category: .app,
                             name: "app.lifecycle.didBecomeActive",
                             traceId: self?.startupTraceId)
-            self?.refreshOnForeground()
+            Task { @MainActor [weak self] in
+                self?.refreshOnForeground()
+            }
         }
         observerBag.add(appActiveObserver)
         let appBackgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,

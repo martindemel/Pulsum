@@ -224,7 +224,7 @@ These decisions shape what each phase does. They eliminate 9 findings automatica
   - **Uniqueness constraints are critical for idempotent ingestion.** Without them, HealthKit backfill retries and library reimports will create duplicate rows. `DailyMetrics.date`, `FeatureVector.date`, `LibraryIngest.source`, `UserPrefs.id`, and `ConsentState.version` must be unique. `Baseline` needs compound uniqueness on `(metric, windowDays)` — use `#Unique<Baseline>([\.metric, \.windowDays])`. **Search Apple docs for SwiftData `#Unique` macro (introduced WWDC24) before implementing.** *(Added from feedback review: uniqueness prevents data corruption under retries/crashes.)*
   - **Tags decision (DECIDED: JSON string).** `MicroMoment.tags` is stored as `String?` containing a JSON array (e.g., `"[\"sleep\",\"stress\"]"`). SwiftData stores `[String]` as an encoded blob that cannot be queried with `#Predicate`. Since tags are display-only in v1.0 (no tag-based filtering), JSON string is simpler and predictable. If tag filtering is needed in v1.1, model a proper `Tag` entity with a relationship. *(Updated from feedback review: explicit decision required — can't query inside [String] arrays in SwiftData.)*
   - `#Index` can only be used once per model class — list all indexed key paths in a single macro invocation.
-  **Verify:** All 9 model files compile. Uniqueness constraints enforced (insert duplicate date → throws). Compare every attribute against the old `ManagedObjects.swift` — nothing missed.
+  **Verify:** All 9 model files compile. **Uniqueness verified by upsert behavior** (SwiftData `#Unique` / `@Attribute(.unique)` uses upsert-on-collision, NOT throw — inserting a duplicate updates the existing row): insert two `DailyMetrics` with the same date, save, confirm exactly **1 row** exists for that date with the latest values. Repeat for `FeatureVector.date`, `Baseline(metric, windowDays)`, `LibraryIngest.source`, `UserPrefs.id`, `ConsentState.version`. *(Updated from feedback review: SwiftData uniqueness is upsert-based per WWDC24, not throw-based.)* Compare every attribute against the old `ManagedObjects.swift` — nothing missed.
 
 - [ ] **P0-01b** (NEW) | Create Sendable DTO snapshot types for cross-actor APIs
   **Create:** `Packages/PulsumTypes/Sources/PulsumTypes/ModelSnapshots.swift`
@@ -356,10 +356,25 @@ These decisions shape what each phase does. They eliminate 9 findings automatica
   **Key change:** Delete the `contextPerformAndWait` helper entirely (lines ~698-709). Move all persistence work into the `@ModelActor`-provided `modelContext`. **Important: `ModelContext` is NOT Sendable** — do not pass it between actors or share it across isolation domains. Use `PersistentIdentifier` (which is Sendable/Codable) to pass object references between actors, and refetch on the receiving side. This eliminates HIGH-007 (main thread blocking). *(Updated from feedback review: clarified ModelContext isolation rules — it must stay confined to its owning @ModelActor, not used "from any actor.")*
   **Verify:** Build succeeds. CoachAgent tests pass.
 
-- [ ] **P0-09** | Update LibraryImporter for SwiftData
+- [ ] **P0-09** | Update LibraryImporter for SwiftData using `@ModelActor`
   **File:** `Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift`
-  **Key changes:** Accept `ModelContainer` in init (remove default `PulsumData.container`). Create a `ModelContext` confined to the importer's isolation domain — do NOT share it across actors (ModelContext is not Sendable). Replace `NSFetchRequest` patterns with `FetchDescriptor`. *(Updated from feedback review: ModelContext must stay confined to one isolation domain.)*
-  **Verify:** Build succeeds. Library import creates MicroMoment records.
+  **Key changes:** Make LibraryImporter a **`@ModelActor actor`** — this is required because the importer does concurrent work (P2-17 documents a TaskGroup for embedding) AND persistence. Using `@ModelActor` ensures the `modelContext` is properly isolated and safe across suspension points. Do NOT manually create `ModelContext(container)` as a stored property.
+  ```swift
+  @ModelActor
+  actor LibraryImporter {
+      // modelContext is automatically provided and actor-isolated
+
+      func importLibrary(_ data: LibraryData) async throws {
+          // Phase 1: Insert MicroMoments via modelContext (actor-isolated)
+          // Phase 2: Compute embeddings (can use TaskGroup for parallelism,
+          //          but vector results must be Sendable — [Float] is fine)
+          // Phase 3: Save all in one modelContext.save() call
+      }
+  }
+  ```
+  **Important:** The embedding TaskGroup produces `[Float]` vectors (Sendable), not model objects. Only the final persistence step (inserting/updating MicroMoments and LibraryIngest records) touches `modelContext`, and that stays on the actor. Replace `NSFetchRequest` patterns with `FetchDescriptor`.
+  *(Updated from feedback review: LibraryImporter must be @ModelActor — not manual ModelContext — because it mixes concurrency (TaskGroup) with persistence, exactly where context/thread issues cause heisenbugs.)*
+  **Verify:** Build succeeds. Library import creates MicroMoment records. No `ModelContext(container)` stored as a property.
 
 - [ ] **P0-10** | Update AgentOrchestrator to receive container + move off @MainActor
   **File:** `Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift`
@@ -540,7 +555,7 @@ These decisions shape what each phase does. They eliminate 9 findings automatica
 - [ ] No `VectorIndexShard`, `VectorRecordHeader` in source
 - [ ] All agent public APIs return Sendable types (snapshots/DTOs), not `@Model` objects
 - [ ] `SWIFT_DEFAULT_ACTOR_ISOLATION` is NOT set to MainActor in non-UI SPM packages
-- [ ] Uniqueness constraints verified: inserting duplicate DailyMetrics for same date throws
+- [ ] Uniqueness constraints verified: inserting duplicate DailyMetrics for same date results in exactly 1 row (upsert, not throw)
 - [ ] Locked-device HealthKit background delivery test passes (see P0-02 verify)
 
 ---
