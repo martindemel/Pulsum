@@ -44,51 +44,15 @@ DO NOT modify any files. Just report findings.
 
 ---
 
-## Rules for Every Prompt
+## How to use each prompt
 
-Every prompt below includes these instructions implicitly. You do NOT need to repeat them — they're here for your reference:
+Each prompt below is **fully self-contained** inside its backtick block. It includes:
+- Operational rules (build commands, Apple docs, no fatalError, etc.)
+- "Read master_plan_FINAL.md" instruction
+- Specific items to implement
+- Progress tracking instruction
 
-1. **Always start a NEW chat window** for each prompt (fresh context = no stale state)
-2. **Always read `master_plan_FINAL.md`** at the start (the prompt tells the agent to do this)
-3. **One item at a time** within each prompt — the agent should complete, verify, then move to the next
-4. **Build after every change** — `xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData`
-5. **Format after every change** — `swiftformat .`
-6. **Search Apple docs** before using any SwiftData, Foundation Models, or Liquid Glass API
-7. **Do NOT refactor adjacent code** — only touch what the item specifies
-8. **Use `Diagnostics.log()` not `print()`**
-9. **Use `String(localized:)` for new user-facing strings**
-10. **Reference finding IDs in commits** — `fix: CRIT-002 — FM guardrail returns .caution`
-11. **Update progress in `master_plan_FINAL.md`** — after EACH completed item, change `[ ]` to `[x]` and add the date: `[x] *(2026-02-XX)*`. Also update the Progress Tracker table (done count + percentage). This is how you track progress across chat windows.
-
----
-
-## CRITICAL: Progress Tracking (applies to ALL prompts)
-
-Every prompt below includes this instruction at the end:
-
-> **After completing each P-item, update `master_plan_FINAL.md`:**
-> 1. Change the item's `[ ]` to `[x] *(YYYY-MM-DD)*` (today's date)
-> 2. Update the **Progress Tracker** table at the bottom (increment the "Done" column for the current phase)
-> 3. Update the **Total** row percentage
->
-> This is how progress persists across chat windows. The next agent session reads
-> `master_plan_FINAL.md` and sees what's already done.
-
-**When copy-pasting prompts, ALWAYS append this block at the very end:**
-
-```
-IMPORTANT — PROGRESS TRACKING (do this after EACH completed item):
-1. Open master_plan_FINAL.md
-2. Find the item you just completed (e.g., P0-01)
-3. Change its [ ] to [x] *(YYYY-MM-DD)* with today's date
-4. Update the Progress Tracker table at the bottom:
-   - Increment the "Done" column for the current phase
-   - Recalculate the Total row percentage
-5. Save the file
-This is mandatory — it's how progress persists across chat windows.
-```
-
-**Why this matters:** Each prompt runs in a fresh chat window. The agent has no memory of previous sessions. The only way it knows what's done is by reading `master_plan_FINAL.md` and seeing which items are `[x]`. If you skip this, the next session won't know where you left off.
+**Just copy the backtick block and paste it into a new chat window.** Nothing else needed.
 
 ---
 
@@ -444,6 +408,10 @@ Verify:
 - Full build succeeds
 - ALL package tests pass (swift test for each package)
 - swiftformat . clean
+
+IMPORTANT — PROGRESS TRACKING: After completing P0-10, P0-11, P0-12, open
+master_plan_FINAL.md, change their [ ] to [x] *(today's date)*, update
+Progress Tracker done count.
 ```
 
 **Commit:** `git commit -m "P0-10 + P0-11 + P0-12: Wire composition root, move orchestrator off MainActor, update test helpers"`
@@ -488,6 +456,10 @@ Verify:
 - grep -r "VectorIndexShard\|VectorRecordHeader\|VectorIndexHeader" Packages/ = zero
 - VectorIndexManager tests pass
 - swiftformat . clean
+
+IMPORTANT — PROGRESS TRACKING: After completing P0-13, P0-14, P0-15, open
+master_plan_FINAL.md, change their [ ] to [x] *(today's date)*, update
+Progress Tracker done count.
 ```
 
 **Commit:** `git commit -m "P0-13 + P0-14 + P0-15: Replace vector index with in-memory VectorStore actor"`
@@ -516,6 +488,10 @@ File: SafetyAgent.swift
 - It has no mutable state — struct is the correct type
 
 Verify: build succeeds, all tests pass, swiftformat clean.
+
+IMPORTANT — PROGRESS TRACKING: After completing P0-16 and P0-17, open
+master_plan_FINAL.md, change their [ ] to [x] *(today's date)*, update
+Progress Tracker done count.
 ```
 
 **Commit:** `git commit -m "P0-16 + P0-17: Actor isolation for CoachAgent and SafetyAgent"`
@@ -543,6 +519,10 @@ Move: config, logs, export, FM status from SettingsViewModel
 File: AppViewModel.swift (onConsentChanged, onSafetyDecision → observable props)
 
 Verify: build succeeds, all tests pass, swiftformat clean.
+
+IMPORTANT — PROGRESS TRACKING: After completing P0-23, P0-24, P0-25, P0-26,
+open master_plan_FINAL.md, change their [ ] to [x] *(today's date)*, update
+Progress Tracker done count.
 ```
 
 **Commit:** `git commit -m "P0-23-P0-26: Split SettingsViewModel, cleanup observation pattern"`
@@ -692,6 +672,9 @@ Implement each one at a time:
 - P2-05: MED-011 — Convert LLMGateway to actor (or isolate key storage)
 
 For each: read the file + finding in master_report.md first. Build and test after each.
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---
@@ -713,6 +696,9 @@ Implement each one:
 - P2-12: LOW-006 — Fix speech timeout task leak
 
 Build and test after each change.
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---
@@ -734,6 +720,9 @@ Implement each one:
 - P2-19: STUB-003 — Fix FM TopicGate returning nil topic
 
 Build and test after each change. Full build + all tests after last item.
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---
@@ -754,6 +743,9 @@ Read master_plan_FINAL.md Phase 3 items P3-01 through P3-04.
 - P3-02: PROD-007 — Persist onboarding completion with @AppStorage
 - P3-03: PROD-002 — Add MetricKit crash diagnostics subscriber
 - P3-04: PROD-003 — Add analytics event structure + NoOp provider
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---
@@ -769,6 +761,9 @@ Read master_plan_FINAL.md Phase 3 items P3-05 through P3-08.
 - P3-06: PROD-016 — Offline banner in CoachView
 - P3-07: PROD-015 — Rate limiter for LLMGateway
 - P3-08: HIGH-006 — Dynamic Type support (semantic fonts, search Apple docs first)
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---
@@ -788,6 +783,9 @@ Read master_plan_FINAL.md Phase 3 items P3-09 through P3-16.
 - P3-14: PROD-014 — Audit Release logging for PHI leaks
 - P3-15: PROD-010 — SSL cert pinning (EVALUATE — likely defer to v1.1)
 - P3-16: PROD-018 — Add units to health data display
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---
@@ -805,6 +803,9 @@ Read master_plan_FINAL.md Phase 3 items P3-17 through P3-19.
 
 Use Swift Testing framework for new tests.
 After all tests written: full build + ALL tests pass + swiftformat clean.
+
+IMPORTANT — PROGRESS TRACKING: After each completed item, open master_plan_FINAL.md,
+change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 ```
 
 ---

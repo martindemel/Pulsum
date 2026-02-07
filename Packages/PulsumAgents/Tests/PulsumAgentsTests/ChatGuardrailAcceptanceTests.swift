@@ -72,7 +72,7 @@ final class ChatHarness {
 
     init() async throws {
         let container = TestCoreDataStack.makeContainer()
-        snapshot = try await ChatHarness.makeSnapshot(in: container)
+        snapshot = try ChatHarness.makeSnapshot(in: container)
         dataAgent = StubDataAgent(snapshot: snapshot)
         embeddingService = EmbeddingService.debugInstance(primary: DeterministicEmbeddingProvider(),
                                                           fallback: nil,
@@ -116,9 +116,9 @@ final class ChatHarness {
         await orchestrator.chat(userInput: text, consentGranted: consentGranted, snapshotOverride: snapshot)
     }
 
-    private static func makeSnapshot(in container: NSPersistentContainer) async throws -> FeatureVectorSnapshot {
+    nonisolated private static func makeSnapshot(in container: NSPersistentContainer) throws -> FeatureVectorSnapshot {
         let context = container.newBackgroundContext()
-        return try await context.perform { () throws -> FeatureVectorSnapshot in
+        return try context.performAndWait {
             let feature = FeatureVector(context: context)
             try context.obtainPermanentIDs(for: [feature])
             return FeatureVectorSnapshot(date: Date(),
