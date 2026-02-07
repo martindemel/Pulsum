@@ -117,13 +117,17 @@ class PulsumUITestCase: XCTestCase {
 
     func dismissKeyboardIfPresent() {
         guard app.keyboards.count > 0 else { return }
-        // Swipe down on the keyboard area to trigger interactive dismissal.
-        // Avoid tapping the navigation bar which can accidentally hit the close button.
-        let keyboard = app.keyboards.firstMatch
-        let start = keyboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
-        let end = keyboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1.5))
-        start.press(forDuration: 0.05, thenDragTo: end)
-        _ = keyboard.waitForDisappearance(timeout: 2)
+        // Tap a non-interactive label to resign first responder.
+        // Avoids navigation bar (close button) and keyboard gestures (destabilize simulator).
+        let labels = ["Cloud Processing", "GPT-5 API Key", "Use GPT-5 phrasing"]
+        for label in labels {
+            let element = app.staticTexts[label]
+            if element.exists && element.isHittable {
+                element.tap()
+                break
+            }
+        }
+        _ = app.keyboards.firstMatch.waitForDisappearance(timeout: 2)
     }
 
     func dismissSettingsSheet() {

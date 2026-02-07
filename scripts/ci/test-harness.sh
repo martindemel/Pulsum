@@ -251,6 +251,9 @@ run_xcode_ui_gate_tests() {
      -only-testing:PulsumUITests clean test >"$log_file" 2>&1; then
     pass "[gate-ci] UI Gate tests passed"
   else
+    # Show failing test details (assertion messages are near "failed" lines)
+    rg -i "assert|fail|error.*Gate4|XCTAssert|expected.*got|but got" "$log_file" | tail -n 30 || true
+    printf '\n---\n'
     tail -n 100 "$log_file" || true
     fail "[gate-ci] UI Gate tests failed (see $log_file)"
   fi
