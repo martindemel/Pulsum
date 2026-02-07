@@ -13,14 +13,12 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     private var storeURL: URL?
 
     override func setUp() async throws {
-        try await super.setUp()
         try setUpStore()
         resetStore()
     }
 
     override func tearDown() async throws {
         try tearDownStore()
-        try await super.tearDown()
     }
 
     func testChecksumNotSavedOnIndexFailure_andRetrySucceeds() async throws {

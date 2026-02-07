@@ -185,9 +185,9 @@ IMPORTANT: After completing each item, update master_plan_FINAL.md:
 
 ---
 
-### PROMPT 0-C: Migrate DataAgent + Decompose (P0-06 + P0-18 through P0-22)
+### PROMPT 0-C: Wire Composition Root + Migrate DataAgent + Decompose (P0-10 + P0-11 + P0-12 + P0-06 + P0-18 through P0-22)
 
-**New chat window. This is the largest single prompt — it combines the DataAgent SwiftData migration with its decomposition per Warning #2.**
+**New chat window. This is the largest single prompt — it establishes the container pipeline AND migrates + decomposes DataAgent in one combined effort. These items are interdependent: the ModelContainer must flow from AppViewModel → Orchestrator → DataAgent, so they must be done together (see Warning #1 Step A2).**
 
 ```
 ## RULES (read before doing anything)
@@ -201,25 +201,65 @@ IMPORTANT: After completing each item, update master_plan_FINAL.md:
 - Use String(localized:) for ALL new user-facing strings
 - Use Swift Concurrency (async/await, actor) instead of Combine
 
-Pay special attention to Warning #2 (combine P0-06 with P0-18-P0-22) and the SwiftData Concurrency Rules.
+Pay special attention to Warning #1 Step A2, Warning #2, and the SwiftData Concurrency Rules.
 
-You are implementing P0-06, P0-18, P0-19, P0-20, P0-21, and P0-22 together.
+You are implementing P0-10, P0-11, P0-12, P0-06, P0-18, P0-19, P0-20, P0-21,
+and P0-22 together.
 
 ## Context
 
+After the previous prompt (0-B), the static facade PulsumData.container was
+removed. The full build is currently broken because nothing provides a
+ModelContainer to agents or the orchestrator. This prompt fixes that by wiring
+the composition root AND migrating + decomposing DataAgent — the largest
+consumer — in one combined effort.
+
 DataAgent.swift is currently ~3,706 lines with 10+ responsibilities. The plan
 says to migrate it to SwiftData AND decompose it in one combined effort so we
-don't touch it twice.
+don't touch it twice. The composition root (P0-10/P0-11/P0-12) must be wired
+at the same time because the container must flow from AppViewModel through the
+orchestrator to DataAgent.
 
 ## Step 1: Read everything first
 
 Read these files completely before making ANY changes:
 - Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift (all lines)
+- Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift (all lines)
+- Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift (all lines)
 - The new @Model classes you created in P0-01
 - The DTO snapshots from P0-01b
-- master_plan_FINAL.md sections for P0-06, P0-18, P0-19, P0-20, P0-21, P0-22
+- master_plan_FINAL.md sections for P0-10, P0-11, P0-12, P0-06, P0-18-P0-22
 
-## Step 2: Create the extracted types (P0-18 through P0-21)
+## Step 2: Wire the composition root (P0-11 + P0-10 + P0-12)
+
+Do this BEFORE touching DataAgent so the container pipeline exists.
+
+### P0-11: AppViewModel as composition root
+File: Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift
+- Create DataStack (which creates ModelContainer) during startup
+- Handle init failure with .blocked state (DataStack.init now throws)
+- Expose container property for SwiftUI .modelContainer(container) injection
+- Pass container to AgentOrchestrator.init(container:)
+
+### P0-10: AgentOrchestrator receives container + moves off @MainActor
+File: Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift
+- Change init to accept ModelContainer parameter
+- Change from @MainActor to actor
+- Store the container — you will pass it to DataAgent in Step 4 below
+- For SentimentAgent, CoachAgent, and LibraryImporter: leave their creation
+  as-is for now. They will be migrated in subsequent prompts (0-D through 0-F).
+  If their old init patterns cause compile errors because PulsumData.container
+  is gone, provide the container to them temporarily or comment out their
+  creation with a // TODO: migrate in P0-07/P0-08/P0-09 — their inits will be
+  properly migrated in the next prompts.
+- Update #if DEBUG test inits to accept ModelContainer
+
+### P0-12: Update test helpers for SwiftData
+Files: PulsumAgentsTests/TestCoreDataStack.swift, PulsumUITests/TestCoreDataStack.swift
+- Replace in-memory NSPersistentContainer with ModelContainer
+- Use ModelConfiguration(isStoredInMemoryOnly: true)
+
+## Step 3: Create the extracted types (P0-18 through P0-21)
 
 Create these new files, already using SwiftData from the start:
 
@@ -234,13 +274,17 @@ Each extracted type that does persistence must either:
 - Be a @ModelActor actor (if it owns a ModelContext), or
 - Receive data as Sendable types and delegate persistence to the owning actor
 
-## Step 3: Slim down DataAgent (P0-06 + P0-22)
+## Step 4: Slim down DataAgent (P0-06 + P0-22)
 
 Make DataAgent a @ModelActor actor. It should:
+- Accept ModelContainer in init (via @ModelActor)
 - Delegate to the 4 extracted types
 - Keep only: public API surface, StateEstimator coordination, notification posting
 - Return DTO snapshots (not @Model objects) from all public methods
 - Target: < 500 lines
+
+Update AgentOrchestrator to create DataAgent with the container:
+  let dataAgent = DataAgent(modelContainer: container)
 
 ## Rules
 - Use @ModelActor for DataAgent (see plan's code example)
@@ -249,22 +293,32 @@ Make DataAgent a @ModelActor actor. It should:
 - Use modelContext.save(), not context.save()
 - No performAndWait — @ModelActor context is actor-isolated
 - Search Apple docs for @ModelActor, FetchDescriptor, #Predicate
-- Build after creating each file: xcodebuild -scheme Pulsum -sdk iphoneos
-  -derivedDataPath ./DerivedData
+- The full build MAY still have errors in SentimentAgent, CoachAgent, or
+  LibraryImporter if they reference old Core Data patterns. That is expected
+  and will be fixed in prompts 0-D through 0-F. Verify at minimum: DataAgent
+  compiles, AgentOrchestrator compiles, AppViewModel compiles, and
+  DataAgent-specific tests pass.
+- Build: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+  (if full build fails due to unmigrated agents, verify package tests instead:
+  swift test --package-path Packages/PulsumAgents)
 - Run swiftformat . after all changes
-- Verify: wc -l on DataAgent.swift < 500 lines. Run package tests:
-  swift test --package-path Packages/PulsumAgents
+- Verify: wc -l on DataAgent.swift < 500 lines
 
 IMPORTANT — PROGRESS TRACKING: After completing ALL items in this batch,
 open master_plan_FINAL.md and change [ ] to [x] *(today's date)* for:
-P0-06, P0-18, P0-19, P0-20, P0-21, P0-22. Update Progress Tracker done count.
+P0-10, P0-11, P0-12, P0-06, P0-18, P0-19, P0-20, P0-21, P0-22.
+Update Progress Tracker done count.
 ```
 
 **After this prompt:**
 - Verify DataAgent.swift < 500 lines
 - Verify 4 new extracted files + 5 sample processor files exist
-- Verify PulsumAgents package tests pass
-- Commit: `git commit -m "P0-06 + P0-18-P0-22: Migrate DataAgent to SwiftData + decompose into focused types"`
+- Verify AppViewModel creates and exposes ModelContainer
+- Verify AgentOrchestrator is now an `actor` (not @MainActor) and accepts ModelContainer
+- Verify test helpers use SwiftData in-memory containers
+- Build passes (or only unmigrated agents SentimentAgent/CoachAgent/LibraryImporter have errors)
+- Verify `master_plan_FINAL.md` shows P0-10, P0-11, P0-12, P0-06, P0-18-P0-22 as `[x]`
+- Commit: `git commit -m "P0-10+P0-11+P0-12+P0-06+P0-18-P0-22: Wire composition root, migrate + decompose DataAgent"`
 
 ---
 
@@ -291,6 +345,10 @@ Read the file first. Then:
 - Replace NSFetchRequest with FetchDescriptor
 - Public APIs must return Sendable types (snapshots), not @Model objects
 - Search Apple docs for @ModelActor before changing
+
+IMPORTANT: The AgentOrchestrator already has a ModelContainer (wired in prompt
+0-C / P0-10). After migrating SentimentAgent, also update the orchestrator's
+SentimentAgent creation to pass the container to its new init.
 
 Verify: build succeeds, swiftformat clean, package tests pass.
 
@@ -323,11 +381,20 @@ Files:
 
 Read both files first. Then:
 - Delete contextPerformAndWait helper entirely
+- Make CoachAgent a @ModelActor actor — this removes @MainActor isolation
+  (P0-16 will verify this later, no separate change needed)
 - Move persistence into @ModelActor-provided modelContext
 - ModelContext is NOT Sendable — don't pass between actors
 - Use PersistentIdentifier for cross-actor object references
 - Public APIs must return Sendable snapshots
 - Search Apple docs for @ModelActor
+
+IMPORTANT: The AgentOrchestrator already has a ModelContainer (wired in prompt
+0-C / P0-10). After migrating CoachAgent, also update the orchestrator's
+CoachAgent creation to pass the container to its new init.
+
+Note: Making CoachAgent a @ModelActor actor already removes @MainActor isolation.
+P0-16 (in prompt 0-I) will verify this is correct — no separate action needed here.
 
 Verify: build succeeds, swiftformat clean, CoachAgent tests pass.
 
@@ -363,6 +430,10 @@ Read the file first. Then:
 - Replace NSFetchRequest with FetchDescriptor
 - Do NOT manually create ModelContext(container) as a stored property
 - Search Apple docs for @ModelActor
+
+IMPORTANT: The AgentOrchestrator already has a ModelContainer (wired in prompt
+0-C / P0-10). After migrating LibraryImporter, also update the orchestrator's
+LibraryImporter creation to pass the container to its new init.
 
 Verify: build succeeds, swiftformat clean, library import creates records.
 
@@ -420,61 +491,7 @@ Progress Tracker done count.
 
 ---
 
-### PROMPT 0-H: Orchestrator + AppViewModel + Test Helpers (P0-10 + P0-11 + P0-12)
-
-**New chat window.**
-
-```
-## RULES (read before doing anything)
-- Read master_plan_FINAL.md completely before starting any work
-- Search Apple developer docs BEFORE using any SwiftData API
-- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
-- Run swiftformat . after every change — Do NOT refactor adjacent code
-- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
-- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
-
-You are implementing P0-10, P0-11, and P0-12.
-
-## P0-10: Update AgentOrchestrator to receive container + move off @MainActor
-
-File: Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift
-
-- RECEIVE ModelContainer from App layer (don't create it here)
-- Change from @MainActor to actor
-- Pass container to DataAgent, SentimentAgent, CoachAgent, LibraryImporter inits
-- Fix all call-site compiler errors (callers need await)
-
-## P0-11: Update AppViewModel as ModelContainer composition root
-
-File: Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift
-
-- Create DataStack (ModelContainer) during startup
-- Handle init failure with .blocked state
-- Expose container property for SwiftUI .modelContainer() injection
-- Pass container to AgentOrchestrator.init(container:)
-
-## P0-12: Update test helpers for SwiftData
-
-Files: PulsumAgentsTests/TestCoreDataStack.swift, PulsumUITests/TestCoreDataStack.swift
-
-- Replace in-memory NSPersistentContainer with ModelContainer
-- Use ModelConfiguration(isStoredInMemoryOnly: true)
-
-Verify:
-- Full build succeeds
-- ALL package tests pass (swift test for each package)
-- swiftformat . clean
-
-IMPORTANT — PROGRESS TRACKING: After completing P0-10, P0-11, P0-12, open
-master_plan_FINAL.md, change their [ ] to [x] *(today's date)*, update
-Progress Tracker done count.
-```
-
-**Commit:** `git commit -m "P0-10 + P0-11 + P0-12: Wire composition root, move orchestrator off MainActor, update test helpers"`
-
----
-
-### PROMPT 0-I: Vector Index Replacement (P0-13 + P0-14 + P0-15)
+### PROMPT 0-H: Vector Index Replacement (P0-13 + P0-14 + P0-15)
 
 **New chat window.**
 
@@ -528,7 +545,7 @@ Progress Tracker done count.
 
 ---
 
-### PROMPT 0-J: Actor Isolation (P0-16 + P0-17)
+### PROMPT 0-I: Actor Isolation (P0-16 + P0-17)
 
 **New chat window.**
 
@@ -541,10 +558,16 @@ Progress Tracker done count.
 
 You are implementing P0-16 and P0-17 from master_plan_FINAL.md.
 
-## P0-16: Change CoachAgent from @MainActor class to actor
+## P0-16: Verify CoachAgent actor isolation (likely already done by P0-08)
 
-Files: CoachAgent.swift, CoachAgent+Coverage.swift
-Fix call sites in AgentOrchestrator.swift.
+If P0-08 (prompt 0-E) already made CoachAgent a @ModelActor actor, P0-16 is
+complete — @ModelActor implies actor isolation, which removes @MainActor.
+Verify: CoachAgent.swift declares `@ModelActor actor CoachAgent` (not
+`@MainActor class`). Fix any remaining call sites in AgentOrchestrator.swift
+that weren't updated during P0-08.
+
+If for some reason P0-08 kept CoachAgent as a class (not @ModelActor), then
+change it to actor now. Files: CoachAgent.swift, CoachAgent+Coverage.swift.
 
 ## P0-17: Change SafetyAgent to protocol-backed struct
 
@@ -566,7 +589,7 @@ Progress Tracker done count.
 
 ---
 
-### PROMPT 0-K: SettingsViewModel Split + Observation Cleanup (P0-23 through P0-26)
+### PROMPT 0-J: SettingsViewModel Split + Observation Cleanup (P0-23 through P0-26)
 
 **New chat window.**
 
@@ -1013,15 +1036,14 @@ git reset --hard <commit-hash>
 |---|---|---|---|---|
 | 0-A | Models + DTOs | P0-01, P0-01b | 30-45 min | PulsumData compiles |
 | 0-B | DataStack + Facade | P0-02, P0-03 | 15-20 min | PulsumData compiles |
-| 0-C | DataAgent migrate+decompose | P0-06, P0-18-22 | 60-90 min | DataAgent < 500 lines |
+| 0-C | Composition root + DataAgent | P0-10, P0-11, P0-12, P0-06, P0-18-22 | 90-120 min | DataAgent < 500 lines, container wired |
 | 0-D | SentimentAgent | P0-07 | 10-15 min | Build succeeds |
 | 0-E | CoachAgent | P0-08 | 15-20 min | Build succeeds |
 | 0-F | LibraryImporter | P0-09 | 15-20 min | Build succeeds |
 | 0-G | Delete CD artifacts | P0-04, P0-05 | 10 min | No CD references |
-| 0-H | Orchestrator+VM+Tests | P0-10-12 | 30-45 min | Full build + tests |
-| 0-I | Vector index | P0-13-15 | 20-30 min | Build + tests |
-| 0-J | Actor isolation | P0-16-17 | 15-20 min | Build + tests |
-| 0-K | Settings+Observation | P0-23-26 | 20-30 min | Build + tests |
+| 0-H | Vector index | P0-13-15 | 20-30 min | Build + tests |
+| 0-I | Actor isolation | P0-16-17 | 15-20 min | Build + tests |
+| 0-J | Settings+Observation | P0-23-26 | 20-30 min | Build + tests |
 | 0-FINAL | Verification | — | 10 min | All gates pass |
 | — | **Manual smoke test** | — | 15 min | App works on device |
 | 1-A | Safety fixes | P1-01-05 | 20-30 min | Build + tests |

@@ -11,11 +11,12 @@
 ### Critical Execution Warnings
 
 **1. Phase 0 is make-or-break — and the ordering matters.** The SwiftData migration (P0-01 through P0-12) touches every package. If one entity conversion is wrong, it causes cascading build failures across 4 packages. **Critical sequencing:**
-  - **Step A:** Do **P0-01 → P0-03** first (create SwiftData `@Model` classes + DTO snapshots, replace DataStack container, remove static facade). Verify build — the old CD types still exist so agents still compile against them.
-  - **Step B:** Migrate agents **one at a time**: P0-06 (DataAgent), P0-07 (SentimentAgent), P0-08 (CoachAgent), P0-09 (LibraryImporter). Verify build after each.
+  - **Step A:** Do **P0-01 → P0-03** first (create SwiftData `@Model` classes + DTO snapshots, replace DataStack container, remove static facade). Verify PulsumData package build — the old CD types still exist but the static facade is gone, so downstream packages will have compile errors.
+  - **Step A2:** Wire the composition root: **P0-11** (AppViewModel creates ModelContainer), **P0-10** (AgentOrchestrator receives container + moves off @MainActor), **P0-12** (test helpers updated). Do this **as part of the DataAgent migration** (Step B, first agent) — not as a separate step after all agents — because the full build won't pass until at least DataAgent is migrated and the container pipeline is established. The orchestrator stores the container and passes it to each agent as that agent is migrated.
+  - **Step B:** Migrate agents **one at a time**: start with **P0-06** (DataAgent — combined with P0-10/P0-11/P0-12 per Step A2 and with P0-18–P0-22 per Warning #2), then P0-07 (SentimentAgent), P0-08 (CoachAgent), P0-09 (LibraryImporter). For each agent migration, also update the orchestrator's call site to pass the container to that agent's new init. Verify build after each.
   - **Step C:** Only **after all agents are migrated** and no longer reference Core Data types, do **P0-04 → P0-05** (delete CD artifacts). If you delete `ManagedObjects.swift` and `Pulsum.xcdatamodeld` before agents are migrated, the build will break immediately.
   - Do not try to update DataAgent, SentimentAgent, CoachAgent, and LibraryImporter all at once.
-  *(Updated from feedback review: original ordering said "P0-01 through P0-05 first" but P0-05 deletes CD artifacts that agents still reference.)*
+  *(Updated: added Step A2 — P0-10/P0-11/P0-12 must happen alongside the DataAgent migration, not after all agents. Without a container source, agents can't be migrated.)*
 
 **2. Combine P0-06 with P0-18 through P0-22.** The plan lists DataAgent SwiftData update (P0-06) and DataAgent decomposition (P0-18–P0-22) as separate items, but in practice you'll be changing DataAgent twice — first migrating to SwiftData, then immediately tearing it apart. To avoid double-work, do them together: migrate DataAgent to SwiftData AND decompose it into the 5-6 focused types in one combined effort. The decomposed files should use SwiftData from the start, not Core Data.
 
@@ -379,7 +380,7 @@ These decisions shape what each phase does. They eliminate 9 findings automatica
 - [ ] **P0-10** | Update AgentOrchestrator to receive container + move off @MainActor
   **File:** `Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift`
   **What to change:**
-  - **Receive** `ModelContainer` from the App layer (created by AppViewModel/PulsumApp via `DataStack`). Do NOT create the container here — AppViewModel creates it so it can also inject it into SwiftUI via `.modelContainer()`. Pass the received container to DataAgent, SentimentAgent, CoachAgent, and LibraryImporter via their inits. *(Updated from feedback review: container must be created at App layer for @Query to work in views.)*
+  - **Receive** `ModelContainer` from the App layer (created by AppViewModel/PulsumApp via `DataStack`). Do NOT create the container here — AppViewModel creates it so it can also inject it into SwiftUI via `.modelContainer()`. Pass the received container to each agent via its init — **wire each agent as it is migrated** (P0-06 through P0-09), not all at once. During the DataAgent migration (P0-06), wire DataAgent first; the remaining agents are wired during their respective migrations. *(Updated: container must be created at App layer for @Query to work in views. Agents are wired incrementally as they're migrated.)*
   - **Change AgentOrchestrator from `@MainActor` to `actor`.** The orchestrator coordinates agents, runs safety evaluation, and manages the chat pipeline — none of this is UI work. Only the ViewModels (AppViewModel, PulseViewModel, etc.) should be `@MainActor`. UI-facing properties that ViewModels read can be marked `@MainActor` individually if needed.
   - Update `#if DEBUG` test inits to accept `ModelContainer`.
   **Verify:** Build succeeds. Orchestrator creates and starts. Fix all call-site compiler errors (callers need `await`).
@@ -482,8 +483,9 @@ These decisions shape what each phase does. They eliminate 9 findings automatica
 
 ### 0.3 — Actor Isolation (eliminates ARCH-005)
 
-- [ ] **P0-16** | Change CoachAgent from `@MainActor class` to `actor`  
+- [ ] **P0-16** | Change CoachAgent from `@MainActor class` to `actor`
   Files: `CoachAgent.swift`, `CoachAgent+Coverage.swift`. Fix call sites in `AgentOrchestrator.swift`.
+  **Note:** If P0-08 already made CoachAgent a `@ModelActor actor` (which removes `@MainActor` implicitly), this item is complete — verify the actor isolation is correct and fix any remaining call sites not addressed during P0-08. `@ModelActor` implies `actor`, so no separate change is needed.
 
 - [ ] **P0-17** | Change SafetyAgent to a protocol-backed struct or service  
   **File:** `SafetyAgent.swift`  
