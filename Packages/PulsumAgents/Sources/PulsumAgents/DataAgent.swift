@@ -97,7 +97,8 @@ actor DataAgent {
     private let backfillStore: BackfillStateStoring
     private var backfillProgress: BackfillProgress
     private var pendingSnapshotUpdate: Task<Void, Never>?
-    private var backgroundBackfillTask: Task<Void, Never>?
+    private var warmStartBackfillTask: Task<Void, Never>?
+    private var fullBackfillTask: Task<Void, Never>?
     private let bootstrapPolicy: DataAgentBootstrapPolicy
     private var bootstrapWatchdogTask: Task<Void, Never>?
     private var bootstrapRetryTask: Task<Void, Never>?
@@ -711,8 +712,8 @@ actor DataAgent {
 
     private func scheduleBackfill(for status: HealthAccessStatus) {
         guard case .available = status.availability else { return }
-        backgroundBackfillTask?.cancel()
-        backgroundBackfillTask = Task.detached(priority: .background) { [weak self] in
+        warmStartBackfillTask?.cancel()
+        warmStartBackfillTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             await self.backfillHistoricalSamplesIfNeeded(for: status)
         }
@@ -1548,10 +1549,10 @@ actor DataAgent {
             Task { await DebugLogBuffer.shared.append("Background backfill skipped: full window already covered") }
             return
         }
-        if let task = backgroundBackfillTask, !task.isCancelled {
+        if let task = fullBackfillTask, !task.isCancelled {
             return
         }
-        backgroundBackfillTask = Task { [weak self] in
+        fullBackfillTask = Task { [weak self] in
             await self?.performBackgroundFullBackfill(grantedTypes: grantedTypes, targetStartDate: targetStartDate)
         }
     }
@@ -1590,7 +1591,7 @@ actor DataAgent {
                                                   "granted_types": .int(grantedTypes.count)
                                               ])
         await monitor.start()
-        defer { backgroundBackfillTask = nil }
+        defer { fullBackfillTask = nil }
 
         var iteration = 0
         var batchTouchedDays: Set<Date> = []
