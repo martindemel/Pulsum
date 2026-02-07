@@ -63,7 +63,16 @@ Each prompt below is **fully self-contained** inside its backtick block. It incl
 **New chat window.** Copy-paste this prompt:
 
 ```
-Read master_plan_FINAL.md completely before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData, Foundation Models, or Liquid Glass API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change
+- Do NOT refactor adjacent code — only touch what the item specifies
+- Do NOT use print() — use Diagnostics.log() from PulsumTypes
+- Do NOT use fatalError(), force unwraps (!), or @unchecked Sendable
+- Use String(localized:) for ALL new user-facing strings
+- Use Swift Concurrency (async/await, actor) instead of Combine
 
 You are implementing P0-01 and P0-01b from the Pulsum master remediation plan.
 
@@ -122,7 +131,16 @@ Each @Model class gets a `var snapshot: <SnapshotType>` computed property.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md completely before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData, Foundation Models, or Liquid Glass API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change
+- Do NOT refactor adjacent code — only touch what the item specifies
+- Do NOT use print() — use Diagnostics.log() from PulsumTypes
+- Do NOT use fatalError(), force unwraps (!), or @unchecked Sendable
+- Use String(localized:) for ALL new user-facing strings
+- Use Swift Concurrency (async/await, actor) instead of Combine
 
 You are implementing P0-02 and P0-03 from the Pulsum master remediation plan.
 
@@ -172,8 +190,18 @@ IMPORTANT: After completing each item, update master_plan_FINAL.md:
 **New chat window. This is the largest single prompt — it combines the DataAgent SwiftData migration with its decomposition per Warning #2.**
 
 ```
-Read master_plan_FINAL.md completely before doing anything. Pay special attention
-to Warning #2 (combine P0-06 with P0-18-P0-22) and the SwiftData Concurrency Rules.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData, Foundation Models, or Liquid Glass API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change
+- Do NOT refactor adjacent code — only touch what the item specifies
+- Do NOT use print() — use Diagnostics.log() from PulsumTypes
+- Do NOT use fatalError(), force unwraps (!), or @unchecked Sendable
+- Use String(localized:) for ALL new user-facing strings
+- Use Swift Concurrency (async/await, actor) instead of Combine
+
+Pay special attention to Warning #2 (combine P0-06 with P0-18-P0-22) and the SwiftData Concurrency Rules.
 
 You are implementing P0-06, P0-18, P0-19, P0-20, P0-21, and P0-22 together.
 
@@ -245,7 +273,13 @@ P0-06, P0-18, P0-19, P0-20, P0-21, P0-22. Update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-07 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
 You are implementing P0-07: Update SentimentAgent for SwiftData.
 
@@ -273,7 +307,13 @@ change P0-07's [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-08 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
 You are implementing P0-08: Update CoachAgent for SwiftData (eliminates HIGH-007).
 
@@ -304,7 +344,13 @@ change P0-08's [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-09 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
 You are implementing P0-09: Update LibraryImporter for SwiftData using @ModelActor.
 
@@ -333,7 +379,11 @@ change P0-09's [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window. Only run this AFTER all agents are migrated (0-C through 0-F).**
 
 ```
-Read master_plan_FINAL.md P0-04 and P0-05.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
 
 You are implementing P0-04 and P0-05: Delete Core Data artifacts.
 
@@ -375,7 +425,13 @@ Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-10, P0-11, and P0-12 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
 You are implementing P0-10, P0-11, and P0-12.
 
@@ -423,7 +479,13 @@ Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-13, P0-14, and P0-15 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData or Accelerate API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
 You are implementing P0-13, P0-14, and P0-15: Replace the vector index.
 
@@ -471,7 +533,13 @@ Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-16 and P0-17 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+
+You are implementing P0-16 and P0-17 from master_plan_FINAL.md.
 
 ## P0-16: Change CoachAgent from @MainActor class to actor
 
@@ -503,7 +571,14 @@ Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md P0-23, P0-24, P0-25, and P0-26 before doing anything.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
+
+You are implementing P0-23, P0-24, P0-25, and P0-26 from master_plan_FINAL.md.
 
 ## P0-23: Extract HealthSettingsViewModel
 Create: Packages/PulsumUI/Sources/PulsumUI/HealthSettingsViewModel.swift
@@ -534,7 +609,7 @@ Progress Tracker done count.
 **New chat window. This is a verification-only prompt — no code changes.**
 
 ```
-Read master_plan_FINAL.md "Phase 0 Done When" checklist.
+Read master_plan_FINAL.md "Phase 0 Done When" checklist. DO NOT modify any source files.
 
 Verify ALL of these gates. Report PASS or FAIL for each:
 
@@ -578,9 +653,17 @@ DO NOT modify any files. Only verify and report.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 1, section 1.1 (Safety Fixes).
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any new API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
-Implement P1-01 through P1-05, one at a time. For each item:
+You are implementing Phase 1, section 1.1 (Safety Fixes): P1-01 through P1-05.
+
+Implement each one at a time. For each item:
 1. Read the finding ID in master_report.md for full context
 2. Read the target file completely
 3. Make the change
@@ -609,9 +692,16 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 1, section 1.2 (ML Pipeline Fixes).
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging
 
-Implement P1-06 through P1-09:
+You are implementing Phase 1, section 1.2 (ML Pipeline Fixes): P1-06 through P1-09.
+
+Implement each:
 - P1-06: HIGH-001 — Fix RecRanker Bradley-Terry gradient (pairwise formula)
 - P1-07: HIGH-002 + MED-003 — Add NL sentiment fallback provider
 - P1-08: HIGH-003 — Topic gate permissive when degraded (return isOnTopic:true on failure)
@@ -632,10 +722,17 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 1, section 1.3 (App Store Compliance).
-Also read guidelines_report.md for full compliance context.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Also read guidelines_report.md for full compliance context
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for ALL new user-facing strings
 
-Implement P1-10 through P1-14:
+You are implementing Phase 1, section 1.3 (App Store Compliance): P1-10 through P1-14.
+
+Implement each:
 - P1-10: HIGH-005 — Fix stuck isAnalyzing in PulseViewModel
 - P1-11: GL-1.4.1 FAIL — Add medical disclaimer to OnboardingView, SettingsView, CoachView
 - P1-12: GL-1.4.1 AT RISK — Add 988 Lifeline to SafetyCardView + SafetyAgent
@@ -662,9 +759,15 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 2 items P2-01 through P2-05.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
+- Prefer actor confinement over locks (see guardrail #4 in the plan)
 
-Implement each one at a time:
+You are implementing Phase 2 items P2-01 through P2-05. Implement each one at a time:
 - P2-01: HIGH-004 — Add serial DispatchQueue to LegacySpeechBackend
 - P2-02: MED-001 — Confine RecRanker + StateEstimator inside owning actors (no locks)
 - P2-03: MED-007 — Fix HealthKitAnchorStore read/write asymmetry (store → queue.sync)
@@ -684,9 +787,14 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 2 items P2-06 through P2-12.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging
 
-Implement each one:
+You are implementing Phase 2 items P2-06 through P2-12. Implement each one:
 - P2-06: MED-012 — Document testAPIConnection consent
 - P2-07: MED-016 — Verify day-boundary timezone handling
 - P2-08: LOW-002 — Guard zScore against zero MAD
@@ -708,9 +816,14 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 2 items P2-13 through P2-19.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
 
-Implement each one:
+You are implementing Phase 2 items P2-13 through P2-19. Implement each one:
 - P2-13: LOW-007 — Log RecRanker state version mismatch
 - P2-14: LOW-008 + LOW-009 — Fix ViewModel task leaks (deinit, stored tasks)
 - P2-15: LOW-010 — Cache DateFormatters (static let)
@@ -736,7 +849,15 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 3 items P3-01 through P3-04.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using any SwiftData or new API
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
+
+You are implementing Phase 3 items P3-01 through P3-04.
 
 - P3-01: PROD-006 — Delete All Data (GDPR) — use SwiftData bulk delete pattern
   from the plan. Run inside a @ModelActor context.
@@ -755,7 +876,15 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 3 items P3-05 through P3-08.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Search Apple developer docs BEFORE using NWPathMonitor or SwiftUI font APIs
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
+
+You are implementing Phase 3 items P3-05 through P3-08.
 
 - P3-05: PROD-004 — Build NetworkMonitor (NWPathMonitor wrapper)
 - P3-06: PROD-016 — Offline banner in CoachView
@@ -773,7 +902,15 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 3 items P3-09 through P3-16.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging, String(localized:) for user-facing strings
+- @Environment(\.requestReview) ONLY works in a View body, NOT in ViewModel (see guardrail #6)
+
+You are implementing Phase 3 items P3-09 through P3-16.
 
 - P3-09: PROD-013 — Auto-increment build number
 - P3-10: PROD-017 — Centralize UserDefaults keys in PulsumDefaults
@@ -795,7 +932,15 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md Phase 3 items P3-17 through P3-19.
+## RULES (read before doing anything)
+- Read master_plan_FINAL.md completely before starting any work
+- Build after EVERY file change: xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+- Run swiftformat . after every change — Do NOT refactor adjacent code
+- Prefer Swift Testing framework for new unit tests
+- Do NOT use print(), fatalError(), force unwraps (!), or @unchecked Sendable
+- Use Diagnostics.log() for logging
+
+You are implementing Phase 3 items P3-17 through P3-19.
 
 - P3-17: GAP-002 — Write 20+ safety classifier tests
 - P3-18: GAP-001 — Write voice journal streaming lifecycle tests
@@ -815,7 +960,7 @@ change its [ ] to [x] *(today's date)*, update Progress Tracker done count.
 **New chat window.**
 
 ```
-Read master_plan_FINAL.md "Phase 3 Done When" checklist.
+Read master_plan_FINAL.md "Phase 3 Done When" checklist. DO NOT modify any source files.
 
 Verify ALL gates:
 1. All 19 Phase 3 items implemented

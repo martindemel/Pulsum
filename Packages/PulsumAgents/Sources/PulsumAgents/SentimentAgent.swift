@@ -319,9 +319,15 @@ public final class SentimentAgent {
 
     nonisolated private func persistVector(vector: [Float], id: UUID) throws -> URL {
         let directory = PulsumData.vectorIndexDirectory.appendingPathComponent("JournalEntries", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: directory.path) {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
-        }
+        #if os(iOS)
+        try FileManager.default.createDirectory(at: directory,
+                                                withIntermediateDirectories: true,
+                                                attributes: [.protectionKey: FileProtectionType.complete])
+        #else
+        try FileManager.default.createDirectory(at: directory,
+                                                withIntermediateDirectories: true,
+                                                attributes: nil)
+        #endif
         let url = directory.appendingPathComponent("\(id.uuidString).vec")
         var data = Data(capacity: vector.count * MemoryLayout<Float>.size)
         for value in vector {
@@ -331,7 +337,19 @@ public final class SentimentAgent {
             }
         }
         try data.write(to: url, options: .atomic)
-        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+        #if os(iOS)
+        do {
+            try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+        } catch {
+            Diagnostics.log(level: .warn,
+                            category: .persistence,
+                            name: "sentiment.vector.fileProtection.failed",
+                            fields: [
+                                "path": .safeString(.metadata(url.lastPathComponent))
+                            ],
+                            error: error)
+        }
+        #endif
         return url
     }
 }
