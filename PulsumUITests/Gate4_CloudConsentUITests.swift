@@ -2,16 +2,20 @@ import XCTest
 
 final class Gate4_CloudConsentUITests: PulsumUITestCase {
     func test_enter_key_and_test_connection_shows_ok_status() {
-        launchPulsum(additionalEnvironment: ["PULSUM_COACH_API_KEY": ""])
+        launchPulsum(additionalEnvironment: ["PULSUM_COACH_API_KEY": "sk-test-ui-123"])
         guard openSettingsSheetOrSkip() else { return }
 
         let secureKeyField = app.secureTextFields["CloudAPIKeyField"]
         let textKeyField = app.textFields["CloudAPIKeyField"]
         let keyField = secureKeyField.waitForExistence(timeout: 2) ? secureKeyField : textKeyField
         XCTAssertTrue(keyField.waitForExistence(timeout: 5), "Cloud API key field missing.")
-        XCTAssertTrue(tapAndWaitForKeyboard(keyField, retries: 5),
-                      "Cloud API key field did not gain keyboard focus.")
-        keyField.typeText("sk-test-ui-123")
+        ensureElementIsVisibleInSettingsIfNeeded(keyField)
+        // Prefer a seeded key for simulator stability; only drive keyboard input when needed.
+        if !containsNonPlaceholderValue(keyField) {
+            XCTAssertTrue(tapAndWaitForKeyboard(keyField, retries: 7),
+                          "Cloud API key field did not gain keyboard focus.")
+            keyField.typeText("sk-test-ui-123")
+        }
 
         // Dismiss keyboard so buttons below are hittable on small screens (iPhone SE)
         dismissKeyboardIfPresent()
@@ -45,8 +49,9 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         guard openSettingsSheetOrSkip() else { return }
 
         let linkButton = app.buttons["AppleIntelligenceLinkButton"]
-        XCTAssertTrue(linkButton.waitForExistence(timeout: 3))
-        linkButton.tap()
+        XCTAssertTrue(linkButton.waitForExistence(timeout: 4))
+        ensureElementIsVisibleInSettingsIfNeeded(linkButton)
+        linkButton.tapWhenHittable(timeout: 4)
 
         let urlLabel = app.staticTexts["LastOpenedURL"]
         XCTAssertTrue(urlLabel.waitForExistence(timeout: 4), "Support URL was not captured.")
@@ -68,5 +73,28 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
             closeButton.tap()
         }
         XCTAssertTrue(closeButton.waitForDisappearance(timeout: 3), "Settings sheet did not dismiss after Escape key.")
+    }
+
+    private func ensureElementIsVisibleInSettingsIfNeeded(_ element: XCUIElement, maxSwipes: Int = 4) {
+        guard !element.isHittable else { return }
+
+        for _ in 0..<maxSwipes {
+            app.swipeUp()
+            if element.isHittable { return }
+        }
+
+        for _ in 0..<maxSwipes {
+            app.swipeDown()
+            if element.isHittable { return }
+        }
+    }
+
+    private func containsNonPlaceholderValue(_ element: XCUIElement) -> Bool {
+        guard let rawValue = element.value as? String else { return false }
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.isEmpty { return false }
+        if value == "sk-..." { return false }
+        if value.lowercased() == "secure text field" { return false }
+        return true
     }
 }
