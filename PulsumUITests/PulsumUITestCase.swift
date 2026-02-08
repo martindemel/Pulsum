@@ -115,6 +115,16 @@ class PulsumUITestCase: XCTestCase {
         return true
     }
 
+    /// Tap a field and wait for the keyboard to appear, retrying if focus is stolen.
+    func tapAndWaitForKeyboard(_ element: XCUIElement, retries: Int = 3) {
+        for attempt in 0..<retries {
+            element.tapWhenHittable(timeout: 3)
+            if app.keyboards.firstMatch.waitForExistence(timeout: attempt == 0 ? 2 : 3) {
+                return
+            }
+        }
+    }
+
     func dismissKeyboardIfPresent() {
         guard app.keyboards.count > 0 else { return }
         // Tap a non-interactive label to resign first responder.
