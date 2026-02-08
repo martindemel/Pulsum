@@ -9,7 +9,8 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         let textKeyField = app.textFields["CloudAPIKeyField"]
         let keyField = secureKeyField.waitForExistence(timeout: 2) ? secureKeyField : textKeyField
         XCTAssertTrue(keyField.waitForExistence(timeout: 5), "Cloud API key field missing.")
-        tapAndWaitForKeyboard(keyField)
+        XCTAssertTrue(tapAndWaitForKeyboard(keyField, retries: 5),
+                      "Cloud API key field did not gain keyboard focus.")
         keyField.typeText("sk-test-ui-123")
 
         // Dismiss keyboard so buttons below are hittable on small screens (iPhone SE)

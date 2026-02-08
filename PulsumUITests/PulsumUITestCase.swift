@@ -115,14 +115,27 @@ class PulsumUITestCase: XCTestCase {
         return true
     }
 
-    /// Tap a field and wait for the keyboard to appear, retrying if focus is stolen.
-    func tapAndWaitForKeyboard(_ element: XCUIElement, retries: Int = 3) {
+    /// Tap a text input and wait until the element is actually focused.
+    /// Relying on keyboard existence alone can be flaky on simulator CI.
+    @discardableResult
+    func tapAndWaitForKeyboard(_ element: XCUIElement, retries: Int = 3) -> Bool {
         for attempt in 0..<retries {
             element.tapWhenHittable(timeout: 3)
-            if app.keyboards.firstMatch.waitForExistence(timeout: attempt == 0 ? 2 : 3) {
-                return
+            _ = app.keyboards.firstMatch.waitForExistence(timeout: attempt == 0 ? 2 : 3)
+            if element.hasKeyboardFocusValue {
+                return true
             }
+
+            // Fallback tap at center helps when SwiftUI wrappers swallow the first tap.
+            let coordinate = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            coordinate.tap()
+            if element.hasKeyboardFocusValue {
+                return true
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
+        return element.hasKeyboardFocusValue
     }
 
     func dismissKeyboardIfPresent() {
@@ -231,6 +244,12 @@ class PulsumUITestCase: XCTestCase {
 }
 
 extension XCUIElement {
+    /// `hasKeyboardFocus` is not exposed on all XCTest SDK overlays.
+    /// Reading via KVC keeps this helper portable across Xcode point releases.
+    var hasKeyboardFocusValue: Bool {
+        (value(forKey: "hasKeyboardFocus") as? Bool) ?? false
+    }
+
     func waitForDisappearance(timeout: TimeInterval) -> Bool {
         let predicate = NSPredicate(format: "exists == false")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: self)
