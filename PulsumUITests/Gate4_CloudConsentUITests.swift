@@ -2,7 +2,7 @@ import XCTest
 
 final class Gate4_CloudConsentUITests: PulsumUITestCase {
     func test_enter_key_and_test_connection_shows_ok_status() {
-        launchPulsum()
+        launchPulsum(additionalEnvironment: ["PULSUM_COACH_API_KEY": ""])
         guard openSettingsSheetOrSkip() else { return }
 
         let secureKeyField = app.secureTextFields["CloudAPIKeyField"]
