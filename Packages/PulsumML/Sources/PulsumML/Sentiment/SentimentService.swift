@@ -16,11 +16,12 @@ public final class SentimentService {
             if let coreML = CoreMLSentimentProvider() {
                 stack.append(coreML)
             }
+            stack.append(NaturalLanguageSentimentProvider())
             self.providers = stack
         }
     }
 
-    public func sentiment(for text: String) async -> Double {
+    public func sentiment(for text: String) async -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return 0 }
 
@@ -34,7 +35,7 @@ public final class SentimentService {
                 continue
             }
         }
-        return 0
+        return nil
     }
 }
 

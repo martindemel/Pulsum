@@ -108,9 +108,9 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
             logger.debug("Topic gate degraded: embedding unavailable or prototypes empty (wellbeing=\(self.wellbeingPrototypes.count, privacy: .public), ood=\(self.oodPrototypes.count, privacy: .public)).")
             #endif
             let decision = GateDecision(
-                isOnTopic: false,
-                reason: "Unable to embed input text",
-                confidence: 0.5,
+                isOnTopic: true,
+                reason: "Degraded mode: embeddings unavailable, allowing input",
+                confidence: 0.1,
                 topic: nil
             )
             return (decision, 0, 0, nil)

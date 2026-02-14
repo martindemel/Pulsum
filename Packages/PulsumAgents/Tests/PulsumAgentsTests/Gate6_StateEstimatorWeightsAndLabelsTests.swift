@@ -4,7 +4,7 @@ import XCTest
 
 // swiftlint:disable:next type_name
 final class Gate6_StateEstimatorWeightsAndLabelsTests: XCTestCase {
-    func testRecoverySignalsLiftScore() {
+    func testRecoverySignalsLiftScore() async {
         let goodRaw: [String: Double] = [
             "z_hrv": 1.5,
             "z_sleepDebt": -1.0,
@@ -35,8 +35,8 @@ final class Gate6_StateEstimatorWeightsAndLabelsTests: XCTestCase {
         let goodTarget = WellbeingModeling.target(for: goodFeatures)
         let badTarget = WellbeingModeling.target(for: badFeatures)
 
-        let goodSnapshot = estimator.update(features: goodFeatures, target: goodTarget)
-        let badSnapshot = estimator.update(features: badFeatures, target: badTarget)
+        let goodSnapshot = await estimator.update(features: goodFeatures, target: goodTarget)
+        let badSnapshot = await estimator.update(features: badFeatures, target: badTarget)
 
         XCTAssertGreaterThan(goodSnapshot.wellbeingScore, badSnapshot.wellbeingScore)
         XCTAssertGreaterThan(goodSnapshot.contributions["z_hrv"] ?? 0, 0)
@@ -47,7 +47,7 @@ final class Gate6_StateEstimatorWeightsAndLabelsTests: XCTestCase {
         XCTAssertGreaterThan(goodSnapshot.contributions["sentiment"] ?? 0, badSnapshot.contributions["sentiment"] ?? 0)
     }
 
-    func testImputedSignalsClampToNeutralContribution() {
+    func testImputedSignalsClampToNeutralContribution() async {
         let raw: [String: Double] = [
             "z_hrv": 1.2,
             "z_steps": 1.5,
@@ -64,7 +64,7 @@ final class Gate6_StateEstimatorWeightsAndLabelsTests: XCTestCase {
 
         let estimator = StateEstimator()
         let target = WellbeingModeling.target(for: normalized)
-        let snapshot = estimator.update(features: normalized, target: target)
+        let snapshot = await estimator.update(features: normalized, target: target)
 
         XCTAssertEqual(snapshot.contributions["z_steps"] ?? -1, 0)
     }

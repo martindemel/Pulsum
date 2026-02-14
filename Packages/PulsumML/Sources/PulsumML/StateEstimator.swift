@@ -33,7 +33,7 @@ public struct StateEstimatorState: Codable, Sendable {
     }
 }
 
-public final class StateEstimator {
+public actor StateEstimator {
     public static let defaultWeights: [String: Double] = [
         "z_hrv": 0.6,
         "z_nocthr": -0.45,

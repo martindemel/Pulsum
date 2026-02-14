@@ -1,6 +1,6 @@
 import Foundation
 
-public struct RecommendationFeatures {
+public struct RecommendationFeatures: Sendable {
     public let id: String
     public let wellbeingScore: Double
     public let evidenceStrength: Double
@@ -55,7 +55,7 @@ public struct AcceptanceHistory: Sendable {
     }
 }
 
-public struct UserFeedback {
+public struct UserFeedback: Sendable {
     public let featureId: String
     public let delta: Double
 
@@ -65,7 +65,7 @@ public struct UserFeedback {
     }
 }
 
-public struct RankerMetrics {
+public struct RankerMetrics: Sendable {
     public let weights: [String: Double]
     public let learningRate: Double
 
@@ -75,7 +75,7 @@ public struct RankerMetrics {
     }
 }
 
-public struct RecRankerState: Codable, Equatable {
+public struct RecRankerState: Codable, Equatable, Sendable {
     public let version: Int
     public let weights: [String: Double]
     public let learningRate: Double
@@ -87,7 +87,7 @@ public struct RecRankerState: Codable, Equatable {
     }
 }
 
-public final class RecRanker {
+public actor RecRanker {
     private static let schemaVersion = 1
     private static let defaultWeights: [String: Double] = [
         "bias": 0.0,
@@ -110,11 +110,16 @@ public final class RecRanker {
     private let weightCap: ClosedRange<Double> = -3.0 ... 3.0
 
     public init(state: RecRankerState? = nil) {
-        self.weights = Self.defaultWeights
-        self.learningRate = 0.05
-        if let state {
-            apply(state: state)
+        var weights = Self.defaultWeights
+        var learningRate = 0.05
+        if let state, state.version == Self.schemaVersion {
+            for (key, value) in state.weights {
+                weights[key] = min(max(value, -3.0), 3.0)
+            }
+            learningRate = state.learningRate
         }
+        self.weights = weights
+        self.learningRate = learningRate
     }
 
     public func score(features: RecommendationFeatures) -> Double {
@@ -126,13 +131,21 @@ public final class RecRanker {
     }
 
     public func update(preferred: RecommendationFeatures, other: RecommendationFeatures) {
-        let preferredScore = score(features: preferred)
-        let otherScore = score(features: other)
-        let gradientPreferred = 1 - preferredScore
-        let gradientOther = -otherScore
+        let dotPreferred = dot(weights: weights, features: preferred.vector)
+        let dotOther = dot(weights: weights, features: other.vector)
+        let margin = dotOther - dotPreferred
+        let gradient = logistic(margin)
 
-        applyGradient(features: preferred.vector, gradient: gradientPreferred)
-        applyGradient(features: other.vector, gradient: gradientOther)
+        let allKeys = Set(preferred.vector.keys).union(other.vector.keys)
+        for k in allKeys where k != "bias" {
+            let xPref = preferred.vector[k] ?? 0
+            let xOther = other.vector[k] ?? 0
+            weights[k, default: 0] += learningRate * gradient * (xPref - xOther)
+            weights[k] = clampedWeight(weights[k]!)
+        }
+        // Bias gradient: derivative of pairwise loss w.r.t. bias is just `gradient`
+        weights["bias", default: 0] += learningRate * gradient
+        weights["bias"] = clampedWeight(weights["bias"]!)
     }
 
     public func updateLearningRate(basedOn history: AcceptanceHistory) {
@@ -164,13 +177,6 @@ public final class RecRanker {
         RecRankerState(version: Self.schemaVersion, weights: weights, learningRate: learningRate)
     }
 
-    private func applyGradient(features: [String: Double], gradient: Double) {
-        for (feature, value) in features {
-            let updated = clampedWeight((weights[feature] ?? 0) + learningRate * gradient * value)
-            weights[feature] = updated
-        }
-    }
-
     private func dot(weights: [String: Double], features: [String: Double]) -> Double {
         weights.reduce(into: 0.0) { result, element in
             result += element.value * (features[element.key] ?? 0)
@@ -183,13 +189,5 @@ public final class RecRanker {
 
     private func clampedWeight(_ value: Double) -> Double {
         min(max(value, weightCap.lowerBound), weightCap.upperBound)
-    }
-
-    private func apply(state: RecRankerState) {
-        guard state.version == Self.schemaVersion else { return }
-        for (key, value) in state.weights {
-            weights[key] = clampedWeight(value)
-        }
-        learningRate = state.learningRate
     }
 }

@@ -50,19 +50,19 @@ final class PackageEmbedTests: XCTestCase {
         let z = BaselineMath.zScore(value: 80, stats: stats)
         XCTAssertGreaterThan(z, 2.0)
     }
-    func testStateEstimatorUpdatesWeights() {
+    func testStateEstimatorUpdatesWeights() async {
         let estimator = StateEstimator()
         let features = [
             "z_hrv": -1.0,
             "subj_stress": 2.0,
             "subj_energy": -1.0
         ]
-        let snapshotBefore = estimator.currentSnapshot(features: features)
-        let updated = estimator.update(features: features, target: 1.0)
+        let snapshotBefore = await estimator.currentSnapshot(features: features)
+        let updated = await estimator.update(features: features, target: 1.0)
         XCTAssertNotEqual(snapshotBefore.weights, updated.weights)
     }
 
-    func testRecRankerPrefersHigherEvidence() {
+    func testRecRankerPrefersHigherEvidence() async {
         let ranker = RecRanker()
         let strong = RecommendationFeatures(id: "strong",
                                             wellbeingScore: -0.5,
@@ -78,7 +78,7 @@ final class PackageEmbedTests: XCTestCase {
                                           cooldown: 0.0,
                                           acceptanceRate: 0.5,
                                           timeCostFit: 0.8)
-        let ranked = ranker.rank([weak, strong])
+        let ranked = await ranker.rank([weak, strong])
         XCTAssertEqual(ranked.first?.id, "strong")
     }
 

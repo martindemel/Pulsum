@@ -236,7 +236,7 @@ public final class SentimentAgent {
                                     ])
 
         // Use async Foundation Models sentiment analysis
-        let sentiment = await sentimentService.sentiment(for: sanitized)
+        let sentiment = await sentimentService.sentiment(for: sanitized) ?? 0
 
         let entryID = UUID()
         var vectorURL: URL?

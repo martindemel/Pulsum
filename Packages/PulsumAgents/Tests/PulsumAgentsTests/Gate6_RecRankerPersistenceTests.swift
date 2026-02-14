@@ -15,7 +15,7 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
 
         let agent = try makeCoachAgent(container: container, rankerStore: rankerStore)
 
-        let initialMetrics = agent._testRankerMetrics()
+        let initialMetrics = await agent._testRankerMetrics()
 
         let features = [
             RecommendationFeatures(id: "a",
@@ -39,11 +39,11 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
         agent._injectRankedFeaturesForTesting(features)
         try await agent.logEvent(momentId: "a", accepted: true)
 
-        let updatedMetrics = agent._testRankerMetrics()
+        let updatedMetrics = await agent._testRankerMetrics()
         XCTAssertNotEqual(updatedMetrics.weights, initialMetrics.weights, "Weights should update after feedback.")
 
         let restarted = try makeCoachAgent(container: container, rankerStore: rankerStore)
-        let restoredMetrics = restarted._testRankerMetrics()
+        let restoredMetrics = await restarted._testRankerMetrics()
 
         XCTAssertEqual(restoredMetrics.weights, updatedMetrics.weights)
         XCTAssertEqual(restoredMetrics.learningRate, updatedMetrics.learningRate)

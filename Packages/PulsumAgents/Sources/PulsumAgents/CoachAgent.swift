@@ -165,7 +165,7 @@ public final class CoachAgent {
             }
 
             try Task.checkCancellation()
-            let rankedFeatures = ranker.rank(candidates.map { $0.features })
+            let rankedFeatures = await ranker.rank(candidates.map { $0.features })
             lastRankedFeatures = rankedFeatures
             var rankedCards: [RecommendationCard] = []
             for feature in rankedFeatures {
@@ -601,15 +601,15 @@ public final class CoachAgent {
 
         for candidate in comparators {
             if accepted {
-                ranker.update(preferred: target, other: candidate)
+                await ranker.update(preferred: target, other: candidate)
             } else {
-                ranker.update(preferred: candidate, other: target)
+                await ranker.update(preferred: candidate, other: target)
             }
         }
 
         let history = await acceptanceHistory(for: momentId)
-        ranker.updateLearningRate(basedOn: history)
-        persistRankerState()
+        await ranker.updateLearningRate(basedOn: history)
+        await persistRankerState()
         return (changedCount: comparators.count, learningRateBucket: learningRateBucket(for: history.sampleCount))
     }
 
@@ -654,8 +654,8 @@ public final class CoachAgent {
     }
 
     #if DEBUG
-    func _testRankerMetrics() -> RankerMetrics {
-        ranker.getPerformanceMetrics()
+    func _testRankerMetrics() async -> RankerMetrics {
+        await ranker.getPerformanceMetrics()
     }
 
     func _injectRankedFeaturesForTesting(_ features: [RecommendationFeatures]) {
@@ -710,8 +710,8 @@ private extension CoachAgent {
         }
     }
 
-    func persistRankerState() {
-        let state = ranker.snapshotState()
+    func persistRankerState() async {
+        let state = await ranker.snapshotState()
         rankerStore.saveState(state)
     }
 
@@ -728,7 +728,7 @@ private extension CoachAgent {
         }
         guard !candidates.isEmpty else { return [] }
 
-        let rankedFeatures = ranker.rank(candidates.map { $0.features })
+        let rankedFeatures = await ranker.rank(candidates.map { $0.features })
         lastRankedFeatures = rankedFeatures
         var rankedCards: [RecommendationCard] = []
         for feature in rankedFeatures {

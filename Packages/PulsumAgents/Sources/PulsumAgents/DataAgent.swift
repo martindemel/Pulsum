@@ -1913,7 +1913,7 @@ actor DataAgent {
         }
         let modelFeatures = WellbeingModeling.normalize(features: computation.featureValues,
                                                         imputedFlags: computation.imputedFlags)
-        let snapshot = stateEstimator.currentSnapshot(features: modelFeatures)
+        let snapshot = await stateEstimator.currentSnapshot(features: modelFeatures)
         let dayString = DiagnosticsDayFormatter.dayString(from: computation.date)
         let placeholder = SnapshotPlaceholder.isPlaceholder(computation.imputedFlags)
         await DebugLogBuffer.shared.append("latestFeatureVector -> day=\(dayString) feature_count=\(computation.featureValues.count) placeholder=\(placeholder)")
@@ -2464,7 +2464,7 @@ actor DataAgent {
         let modelFeatures = WellbeingModeling.normalize(features: computation.featureValues,
                                                         imputedFlags: computation.imputedFlags)
         let target = WellbeingModeling.target(for: modelFeatures)
-        let snapshot = stateEstimator.update(features: modelFeatures, target: target)
+        let snapshot = await stateEstimator.update(features: modelFeatures, target: target)
         let dayString = DiagnosticsDayFormatter.dayString(from: day)
         await DebugLogBuffer.shared.append("Reprocessed day \(dayString) -> feature_count=\(computation.featureValues.count)")
         persistEstimatorState(from: snapshot)
@@ -3199,16 +3199,16 @@ actor DataAgent {
     }
 
     @discardableResult
-    func _testUpdateEstimator(features: [String: Double], imputed: [String: Bool] = [:]) -> StateEstimatorSnapshot {
+    func _testUpdateEstimator(features: [String: Double], imputed: [String: Bool] = [:]) async -> StateEstimatorSnapshot {
         let normalized = WellbeingModeling.normalize(features: features, imputedFlags: imputed)
         let target = WellbeingModeling.target(for: normalized)
-        let snapshot = stateEstimator.update(features: normalized, target: target)
+        let snapshot = await stateEstimator.update(features: normalized, target: target)
         persistEstimatorState(from: snapshot)
         return snapshot
     }
 
-    func _testEstimatorState() -> StateEstimatorState {
-        stateEstimator.persistedState(version: EstimatorStateStore.schemaVersion)
+    func _testEstimatorState() async -> StateEstimatorState {
+        await stateEstimator.persistedState(version: EstimatorStateStore.schemaVersion)
     }
 
     func _testBackfillProgress() -> BackfillProgress {

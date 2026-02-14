@@ -51,7 +51,7 @@ final class Gate6_RecRankerLearningTests: XCTestCase {
         let reranked = try await agent.recommendationCards(for: snapshot, consentGranted: false)
         XCTAssertEqual(reranked.first?.id, "B")
 
-        let metrics = agent._testRankerMetrics()
+        let metrics = await agent._testRankerMetrics()
         XCTAssertNotEqual(metrics.weights["bias"], 0)
     }
 }
