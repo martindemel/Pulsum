@@ -10,22 +10,44 @@ PulsumTypes -> PulsumML + PulsumData -> PulsumServices -> PulsumAgents -> Pulsum
 ```
 
 ## Key Files
-- `master_plan_FINAL.md` — Source of truth. 79 remediation items across 4 phases. Read before any architectural work.
-- `plan_execution_prompts.md` — Step-by-step prompts for executing the plan. Run in order.
+- `master_fix_plan.md` — **Active remediation plan.** 99 findings (12 CRIT, 18 HIGH, 24 MED, 20 LOW) with exact code fixes, organized into 8 implementation batches. Read this before any fix work.
+- `batch_execution_prompts.md` — Self-contained prompts for each batch. Copy-paste into a fresh Claude Code window.
+- `master_plan_FINAL.md` — Original architecture plan. 79 items across 4 phases (SwiftData migration, safety, concurrency, production).
 - `master_report.md` — 112 findings with full detail. Look up finding IDs (CRIT-XXX, HIGH-XXX, etc.) here.
 - `guidelines_report.md` — App Store compliance checks.
 
+## Git Workflow
+- **Small changes** (single-commit fixes, tweaks, config): push directly to `main`
+- **Multi-commit or multi-file features**: create a feature branch, open a PR, then merge
+- Branch naming: `feature/<short-description>` or `fix/<short-description>`
+- Always build-verify before committing
+- Commit messages: imperative verb + descriptive phrase (e.g., "Fix VectorIndex hash sharding")
+- **Safe point**: Before executing any multi-file plan, commit current working state as a checkpoint so changes can be reverted cleanly
+
 ## Build & Test
 ```bash
-xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath ./DerivedData
+# Simulator build (preferred for dev — no signing required)
+xcodebuild -scheme Pulsum \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath /tmp/PulsumDerivedData \
+  build
+
+# Device build
+xcodebuild -scheme Pulsum -sdk iphoneos -derivedDataPath /tmp/PulsumDerivedData
+
+# SPM package tests
 swift test --package-path Packages/PulsumML
 swift test --package-path Packages/PulsumData
 swift test --package-path Packages/PulsumServices
 swift test --package-path Packages/PulsumAgents
 swift test --package-path Packages/PulsumUI
+
 swiftformat .
 scripts/ci/check-privacy-manifests.sh
 ```
+
+- DerivedData MUST be outside iCloud (`/tmp/PulsumDerivedData`) — iCloud `com.apple.provenance` xattrs break CodeSign
+- Available simulators: iPhone 17, iPhone 17 Pro, iPhone 17 Pro Max, iPhone Air (no iPhone 16 series)
 
 ## New terms / fast-moving areas you MUST look up when referenced:
 - Liquid Glass (new design system / UI material)
@@ -41,6 +63,24 @@ scripts/ci/check-privacy-manifests.sh
 - Use `Diagnostics.log()` from PulsumTypes for all logging (not `print()`)
 - Use `FetchDescriptor` + `#Predicate`, not `NSFetchRequest`
 - No `performAndWait` — `@ModelActor` context is actor-isolated
+
+## SwiftData Migration Rules
+- Lightweight migration only — no `VersionedSchema` unless explicitly discussed
+- New properties on existing `@Model` types require default values
+- `@Model` requires fully qualified enum defaults: `DateEntryMethod.dueDate` not `.dueDate`
+
+## Xcode Gotchas
+- File-system sync — `.swift` files in source directories are auto-included by Xcode
+- `ButtonStyle` ternary (`.glass` vs `.glassProminent`) doesn't compile — use `if/else`
+- Never use `fatalError` in `@main` `init` — test host crashes; use graceful fallback
+- Stored property named `body` conflicts with SwiftUI `View` — use `content` instead
+- `GENERATE_INFOPLIST_FILE` + custom `Info.plist` = "Multiple commands produce" build error
+
+## Testing
+- Test naming: `test_[unit]_[scenario]_[expected]`
+- Use in-memory SwiftData containers for unit test isolation
+- When adding or modifying Services, Models, or data parsing, add or update corresponding unit tests
+- Prefer Swift Testing framework for new tests
 
 ## Do NOT
 - Use `@unchecked Sendable` on new code
