@@ -9,11 +9,11 @@ import PulsumTypes
 private let speechLogger = Logger(subsystem: "ai.pulsum", category: "SpeechService")
 
 enum SpeechLoggingPolicy {
-#if DEBUG
+    #if DEBUG
     static let transcriptLoggingEnabled = true
-#else
+    #else
     static let transcriptLoggingEnabled = false
-#endif
+    #endif
 }
 
 private struct SpeechAuthorizationState {
@@ -38,15 +38,15 @@ public struct SystemSpeechAuthorizationProvider: SpeechAuthorizationProviding {
     }
 
     public func requestRecordPermission() async -> Bool {
-#if os(iOS)
+        #if os(iOS)
         await withCheckedContinuation { continuation in
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 continuation.resume(returning: granted)
             }
         }
-#else
+        #else
         return true
-#endif
+        #endif
     }
 }
 
@@ -96,7 +96,7 @@ public actor SpeechService {
     ) {
         self.authorizationProvider = authorizationProvider
         self.overrides = SpeechUITestOverrides()
-#if DEBUG
+        #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn && overrides.useFakeBackend {
             backend = FakeSpeechBackend(
                 authorizationProvider: authorizationProvider,
@@ -105,7 +105,7 @@ public actor SpeechService {
             backendName = backend.backendName
             return
         }
-#endif
+        #endif
 
         if #available(iOS 26.0, *),
            BuildFlags.useModernSpeechBackend,
@@ -123,16 +123,16 @@ public actor SpeechService {
     }
 
     public func startRecording(maxDuration: TimeInterval = 30) async throws -> Session {
-#if DEBUG
+        #if DEBUG
         let clock = ContinuousClock()
         let start = clock.now
         let session = try await backend.startRecording(maxDuration: maxDuration)
         let elapsed = start.duration(to: clock.now)
         speechLogger.debug("Speech backend \(self.backendName, privacy: .public) start latency \(elapsed.components.seconds, privacy: .public)s")
         return session
-#else
+        #else
         return try await backend.startRecording(maxDuration: maxDuration)
-#endif
+        #endif
     }
 
     public func stopRecording() {
@@ -142,12 +142,12 @@ public actor SpeechService {
     public nonisolated var selectedBackendIdentifier: String { backendName }
 
     private func preflightPermissions() async throws {
-#if DEBUG
+        #if DEBUG
         if overrides.autoGrantPermissions {
             cachedAuthorization = SpeechAuthorizationState(speechStatus: .authorized, microphoneGranted: true)
             return
         }
-#endif
+        #endif
         if let cached = cachedAuthorization,
            cached.speechStatus == .authorized,
            cached.microphoneGranted {
@@ -166,12 +166,12 @@ public actor SpeechService {
             throw SpeechServiceError.speechPermissionDenied
         }
 
-#if os(iOS)
+        #if os(iOS)
         let microphoneGranted = await authorizationProvider.requestRecordPermission()
         guard microphoneGranted else { throw SpeechServiceError.microphonePermissionDenied }
-#else
+        #else
         let microphoneGranted = true
-#endif
+        #endif
         cachedAuthorization = SpeechAuthorizationState(speechStatus: speechStatus, microphoneGranted: microphoneGranted)
     }
 }
@@ -190,13 +190,13 @@ private struct SpeechUITestOverrides {
     let autoGrantPermissions: Bool
 
     init() {
-#if DEBUG
+        #if DEBUG
         useFakeBackend = AppRuntimeConfig.useFakeSpeechBackend
         autoGrantPermissions = AppRuntimeConfig.autoGrantSpeechPermissions
-#else
+        #else
         useFakeBackend = false
         autoGrantPermissions = false
-#endif
+        #endif
     }
 }
 
@@ -230,7 +230,7 @@ private final class LegacySpeechBackend: SpeechBackending {
         }
         speechLogger.info("Speech recognizer available (on-device: \(recognizer.supportsOnDeviceRecognition)).")
 
-#if os(iOS)
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         if session.recordPermission == .undetermined {
             _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
@@ -247,17 +247,17 @@ private final class LegacySpeechBackend: SpeechBackending {
             try session.setActive(true, options: .notifyOthersOnDeactivation)
             speechLogger.info("Audio session configured.")
         } catch {
-#if targetEnvironment(simulator)
+            #if targetEnvironment(simulator)
             // In simulator, audio session config may fail but recording still works
             let info = Self.safeErrorInfo(error)
             speechLogger.debug("Audio session config failed in simulator (expected). domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
-#else
+            #else
             let info = Self.safeErrorInfo(error)
             speechLogger.error("Audio session configuration failed. domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
             throw SpeechServiceError.audioSessionUnavailable
-#endif
+            #endif
         }
-#endif
+        #endif
 
         let engine = AVAudioEngine()
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -265,26 +265,26 @@ private final class LegacySpeechBackend: SpeechBackending {
             request.requiresOnDeviceRecognition = true
         }
         request.shouldReportPartialResults = true
-        
+
         speechLogger.debug("Starting audio engine...")
 
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
         speechLogger.debug("Audio format sampleRate=\(format.sampleRate, privacy: .public) channels=\(format.channelCount, privacy: .public)")
         inputNode.removeTap(onBus: 0)
-        
+
         // Create audio level stream with stored continuation
         let audioLevelStream = AsyncStream<Float> { continuation in
             self.levelContinuation = continuation
             continuation.onTermination = { @Sendable _ in
                 speechLogger.debug("Audio level stream terminated.")
             }
-            
+
             // Install tap to capture audio and send to recognition
             inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
                 // Feed buffer to speech recognition
                 request.append(buffer)
-                
+
                 // Calculate and yield RMS power level for waveform visualization
                 let level = Self.calculateRMSLevel(from: buffer)
                 continuation.yield(level)
@@ -311,42 +311,42 @@ private final class LegacySpeechBackend: SpeechBackending {
                 speechLogger.debug("Speech segment stream terminated.")
             }
         }
-        
+
         // Start recognition task IMMEDIATELY (not deferred until stream consumption)
         speechLogger.debug("Starting recognition task.")
         self.recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
-            
+
             if let error {
                 let info = Self.safeErrorInfo(error)
                 speechLogger.error("Recognition error. domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
                 self.streamContinuation?.finish(throwing: error)
                 return
             }
-            
+
             guard let result else { return }
-            
+
             let confidence = result.transcriptions.first?.segments.averageConfidence ?? 0
             let transcript = result.bestTranscription.formattedString
-            
+
             if !transcript.isEmpty {
-#if DEBUG
+                #if DEBUG
                 if SpeechLoggingPolicy.transcriptLoggingEnabled {
                     speechLogger
                         .debug("PULSUM_TRANSCRIPT_LOG_MARKER final=\(result.isFinal, privacy: .public) chars=\(transcript.count, privacy: .public) confidence=\(confidence, privacy: .public)")
                 }
-#endif
+                #endif
                 self.streamContinuation?.yield(
                     SpeechSegment(transcript: transcript, isFinal: result.isFinal, confidence: confidence)
                 )
             }
-            
+
             if result.isFinal {
                 speechLogger.info("Recognition completed with final transcript.")
                 self.streamContinuation?.finish()
             }
         }
-        
+
         speechLogger.info("Recognition task listening.")
 
         // Set up max duration timeout
@@ -371,45 +371,45 @@ private final class LegacySpeechBackend: SpeechBackending {
         let nsError = error as NSError
         return (nsError.domain, nsError.code)
     }
-    
+
     private static func calculateRMSLevel(from buffer: AVAudioPCMBuffer) -> Float {
         guard let channelData = buffer.floatChannelData else { return 0 }
         let channelDataValue = channelData.pointee
         let channelDataValueArray = stride(from: 0, to: Int(buffer.frameLength), by: buffer.stride)
             .map { channelDataValue[$0] }
-        
+
         let rms = sqrt(channelDataValueArray.map { $0 * $0 }.reduce(0, +) / Float(buffer.frameLength))
-        
+
         // Convert to dB and normalize to 0...1 range
         let decibels = 20 * log10(max(rms, 0.00001))
         let normalized = max(0, min(1, (decibels + 50) / 50)) // -50dB to 0dB mapped to 0...1
-        
+
         return normalized
     }
 
     func stopRecording() {
         speechLogger.info("Stopping recording.")
-        
+
         // Finish streams
         streamContinuation?.finish()
         streamContinuation = nil
         levelContinuation?.finish()
         levelContinuation = nil
-        
+
         // Cancel recognition task (not cancel, just finish cleanly)
         recognitionRequest?.endAudio()
         recognitionRequest = nil
         recognitionTask?.finish()
         recognitionTask = nil
-        
+
         // Stop audio engine
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine = nil
-        
-#if os(iOS)
+
+        #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-#endif
+        #endif
         speechLogger.info("Recording stopped and cleaned up.")
     }
 }
@@ -436,9 +436,9 @@ private final class FakeSpeechBackend: SpeechBackending {
     func requestAuthorization() async throws {
         guard !autoGrantPermissions else { return }
         _ = await authorizationProvider.requestSpeechAuthorization()
-#if os(iOS)
+        #if os(iOS)
         _ = await authorizationProvider.requestRecordPermission()
-#endif
+        #endif
     }
 
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
@@ -501,6 +501,7 @@ private final class FakeSpeechBackend: SpeechBackending {
         SpeechSegment(transcript: "Energy feels steady and focus is clear. Plan is to stretch after meetings.", isFinal: true, confidence: 0.97)
     ]
 }
+
 extension FakeSpeechBackend: @unchecked Sendable {}
 #endif
 #endif
@@ -509,9 +510,9 @@ extension FakeSpeechBackend: @unchecked Sendable {}
 private final class ModernSpeechBackend: SpeechBackending {
     private let fallback: LegacySpeechBackend
     let backendName = "modern"
-#if DEBUG
+    #if DEBUG
     nonisolated(unsafe) static var availabilityOverride: Bool?
-#endif
+    #endif
 
     init?(locale: Locale, authorizationProvider: SpeechAuthorizationProviding) {
         self.fallback = LegacySpeechBackend(locale: locale, authorizationProvider: authorizationProvider)
@@ -536,9 +537,9 @@ private final class ModernSpeechBackend: SpeechBackending {
     }
 
     private static var isSystemAnalyzerAvailable: Bool {
-#if DEBUG
+        #if DEBUG
         if let override = availabilityOverride { return override }
-#endif
+        #endif
         return NSClassFromString("SpeechTranscriber") != nil || NSClassFromString("SpeechAnalyzer") != nil
     }
 }
@@ -547,7 +548,7 @@ private final class ModernSpeechBackend: SpeechBackending {
 extension ModernSpeechBackend: @unchecked Sendable {}
 
 #if os(iOS)
-private extension Array where Element == SFTranscriptionSegment {
+private extension [SFTranscriptionSegment] {
     var averageConfidence: Float {
         guard !isEmpty else { return 0 }
         let total = reduce(Float(0)) { $0 + $1.confidence }
@@ -555,7 +556,7 @@ private extension Array where Element == SFTranscriptionSegment {
     }
 }
 #else
-private extension Array where Element == SFTranscriptionSegment {
+private extension [SFTranscriptionSegment] {
     var averageConfidence: Float { 0 }
 }
 #endif

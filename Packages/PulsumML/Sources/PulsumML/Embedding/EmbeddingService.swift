@@ -222,7 +222,7 @@ public final class EmbeddingService {
         for (index, segment) in segments.enumerated() where !segment.isEmpty {
             do {
                 let vector = try embedding(for: segment)
-                for i in 0..<dimension {
+                for i in 0 ..< dimension {
                     accumulator[i] += vector[i]
                 }
                 count += 1
@@ -234,7 +234,7 @@ public final class EmbeddingService {
             }
         }
         guard count > 0 else { throw EmbeddingError.generatorUnavailable }
-        for index in 0..<dimension {
+        for index in 0 ..< dimension {
             accumulator[index] /= count
         }
         guard accumulator.contains(where: { $0 != 0 }) else {
@@ -355,12 +355,12 @@ public final class EmbeddingService {
 }
 
 #if DEBUG
-extension EmbeddingService {
-    public static func debugInstance(primary: TextEmbeddingProviding? = nil,
-                                     fallback: TextEmbeddingProviding? = nil,
-                                     dimension: Int = 384,
-                                     reprobeInterval: TimeInterval = 3600,
-                                     dateProvider: @escaping () -> Date = Date.init) -> EmbeddingService {
+public extension EmbeddingService {
+    static func debugInstance(primary: TextEmbeddingProviding? = nil,
+                              fallback: TextEmbeddingProviding? = nil,
+                              dimension: Int = 384,
+                              reprobeInterval: TimeInterval = 3600,
+                              dateProvider: @escaping () -> Date = Date.init) -> EmbeddingService {
         EmbeddingService(primary: primary,
                          fallback: fallback,
                          dimension: dimension,

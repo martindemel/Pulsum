@@ -116,17 +116,17 @@ public enum DiagnosticsValue: Codable, Sendable, Hashable {
         let type = try container.decode(ValueType.self, forKey: .type)
         switch type {
         case .int:
-            self = .int(try container.decode(Int.self, forKey: .value))
+            self = try .int(container.decode(Int.self, forKey: .value))
         case .double:
-            self = .double(try container.decode(Double.self, forKey: .value))
+            self = try .double(container.decode(Double.self, forKey: .value))
         case .bool:
-            self = .bool(try container.decode(Bool.self, forKey: .value))
+            self = try .bool(container.decode(Bool.self, forKey: .value))
         case .safeString:
-            self = .safeString(try container.decode(DiagnosticsSafeString.self, forKey: .value))
+            self = try .safeString(container.decode(DiagnosticsSafeString.self, forKey: .value))
         case .day:
-            self = .day(try container.decode(String.self, forKey: .value))
+            self = try .day(container.decode(String.self, forKey: .value))
         case .uuid:
-            self = .uuid(try container.decode(UUID.self, forKey: .value))
+            self = try .uuid(container.decode(UUID.self, forKey: .value))
         }
     }
 
@@ -192,7 +192,7 @@ public struct DiagnosticsConfig: Codable, Equatable, Sendable {
     public var logTailLinesForExport: Int
 
     public static func `default`() -> DiagnosticsConfig {
-#if DEBUG
+        #if DEBUG
         return DiagnosticsConfig(enabled: true,
                                  minLevel: .debug,
                                  persistToDisk: true,
@@ -201,7 +201,7 @@ public struct DiagnosticsConfig: Codable, Equatable, Sendable {
                                  maxFileBytes: 3_000_000,
                                  maxFiles: 3,
                                  logTailLinesForExport: 2_000)
-#else
+        #else
         return DiagnosticsConfig(enabled: true,
                                  minLevel: .info,
                                  persistToDisk: true,
@@ -210,7 +210,7 @@ public struct DiagnosticsConfig: Codable, Equatable, Sendable {
                                  maxFileBytes: 3_000_000,
                                  maxFiles: 3,
                                  logTailLinesForExport: 2_000)
-#endif
+        #endif
     }
 }
 

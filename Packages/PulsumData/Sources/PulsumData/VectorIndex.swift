@@ -175,12 +175,12 @@ private final class VectorIndexShard {
                     guard let header = readRecordHeader(data: data, offset: cursor) else { break }
                     cursor += VectorRecordHeader.byteSize
                     guard cursor + Int(header.idLength) <= data.count else { break }
-                    let idData = data[cursor..<(cursor + Int(header.idLength))]
+                    let idData = data[cursor ..< (cursor + Int(header.idLength))]
                     cursor += Int(header.idLength)
                     let vectorByteCount = dimension * MemoryLayout<Float>.size
                     guard cursor + vectorByteCount <= data.count else { break }
                     if header.flags == 0 {
-                        let vectorData = data[cursor..<(cursor + vectorByteCount)]
+                        let vectorData = data[cursor ..< (cursor + vectorByteCount)]
                         let score = l2Distance(query: query, vectorData: vectorData)
                         let identifier = String(decoding: idData, as: UTF8.self)
                         if matches.count < topK {
@@ -210,7 +210,7 @@ private final class VectorIndexShard {
         let recordHeader = VectorRecordHeader(idLength: UInt16(idData.count), flags: 0)
         handle.write(recordHeader.data())
         handle.write(idData)
-        vector.forEach { value in
+        for value in vector {
             handle.write(value.bitPattern.littleEndianData)
         }
         return offset
@@ -221,7 +221,7 @@ private final class VectorIndexShard {
         guard let headerData = try handle.read(upToCount: VectorRecordHeader.byteSize), headerData.count == VectorRecordHeader.byteSize else {
             throw VectorIndexError.corruptShard(shardURL.lastPathComponent)
         }
-        let idLength = headerData[0..<2].toUInt16()
+        let idLength = headerData[0 ..< 2].toUInt16()
         let newFlags = UInt16(1)
         let updatedHeader = VectorRecordHeader(idLength: idLength, flags: newFlags)
         try handle.seek(toOffset: offset)
@@ -289,23 +289,23 @@ private final class VectorIndexShard {
         guard blob.count >= VectorIndexHeader.byteSize else {
             throw VectorIndexError.corruptShard(shardURL.lastPathComponent)
         }
-        let magic = blob[0..<4].toUInt32()
+        let magic = blob[0 ..< 4].toUInt32()
         guard magic == VectorIndexHeader.magic else {
             throw VectorIndexError.corruptShard(shardURL.lastPathComponent)
         }
-        let version = blob[4..<6].toUInt16()
+        let version = blob[4 ..< 6].toUInt16()
         guard version == VectorIndexHeader.version else {
             throw VectorIndexError.corruptShard(shardURL.lastPathComponent)
         }
-        let dimension = blob[6..<8].toUInt16()
-        let recordCount = blob[8..<(8 + MemoryLayout<UInt64>.size)].toUInt64()
+        let dimension = blob[6 ..< 8].toUInt16()
+        let recordCount = blob[8 ..< (8 + MemoryLayout<UInt64>.size)].toUInt64()
         return VectorIndexHeader(dimension: dimension, recordCount: recordCount)
     }
 
     private func readRecordHeader(data: Data, offset: Int) -> VectorRecordHeader? {
         guard offset + VectorRecordHeader.byteSize <= data.count else { return nil }
-        let idLength = data[offset..<(offset + 2)].toUInt16()
-        let flags = data[(offset + 2)..<(offset + 4)].toUInt16()
+        let idLength = data[offset ..< (offset + 2)].toUInt16()
+        let flags = data[(offset + 2) ..< (offset + 4)].toUInt16()
         return VectorRecordHeader(idLength: idLength, flags: flags)
     }
 
@@ -314,7 +314,7 @@ private final class VectorIndexShard {
         var index = vectorData.startIndex
         for value in query {
             let end = index + MemoryLayout<Float>.size
-            let slice = vectorData[index..<end]
+            let slice = vectorData[index ..< end]
             let stored = Float(bitPattern: slice.toUInt32())
             let diff = value - stored
             sum += diff * diff
@@ -361,7 +361,7 @@ actor VectorIndex {
         }
 
         var allMatches: [VectorMatch] = []
-        for shardIndex in 0..<shardCount {
+        for shardIndex in 0 ..< shardCount {
             let shard = try shard(forShardIndex: shardIndex)
             let matches = try shard.search(query: vector, topK: topK)
             allMatches.append(contentsOf: matches)
@@ -371,7 +371,7 @@ actor VectorIndex {
 
     func stats() -> (shards: Int, items: Int) {
         var total = 0
-        for index in 0..<shardCount {
+        for index in 0 ..< shardCount {
             if let shard = try? shard(forShardIndex: index) {
                 total += shard.metadata.count
             }

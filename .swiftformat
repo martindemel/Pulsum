@@ -1,0 +1,42 @@
+# Pulsum SwiftFormat Configuration
+# Conservative — catches real formatting issues, no code style rewrites
+
+# Indentation
+--indent 4
+--indentcase false
+--ifdef no-indent
+
+# Braces
+--allman false
+
+# Wrapping
+--maxwidth 120
+
+# Swift version
+--swiftversion 6.1
+
+# Disable rules that rewrite code style or cause unnecessary churn
+--disable trailingCommas
+--disable docComments
+--disable enumNamespaces
+--disable wrapFunctionBodies
+--disable wrapPropertyBodies
+--disable wrapMultilineStatementBraces
+--disable hoistPatternLet
+--disable redundantReturn
+--disable sortImports
+--disable wrap
+--disable elseOnSameLine
+--disable andOperator
+--disable conditionalAssignment
+--disable redundantSelf
+--disable redundantType
+--disable redundantProperty
+--disable hoistAwait
+--disable preferKeyPath
+--disable preferCountWhere
+--disable wrapArguments
+--disable numberFormatting
+
+# Excluded paths
+--exclude DerivedData,Build,.build,Packages/*/Tests

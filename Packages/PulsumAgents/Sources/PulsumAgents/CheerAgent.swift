@@ -11,9 +11,9 @@ public final class CheerAgent {
         let hour = calendar.component(.hour, from: now)
         let timeQualifier: String
         switch hour {
-        case 5..<12: timeQualifier = "morning momentum"
-        case 12..<17: timeQualifier = "midday reset"
-        case 17..<22: timeQualifier = "evening follow-through"
+        case 5 ..< 12: timeQualifier = "morning momentum"
+        case 12 ..< 17: timeQualifier = "midday reset"
+        case 17 ..< 22: timeQualifier = "evening follow-through"
         default: timeQualifier = "late-day commitment"
         }
 
@@ -30,12 +30,3 @@ public final class CheerAgent {
         return CheerEvent(message: message, haptic: haptic, timestamp: now)
     }
 }
-
-
-
-
-
-
-
-
-

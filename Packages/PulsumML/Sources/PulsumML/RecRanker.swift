@@ -107,7 +107,7 @@ public final class RecRanker {
 
     private var weights: [String: Double]
     private var learningRate: Double
-    private let weightCap: ClosedRange<Double> = -3.0...3.0
+    private let weightCap: ClosedRange<Double> = -3.0 ... 3.0
 
     public init(state: RecRankerState? = nil) {
         self.weights = Self.defaultWeights

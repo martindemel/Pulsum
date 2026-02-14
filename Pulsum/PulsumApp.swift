@@ -12,11 +12,11 @@ import PulsumTypes
 @main
 struct PulsumApp: App {
     init() {
-#if canImport(UIKit)
+        #if canImport(UIKit)
         if AppRuntimeConfig.disableAnimations {
             UIView.setAnimationsEnabled(false)
         }
-#endif
+        #endif
     }
 
     var body: some Scene {

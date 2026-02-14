@@ -36,8 +36,8 @@ public struct GlassEffectStyle: Equatable {
     public static var ultraThick: GlassEffectStyle { GlassEffectStyle(intensity: .ultraThick) }
 
     public var intensity: Intensity = .regular
-    public var tintColor: Color? = nil
-    public var cornerRadius: CGFloat? = nil
+    public var tintColor: Color?
+    public var cornerRadius: CGFloat?
     public var isInteractive: Bool = false
 
     public init(intensity: Intensity = .regular,

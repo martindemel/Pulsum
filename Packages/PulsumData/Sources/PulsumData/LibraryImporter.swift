@@ -226,7 +226,7 @@ public final class LibraryImporter {
 
         return LibraryProcessOutcome(payloads: payloads,
                                      ingestUpdate: LibraryIngestUpdate(source: resource.filename,
-                                                                        checksum: resource.checksum))
+                                                                       checksum: resource.checksum))
     }
 
     private func upsertMicroMoment(episode: PodcastEpisode,
@@ -287,7 +287,7 @@ public final class LibraryImporter {
         return 1
     }
 
-    private func buildDetail(episode: PodcastEpisode, recommendation: PodcastRecommendation) -> String {
+    private func buildDetail(episode _: PodcastEpisode, recommendation: PodcastRecommendation) -> String {
         var detailComponents: [String] = []
         detailComponents.append(recommendation.detailedDescription)
         if let microActivity = recommendation.microActivity {

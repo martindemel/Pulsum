@@ -56,7 +56,7 @@ final class AFMSentimentProvider: SentimentProviding {
         var dot: Float = 0
         var lhsNorm: Float = 0
         var rhsNorm: Float = 0
-        for idx in 0..<lhs.count {
+        for idx in 0 ..< lhs.count {
             dot += lhs[idx] * rhs[idx]
             lhsNorm += lhs[idx] * lhs[idx]
             rhsNorm += rhs[idx] * rhs[idx]

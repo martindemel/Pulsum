@@ -254,7 +254,6 @@ struct MainContainerView: View {
         }
     }
 
-    @ViewBuilder
     private var mainTab: some View {
         NavigationStack {
             ScrollView {
@@ -269,36 +268,36 @@ struct MainContainerView: View {
             }
             .scrollIndicators(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button { viewModel.isPresentingPulse = true } label: {
-                        Label("Pulse", systemImage: "waveform.path.ecg").labelStyle(.titleAndIcon)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button { viewModel.isPresentingPulse = true } label: {
+                            Label("Pulse", systemImage: "waveform.path.ecg").labelStyle(.titleAndIcon)
+                        }
+                        .pulsumToolbarButton()
+                        .accessibilityIdentifier("PulseButton")
+                        .accessibilityHidden(viewModel.selectedTab != .main)
+                        .matchedTransitionSource(id: "pulseButton", in: transitionNamespace)
                     }
-                    .pulsumToolbarButton()
-                    .accessibilityIdentifier("PulseButton")
-                    .accessibilityHidden(viewModel.selectedTab != .main)
-                    .matchedTransitionSource(id: "pulseButton", in: transitionNamespace)
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        presentSettings()
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .frame(width: 44, height: 44, alignment: .center)
-                            .contentShape(Rectangle())
+
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            presentSettings()
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .frame(width: 44, height: 44, alignment: .center)
+                                .contentShape(Rectangle())
+                        }
+                        .pulsumToolbarButton()
+                        .accessibilityLabel("Settings")
+                        .accessibilityIdentifier("SettingsButton")
+                        .accessibilityElement()
+                        .accessibilityHidden(viewModel.selectedTab != .main)
                     }
-                    .pulsumToolbarButton()
-                    .accessibilityLabel("Settings")
-                    .accessibilityIdentifier("SettingsButton")
-                    .accessibilityElement()
-                    .accessibilityHidden(viewModel.selectedTab != .main)
                 }
-            }
-            .toolbarBackground(.automatic, for: .navigationBar)
-#endif
+                .toolbarBackground(.automatic, for: .navigationBar)
+            #endif
         }
         .tabItem {
             Image(systemName: AppViewModel.Tab.main.iconName)
@@ -306,7 +305,6 @@ struct MainContainerView: View {
         }
     }
 
-    @ViewBuilder
     private var insightsTab: some View {
         NavigationStack {
             InsightsScreen(
@@ -315,7 +313,7 @@ struct MainContainerView: View {
                 consentGranted: viewModel.consentGranted,
                 triggerSettings: { presentSettings() }
             )
-#if os(iOS)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -329,7 +327,7 @@ struct MainContainerView: View {
                     .accessibilityIdentifier("PulseButton")
                     .accessibilityHidden(viewModel.selectedTab != .insights)
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         presentSettings()
@@ -346,7 +344,7 @@ struct MainContainerView: View {
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
-#endif
+            #endif
         }
         .tabItem {
             Image(systemName: AppViewModel.Tab.insights.iconName)
@@ -354,14 +352,13 @@ struct MainContainerView: View {
         }
     }
 
-    @ViewBuilder
     private var coachTab: some View {
         NavigationStack {
             CoachScreen(
                 viewModel: viewModel.coachViewModel,
                 showChatInput: true
             )
-#if os(iOS)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -375,7 +372,7 @@ struct MainContainerView: View {
                     .accessibilityIdentifier("PulseButton")
                     .accessibilityHidden(viewModel.selectedTab != .coach)
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         presentSettings()
@@ -392,12 +389,11 @@ struct MainContainerView: View {
                 }
             }
             .toolbarBackground(.automatic, for: .navigationBar)
-#endif
+            #endif
         }
         .tabItem {
             Image(systemName: AppViewModel.Tab.coach.iconName)
             Text(AppViewModel.Tab.coach.displayName)
         }
     }
-
 }

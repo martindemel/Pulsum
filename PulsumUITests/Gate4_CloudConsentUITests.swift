@@ -78,12 +78,12 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
     private func ensureElementIsVisibleInSettingsIfNeeded(_ element: XCUIElement, maxSwipes: Int = 4) {
         guard !element.isHittable else { return }
 
-        for _ in 0..<maxSwipes {
+        for _ in 0 ..< maxSwipes {
             app.swipeUp()
             if element.isHittable { return }
         }
 
-        for _ in 0..<maxSwipes {
+        for _ in 0 ..< maxSwipes {
             app.swipeDown()
             if element.isHittable { return }
         }

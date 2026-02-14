@@ -61,9 +61,9 @@ public final class HealthKitAnchorStore {
     }
 
     private func applyFileProtectionIfAvailable(to url: URL) {
-#if os(iOS)
+        #if os(iOS)
         try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
-#endif
+        #endif
     }
 }
 

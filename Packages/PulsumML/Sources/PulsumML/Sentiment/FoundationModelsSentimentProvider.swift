@@ -19,12 +19,12 @@ import FoundationModels
 @available(iOS 26.0, *)
 final class FoundationModelsSentimentProvider: SentimentProviding {
     private let model = SystemLanguageModel.default
-    
+
     func sentimentScore(for text: String) async throws -> Double {
         guard model.isAvailable else {
             throw SentimentProviderError.unavailable
         }
-        
+
         let session = LanguageModelSession(
             instructions: Instructions("""
             Analyze the sentiment of user text with high precision.
@@ -33,7 +33,7 @@ final class FoundationModelsSentimentProvider: SentimentProviding {
             Be calibrated: 0.0 is truly neutral, ±0.3 is mild, ±0.7 is strong, ±1.0 is extreme.
             """)
         )
-        
+
         do {
             let result = try await session.respond(
                 to: Prompt("Analyze sentiment of this text: \(text)"),

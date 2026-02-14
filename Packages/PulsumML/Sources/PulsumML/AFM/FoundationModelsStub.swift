@@ -12,20 +12,20 @@ public struct SystemLanguageModel: Sendable {
 }
 
 public struct LanguageModelSession: Sendable {
-    public init(instructions: Instructions? = nil) {}
-    public init(temperature: Double) {}
+    public init(instructions _: Instructions? = nil) {}
+    public init(temperature _: Double) {}
 
     public func respond<T: Decodable & Sendable>(
-        to prompt: Prompt,
-        generating type: T.Type,
-        options: GenerationOptions
+        to _: Prompt,
+        generating _: T.Type,
+        options _: GenerationOptions
     ) async throws -> LanguageModelResult<T> {
         throw FoundationModelsStubError.unavailable
     }
 
     public func respond(
-        to prompt: Prompt,
-        options: GenerationOptions
+        to _: Prompt,
+        options _: GenerationOptions
     ) async throws -> LanguageModelResult<String> {
         throw FoundationModelsStubError.unavailable
     }
@@ -37,15 +37,15 @@ public struct LanguageModelSession: Sendable {
 }
 
 public struct Instructions: Sendable {
-    public init(_ text: String) {}
+    public init(_: String) {}
 }
 
 public struct Prompt: Sendable {
-    public init(_ text: String) {}
+    public init(_: String) {}
 }
 
 public struct GenerationOptions: Sendable {
-    public init(temperature: Double) {}
+    public init(temperature _: Double) {}
 }
 
 public struct LanguageModelResult<Content: Sendable>: Sendable {
@@ -67,7 +67,7 @@ public struct Generable<T: Sendable>: Sendable {
 @propertyWrapper
 public struct Guide<T: Sendable>: Sendable {
     public var wrappedValue: T
-    public init(wrappedValue: T, description: String) {
+    public init(wrappedValue: T, description _: String) {
         self.wrappedValue = wrappedValue
     }
 }
@@ -77,5 +77,3 @@ public enum FoundationModelsStubError: Error, Sendable {
 }
 
 #endif
-
-

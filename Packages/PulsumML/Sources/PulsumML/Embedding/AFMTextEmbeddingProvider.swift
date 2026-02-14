@@ -16,7 +16,7 @@ final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
     }
 
     func embedding(for text: String) throws -> [Float] {
-#if canImport(FoundationModels) && os(iOS)
+        #if canImport(FoundationModels) && os(iOS)
         guard #available(iOS 26.0, *), availability() == .ready else {
             throw EmbeddingError.generatorUnavailable
         }
@@ -33,9 +33,9 @@ final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
             throw EmbeddingError.emptyResult
         }
         return adjusted
-#else
+        #else
         throw EmbeddingError.generatorUnavailable
-#endif
+        #endif
     }
 
     private func adjustDimension(_ vector: [Float]) -> [Float] {

@@ -19,35 +19,35 @@ import FoundationModels
 @available(iOS 26.0, *)
 public final class FoundationModelsSafetyProvider {
     private let model = SystemLanguageModel.default
-    
+
     public init() {}
-    
+
     public func classify(text: String) async throws -> SafetyClassification {
         guard model.isAvailable else {
             throw SafetyError.modelUnavailable
         }
-        
+
         let session = LanguageModelSession(
             instructions: Instructions("""
             Assess the safety level of user text in a mental health context.
-            
+
             Classifications:
             - SAFE: Normal wellness discussion, general questions, routine check-ins, casual conversation
             - CAUTION: Expressions of stress, anxiety, sadness, or emotional distress that are concerning but not indicating immediate danger
             - CRISIS: ONLY explicit indication of self-harm, suicide ideation, violence, or immediate danger to self or others
-            
+
             Use SAFE for general questions, casual conversation, or anything that doesn't clearly indicate distress.
             CRISIS should ONLY be used when there is explicit mention of harming self or others.
             """)
         )
-        
+
         do {
             let result = try await session.respond(
                 to: Prompt("Assess safety of this text: \(text)"),
                 generating: SafetyAssessment.self,
                 options: GenerationOptions(temperature: 0.0)
             )
-            
+
             switch result.content.rating {
             case .safe:
                 return .safe
@@ -75,9 +75,9 @@ extension FoundationModelsSafetyProvider: @unchecked Sendable {}
 
 public final class FoundationModelsSafetyProvider {
     private let local = SafetyLocal()
-    
+
     public init() {}
-    
+
     public func classify(text: String) async throws -> SafetyClassification {
         local.classify(text: text)
     }
@@ -90,7 +90,7 @@ extension FoundationModelsSafetyProvider: @unchecked Sendable {}
 public enum SafetyError: LocalizedError {
     case modelUnavailable
     case classificationFailed
-    
+
     public var errorDescription: String? {
         switch self {
         case .modelUnavailable:

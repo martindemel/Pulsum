@@ -108,33 +108,33 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
     private func prepareDirectory(at url: URL) {
         if !fm.fileExists(atPath: url.path) {
             do {
-#if os(iOS)
+                #if os(iOS)
                 try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
-#else
+                #else
                 try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
-#endif
+                #endif
             } catch {
                 logError("Failed to prepare backfill state directory.", error: error)
             }
         } else {
-#if os(iOS)
+            #if os(iOS)
             do {
                 try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
             } catch {
                 logError("Failed to update backfill state directory protection.", error: error)
             }
-#endif
+            #endif
         }
     }
 
     private func applyFileProtection() {
-#if os(iOS)
+        #if os(iOS)
         do {
             try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
         } catch {
             logError("Failed to set file protection on backfill state.", error: error)
         }
-#endif
+        #endif
     }
 
     private func excludeFromBackup() {

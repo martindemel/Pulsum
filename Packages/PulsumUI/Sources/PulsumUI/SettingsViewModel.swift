@@ -35,6 +35,7 @@ final class SettingsViewModel {
                         iconName: $0.iconName,
                         status: .pending)
     }
+
     private(set) var showHealthKitUnavailableBanner: Bool = false
     private(set) var isRequestingHealthKitAuthorization: Bool = false
     private(set) var canRequestHealthKitAccess: Bool = true
@@ -58,7 +59,7 @@ final class SettingsViewModel {
 
     var onConsentChanged: ((Bool) -> Void)?
 
-#if DEBUG
+    #if DEBUG
     var diagnosticsVisible: Bool = false
     var routeHistory: [String] = []
     var lastCoverageSummary: String = "—"
@@ -66,13 +67,13 @@ final class SettingsViewModel {
     @ObservationIgnored private var routeTask: Task<Void, Never>?
     @ObservationIgnored private var errorTask: Task<Void, Never>?
     private let diagnosticsHistoryLimit = 5
-#endif
+    #endif
 
     init(initialConsent: Bool) {
         self.consentGranted = initialConsent
-#if DEBUG
+        #if DEBUG
         setupDiagnosticsObservers()
-#endif
+        #endif
         refreshDiagnosticsConfig()
     }
 
@@ -309,10 +310,10 @@ final class SettingsViewModel {
                                                                 snapshot: snapshot,
                                                                 logTail: logTail)
             } catch {
-                                Diagnostics.log(level: .error,
-                                                category: .ui,
-                                                name: "ui.diagnostics.report.build.failed",
-                                                fields: [
+                Diagnostics.log(level: .error,
+                                category: .ui,
+                                name: "ui.diagnostics.report.build.failed",
+                                fields: [
                                     "session_id": .uuid(sessionId),
                                     "persist_enabled": .bool(config.persistToDisk)
                                 ],
@@ -507,7 +508,7 @@ final class SettingsViewModel {
         #endif
     }
 
-    nonisolated private static func extractSessionIds(from logTail: [String]) -> [String] {
+    private nonisolated static func extractSessionIds(from logTail: [String]) -> [String] {
         var sessions: [String] = []
         for line in logTail {
             guard let range = line.range(of: "app.session.start session=") else { continue }
@@ -522,7 +523,7 @@ final class SettingsViewModel {
         return sessions
     }
 
-#if DEBUG
+    #if DEBUG
     func toggleDiagnosticsVisibility() {
         diagnosticsVisible.toggle()
     }
@@ -568,5 +569,5 @@ final class SettingsViewModel {
         routeTask?.cancel()
         errorTask?.cancel()
     }
-#endif
+    #endif
 }

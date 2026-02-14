@@ -12,7 +12,7 @@ public enum AFMStatus {
 }
 
 public final class FoundationModelsAvailability {
-#if canImport(FoundationModels) && os(iOS)
+    #if canImport(FoundationModels) && os(iOS)
     public static func checkAvailability() -> AFMStatus {
         guard #available(iOS 26.0, *) else { return .needsAppleIntelligence }
         switch SystemLanguageModel.default.availability {
@@ -33,10 +33,10 @@ public final class FoundationModelsAvailability {
             return .unknown
         }
     }
-#else
+    #else
     public static func checkAvailability() -> AFMStatus { .unsupportedDevice }
-#endif
-    
+    #endif
+
     public static func availabilityMessage(for status: AFMStatus) -> String {
         switch status {
         case .ready:

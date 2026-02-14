@@ -44,7 +44,7 @@ final class CoachViewModel {
         let tone: WellbeingNoticeTone
     }
 
-    @ObservationIgnored fileprivate var orchestrator: (any CoachOrchestrating)?
+    @ObservationIgnored private var orchestrator: (any CoachOrchestrating)?
     @ObservationIgnored private var consentProvider: () -> Bool = { false }
     private let recommendationsDebounceNanoseconds: UInt64
     private let recommendationsSoftTimeoutSeconds: Double

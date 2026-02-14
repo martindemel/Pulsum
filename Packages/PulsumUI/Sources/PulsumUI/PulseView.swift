@@ -20,7 +20,7 @@ struct PulseView: View {
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
-                
+
                 // Content
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: PulsumSpacing.xl) {
@@ -34,35 +34,35 @@ struct PulseView: View {
                 .scrollIndicators(.hidden)
             }
             .navigationTitle("Pulse Check-In")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        isPresented = false
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(Color.pulsumTextSecondary)
-                            .symbolRenderingMode(.hierarchical)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            isPresented = false
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.pulsumTextSecondary)
+                                .symbolRenderingMode(.hierarchical)
+                        }
                     }
                 }
-            }
-#if os(iOS)
-            .toolbarBackground(.automatic, for: .navigationBar)
-#endif
-            .onDisappear { autoDismissTask?.cancel() }
-            .onChange(of: viewModel.sliderSubmissionMessage) { _, message in
-                guard message != nil else { return }
-                autoDismissTask?.cancel()
-                autoDismissTask = Task {
-                    try? await Task.sleep(nanoseconds: 2_500_000_000)
-                    if !Task.isCancelled {
-                        isPresented = false
+            #if os(iOS)
+                .toolbarBackground(.automatic, for: .navigationBar)
+            #endif
+                .onDisappear { autoDismissTask?.cancel() }
+                .onChange(of: viewModel.sliderSubmissionMessage) { _, message in
+                    guard message != nil else { return }
+                    autoDismissTask?.cancel()
+                    autoDismissTask = Task {
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        if !Task.isCancelled {
+                            isPresented = false
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -86,7 +86,7 @@ struct PulseView: View {
                 startAction: { viewModel.startRecording() },
                 stopAction: { viewModel.stopRecording() }
             )
-            
+
             // Transcript display
             if let transcript = viewModel.transcript,
                !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -96,23 +96,23 @@ struct PulseView: View {
                             .font(.pulsumFootnote)
                             .foregroundStyle(Color.pulsumTextSecondary)
                             .accessibilityIdentifier("VoiceJournalTranscriptLabel")
-                        
+
                         if viewModel.isRecording {
                             Text("• LIVE")
                                 .font(.pulsumFootnote)
                                 .foregroundStyle(Color.pulsumError)
                                 .fontWeight(.semibold)
                         }
-                        
+
                         Spacer()
-                        
+
                         Button("Clear") {
                             viewModel.clearTranscript()
                         }
                         .font(.pulsumCaption)
                         .foregroundStyle(Color.pulsumTextSecondary)
                     }
-                    
+
                     Text(transcript)
                         .font(.pulsumBody)
                         .foregroundStyle(Color.pulsumTextPrimary)
@@ -210,10 +210,10 @@ struct PulseView: View {
                     .foregroundStyle(Color.pulsumGreenSoft)
                     .monospacedDigit()
             }
-            
-            Slider(value: value, in: 1...7, step: 1)
+
+            Slider(value: value, in: 1 ... 7, step: 1)
                 .tint(Color.pulsumGreenSoft)
-            
+
             Text(description)
                 .font(.pulsumCaption)
                 .foregroundStyle(Color.pulsumTextSecondary)
@@ -235,21 +235,21 @@ private struct VoiceJournalButton: View {
     let waveformLevels: LiveWaveformLevels
     let startAction: () -> Void
     let stopAction: () -> Void
-    
+
     private let maxDuration: Double = 30
-    
+
     var body: some View {
         HStack(spacing: PulsumSpacing.md) {
             if isRecording {
                 // Recording state: waveform + stop button with progress
                 waveformView
-                
+
                 ZStack {
                     // Progress ring background
                     Circle()
                         .stroke(Color.gray.opacity(0.2), lineWidth: 3)
                         .frame(width: 56, height: 56)
-                    
+
                     // Progress ring foreground
                     Circle()
                         .trim(from: 0, to: CGFloat(maxDuration - Double(remaining)) / maxDuration)
@@ -257,7 +257,7 @@ private struct VoiceJournalButton: View {
                         .frame(width: 56, height: 56)
                         .rotationEffect(.degrees(-90))
                         .animation(.linear(duration: 1), value: remaining)
-                    
+
                     // Stop button
                     Button {
                         performPulseHaptic(.medium)
@@ -267,7 +267,7 @@ private struct VoiceJournalButton: View {
                             Circle()
                                 .fill(Color.pulsumError)
                                 .frame(width: 48, height: 48)
-                            
+
                             Image(systemName: "stop.fill")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundStyle(.white)
@@ -284,12 +284,12 @@ private struct VoiceJournalButton: View {
                     .tint(Color.pulsumGreenSoft)
                     .scaleEffect(1.2)
                     .frame(width: 48, height: 48)
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Analyzing...")
                         .font(.pulsumHeadline)
                         .foregroundStyle(Color.pulsumTextPrimary)
-                    
+
                     Text("Processing your journal entry")
                         .font(.pulsumFootnote)
                         .foregroundStyle(Color.pulsumTextSecondary)
@@ -304,7 +304,7 @@ private struct VoiceJournalButton: View {
                         Circle()
                             .fill(Color.pulsumGreenSoft)
                             .frame(width: 48, height: 48)
-                        
+
                         Image(systemName: "mic.fill")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(.white)
@@ -313,12 +313,12 @@ private struct VoiceJournalButton: View {
                 .accessibilityLabel("Record voice journal")
                 .accessibilityHint("Double tap to start recording")
                 .accessibilityIdentifier("VoiceJournalStartButton")
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Tap to record")
                         .font(.pulsumHeadline)
                         .foregroundStyle(Color.pulsumTextPrimary)
-                    
+
                     Text("Up to 30 seconds")
                         .font(.pulsumFootnote)
                         .foregroundStyle(Color.pulsumTextSecondary)
@@ -329,7 +329,7 @@ private struct VoiceJournalButton: View {
         .animation(.pulsumStandard, value: isRecording)
         .animation(.pulsumStandard, value: isAnalyzing)
     }
-    
+
     private var waveformView: some View {
         Canvas { context, size in
             let width = size.width
@@ -344,10 +344,10 @@ private struct VoiceJournalButton: View {
                 let normalizedLevel = Swift.max(0.05, Swift.min(1.0, level))
                 let barHeight = height * normalizedLevel
                 let y = (height - barHeight) / 2
-                
+
                 let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
                 let roundedRect = RoundedRectangle(cornerRadius: barWidth / 2)
-                
+
                 context.fill(
                     roundedRect.path(in: rect),
                     with: .color(Color.pulsumGreenSoft.opacity(0.8))
@@ -429,5 +429,5 @@ private func performPulseHaptic(_ style: PulseHapticStyle) {
     }
 }
 #else
-private func performPulseHaptic(_ style: PulseHapticStyle) {}
+private func performPulseHaptic(_: PulseHapticStyle) {}
 #endif

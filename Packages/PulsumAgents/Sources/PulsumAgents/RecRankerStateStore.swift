@@ -61,33 +61,33 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
     private func prepareDirectory(at url: URL) {
         if !fileManager.fileExists(atPath: url.path) {
             do {
-#if os(iOS)
+                #if os(iOS)
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
-#else
+                #else
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
-#endif
+                #endif
             } catch {
                 logError("Failed to prepare RecRanker state directory.", error: error)
             }
         } else {
-#if os(iOS)
+            #if os(iOS)
             do {
                 try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
             } catch {
                 logError("Failed to update RecRanker state directory protection.", error: error)
             }
-#endif
+            #endif
         }
     }
 
     private func applyFileProtection() {
-#if os(iOS)
+        #if os(iOS)
         do {
             try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
         } catch {
             logError("Failed to set file protection on RecRanker state.", error: error)
         }
-#endif
+        #endif
     }
 
     private func excludeFromBackup() {

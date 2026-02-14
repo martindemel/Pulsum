@@ -8,7 +8,7 @@ public final class FoundationModelsCoachGenerator: OnDeviceCoachGenerator {
     public init() {}
 
     public func generate(context: CoachLLMContext) async -> CoachReplyPayload {
-#if canImport(FoundationModels) && os(iOS)
+        #if canImport(FoundationModels) && os(iOS)
         if #available(iOS 26.0, *) {
             let model = SystemLanguageModel.default
             guard model.isAvailable else {
@@ -59,7 +59,7 @@ public final class FoundationModelsCoachGenerator: OnDeviceCoachGenerator {
                 )
                 return CoachReplyPayload(
                     coachReply: sanitizeResponse(response.content),
-                    nextAction: nil  // Foundation Models doesn't generate nextAction
+                    nextAction: nil // Foundation Models doesn't generate nextAction
                 )
             } catch LanguageModelSession.GenerationError.guardrailViolation {
                 return CoachReplyPayload(
@@ -75,7 +75,7 @@ public final class FoundationModelsCoachGenerator: OnDeviceCoachGenerator {
                 return fallbackResponse(for: context.topSignal)
             }
         }
-#endif
+        #endif
         return fallbackResponse(for: context.topSignal)
     }
 

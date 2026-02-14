@@ -14,7 +14,7 @@ public struct ChatInputView: View {
     public var body: some View {
         HStack(spacing: PulsumSpacing.sm) {
             TextField("Ask Pulsum anything about your recovery", text: $viewModel.chatInput, axis: .vertical)
-                .lineLimit(1...3)
+                .lineLimit(1 ... 3)
                 .font(.pulsumBody)
                 .foregroundStyle(Color.pulsumTextPrimary)
                 .padding(PulsumSpacing.md)
@@ -43,15 +43,15 @@ public struct ChatInputView: View {
             }
             .glassEffect(
                 .regular.tint(
-                    (viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         ? Color.gray.opacity(0.3)
-                        : Color.pulsumGreenSoft.opacity(0.7))
+                        : Color.pulsumGreenSoft.opacity(0.7)
                 ).interactive()
             )
             .accessibilityLabel("Send coach message")
             .accessibilityIdentifier("CoachSendButton")
             .disabled(viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSendingChat)
-            
+
             // Close keyboard button (iOS 26 style)
             if chatFieldInFocus {
                 Button {
@@ -84,7 +84,7 @@ struct CoachScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             chatMessagesOnly
-            
+
             if showChatInput {
                 ChatInputView(viewModel: viewModel)
                     .padding(.horizontal, PulsumSpacing.lg)
@@ -98,13 +98,13 @@ struct CoachScreen: View {
         )
         .scrollDismissesKeyboard(.interactively)
         .onAppear {
-#if canImport(UIKit)
+            #if canImport(UIKit)
             if AppRuntimeConfig.disableAnimations {
                 UIView.setAnimationsEnabled(false)
             } else {
                 UIView.setAnimationsEnabled(true)
             }
-#endif
+            #endif
         }
     }
 
@@ -250,8 +250,6 @@ struct InsightsScreen: View {
             }
         }
     }
-
-    
 }
 
 private struct MessageBubble: View {

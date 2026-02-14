@@ -1002,7 +1002,7 @@ actor DataAgent {
 
         let hasSnapshot: Bool
         do {
-            hasSnapshot = (try await latestRealFeatureVector()) != nil
+            hasSnapshot = try (await latestRealFeatureVector()) != nil
         } catch {
             hasSnapshot = false
         }
@@ -1521,7 +1521,7 @@ actor DataAgent {
                     backfillProgress.recordProcessedRange(for: type.identifier,
                                                           startDate: startDate,
                                                           targetStartDate: targetStartDate,
-                                                         calendar: calendar)
+                                                          calendar: calendar)
                 }
                 persistBackfillProgress()
             } catch {
@@ -1688,7 +1688,6 @@ actor DataAgent {
             "iterations": .int(iteration)
         ], error: nil)
     }
-
 
     private func enableBackgroundDelivery(for grantedTypes: Set<HKSampleType>) async throws {
         guard !grantedTypes.isEmpty else {
@@ -2682,7 +2681,7 @@ actor DataAgent {
                             imputed: imputed)
     }
 
-    private static func buildFeatureBundle(for metrics: DailyMetrics,
+    private static func buildFeatureBundle(for _: DailyMetrics,
                                            summary: DailySummary,
                                            baselines: [String: BaselineMath.RobustStats],
                                            context: NSManagedObjectContext) throws -> FeatureBundle {
@@ -2867,11 +2866,11 @@ actor DataAgent {
         return (nil, nil, false)
     }
 
-#if DEBUG
+    #if DEBUG
     func _testPublishSnapshotUpdate(for date: Date) {
         notifySnapshotUpdate(for: date)
     }
-#endif
+    #endif
 
     private static func materializeFeatures(from vector: FeatureVector) -> FeatureBundle {
         var imputed: [String: Bool] = [:]
@@ -2979,7 +2978,7 @@ actor DataAgent {
 
     private static func personalizedSleepNeedHours(context: NSManagedObjectContext,
                                                    referenceDate: Date,
-                                                   latestActualHours: Double,
+                                                   latestActualHours _: Double,
                                                    windowDays: Int) throws -> Double {
         let request = DailyMetrics.fetchRequest()
         request.predicate = NSPredicate(format: "date <= %@", referenceDate as NSDate)
@@ -3185,7 +3184,8 @@ actor DataAgent {
             return flagMessages[key]
         }
     }
-#if DEBUG
+
+    #if DEBUG
     func _testProcessQuantitySamples(_ samples: [HKQuantitySample], type: HKQuantityType) async throws {
         _ = try await processQuantitySamples(samples, type: type)
     }
@@ -3221,7 +3221,7 @@ actor DataAgent {
         let types = grantedTypes ?? Set(requiredSampleTypes)
         await performBackgroundFullBackfill(grantedTypes: types, targetStartDate: target)
     }
-#endif
+    #endif
 }
 
 enum WellbeingModeling {
@@ -3433,7 +3433,7 @@ private struct DailyFlags: Codable {
         func finalize() {
             guard let start = currentStart, let end = currentEnd else { return }
             let duration = end.timeIntervalSince(start)
-            guard duration >= minimumDuration else { reset() ; return }
+            guard duration >= minimumDuration else { reset(); return }
             let stepsPerHour = totalSteps / max(duration / 3600, 0.001)
             guard stepsPerHour <= thresholdStepsPerHour else { reset(); return }
             let candidate = DateInterval(start: start, end: end)
@@ -3535,7 +3535,7 @@ private struct DailyFlags: Codable {
 
     // MARK: - Statistics helpers
 
-    private func median<T: TimedSample>(samples: [T], within intervals: [DateInterval]) -> Double? {
+    private func median(samples: [some TimedSample], within intervals: [DateInterval]) -> Double? {
         guard !samples.isEmpty else { return nil }
         let filtered = samples.filter { sample in intervals.contains { $0.contains(sample.time) } }
         guard !filtered.isEmpty else { return nil }
@@ -3545,7 +3545,7 @@ private struct DailyFlags: Codable {
         return values[mid]
     }
 
-    private func percentile<T: TimedSample>(samples: [T], within intervals: [DateInterval], percentile: Double) -> Double? {
+    private func percentile(samples: [some TimedSample], within intervals: [DateInterval], percentile: Double) -> Double? {
         guard !samples.isEmpty else { return nil }
         let filtered = samples.filter { sample in intervals.contains { $0.contains(sample.time) } }
         guard !filtered.isEmpty else { return nil }
@@ -3554,7 +3554,7 @@ private struct DailyFlags: Codable {
         return sorted[index]
     }
 
-    private func average<T: TimedSample>(samples: [T], within intervals: [DateInterval]) -> Double? {
+    private func average(samples: [some TimedSample], within intervals: [DateInterval]) -> Double? {
         guard !samples.isEmpty else { return nil }
         let filtered = samples.filter { sample in intervals.contains { $0.contains(sample.time) } }
         guard !filtered.isEmpty else { return nil }
@@ -3675,16 +3675,18 @@ private extension Array {
     }
 }
 
-private extension Array where Element == Double {
+private extension [Double] {
     var mean: Double {
         guard !isEmpty else { return 0 }
         return reduce(0, +) / Double(count)
     }
 }
 
-private extension Array where Element == DateInterval {
+private extension [DateInterval] {
     func contains(where predicate: (DateInterval) -> Bool) -> Bool {
-        for interval in self where predicate(interval) { return true }
+        for interval in self where predicate(interval) {
+            return true
+        }
         return false
     }
 

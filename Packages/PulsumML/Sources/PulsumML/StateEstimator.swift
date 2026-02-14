@@ -7,7 +7,7 @@ public struct StateEstimatorConfig {
 
     public init(learningRate: Double = 0.05,
                 regularization: Double = 1e-3,
-                weightCap: ClosedRange<Double> = -2.0...2.0) {
+                weightCap: ClosedRange<Double> = -2.0 ... 2.0) {
         self.learningRate = learningRate
         self.regularization = regularization
         self.weightCap = weightCap
@@ -81,7 +81,7 @@ public final class StateEstimator {
             weights[feature] = updated
         }
 
-        bias -= config.learningRate * (-error)
+        bias -= config.learningRate * -error
 
         let contributions = contributionVector(features: features)
         let wellbeing = contributions.values.reduce(bias, +)

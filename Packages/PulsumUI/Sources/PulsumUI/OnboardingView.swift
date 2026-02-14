@@ -28,7 +28,7 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 // Progress indicator
                 HStack(spacing: PulsumSpacing.xs) {
-                    ForEach(0..<3) { index in
+                    ForEach(0 ..< 3) { index in
                         Capsule()
                             .fill(index == currentPage ? Color.pulsumGreenSoft : Color.gray.opacity(0.3))
                             .frame(height: 4)
@@ -44,9 +44,9 @@ struct OnboardingView: View {
                     healthKitPage.tag(1)
                     readyPage.tag(2)
                 }
-#if os(iOS)
+                #if os(iOS)
                 .tabViewStyle(.page(indexDisplayMode: .never))
-#endif
+                #endif
                 .animation(.pulsumStandard, value: currentPage)
             }
         }

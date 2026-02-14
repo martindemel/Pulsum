@@ -5,7 +5,7 @@ import Foundation
 /// and exposes a singleton instance so tests and production share the same model pointer.
 public enum PulsumManagedObjectModel {
     // NSManagedObjectModel is immutable after loading; safe to reuse across threads for testing/production.
-    nonisolated(unsafe) public static let shared: NSManagedObjectModel = {
+    public nonisolated(unsafe) static let shared: NSManagedObjectModel = {
         let bundle = Bundle.pulsumDataResources
         let candidates = [
             bundle.url(forResource: "Pulsum", withExtension: "momd"),
@@ -31,14 +31,14 @@ public enum PulsumManagedObjectModel {
             if let versioned = try? FileManager.default.contentsOfDirectory(at: xcdatamodeld,
                                                                             includingPropertiesForKeys: nil)
                 .first(where: { $0.pathExtension == "xcdatamodel" }),
-               let model = NSManagedObjectModel(contentsOf: versioned) {
+                let model = NSManagedObjectModel(contentsOf: versioned) {
                 return model
             }
             if let versioned = try? FileManager.default.contentsOfDirectory(at: xcdatamodeld,
                                                                             includingPropertiesForKeys: nil)
                 .first(where: { $0.pathExtension == "xcdatamodel" })?
                 .appendingPathComponent("contents"),
-               let model = NSManagedObjectModel(contentsOf: versioned) {
+                let model = NSManagedObjectModel(contentsOf: versioned) {
                 return model
             }
         }
@@ -71,14 +71,14 @@ public enum PulsumManagedObjectModel {
                 if let versioned = try? FileManager.default.contentsOfDirectory(at: url,
                                                                                 includingPropertiesForKeys: nil)
                     .first(where: { $0.pathExtension == "xcdatamodel" }),
-                   let model = NSManagedObjectModel(contentsOf: versioned) {
+                    let model = NSManagedObjectModel(contentsOf: versioned) {
                     return model
                 }
                 if let versioned = try? FileManager.default.contentsOfDirectory(at: url,
                                                                                 includingPropertiesForKeys: nil)
                     .first(where: { $0.pathExtension == "xcdatamodel" })?
                     .appendingPathComponent("contents"),
-                   let model = NSManagedObjectModel(contentsOf: versioned) {
+                    let model = NSManagedObjectModel(contentsOf: versioned) {
                     return model
                 }
             }

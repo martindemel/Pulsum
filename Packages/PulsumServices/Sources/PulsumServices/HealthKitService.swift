@@ -194,12 +194,12 @@ public final class HealthKitService: @unchecked Sendable {
             throw HealthKitServiceError.healthDataUnavailable
         }
 
-#if DEBUG
+        #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn,
            HealthKitAuthorizationOverrides.shared.handleRequest(availableTypes: HealthKitService.readSampleTypes) {
             return
         }
-#endif
+        #endif
 
         let readTypes = HealthKitService.readSampleTypes
 
@@ -217,7 +217,7 @@ public final class HealthKitService: @unchecked Sendable {
     }
 
     public func requestStatusForAuthorization(readTypes: Set<HKSampleType>) async -> HKAuthorizationRequestStatus? {
-#if DEBUG
+        #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn {
             let hasOverride = readTypes.contains { type in
                 HealthKitAuthorizationOverrides.shared.status(for: type.identifier) != nil
@@ -226,7 +226,7 @@ public final class HealthKitService: @unchecked Sendable {
                 return .unnecessary
             }
         }
-#endif
+        #endif
         guard #available(iOS 14.0, *) else { return nil }
         let objectTypes = Set(readTypes.map { $0 as HKObjectType })
         return try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HKAuthorizationRequestStatus, Error>) in
@@ -241,7 +241,7 @@ public final class HealthKitService: @unchecked Sendable {
     }
 
     public func probeReadAuthorization(for type: HKSampleType) async -> ReadAuthorizationProbeResult {
-#if DEBUG
+        #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn,
            let override = HealthKitAuthorizationOverrides.shared.status(for: type.identifier) {
             switch override {
@@ -255,7 +255,7 @@ public final class HealthKitService: @unchecked Sendable {
                 return .notDetermined
             }
         }
-#endif
+        #endif
         guard HKHealthStore.isHealthDataAvailable() else {
             return .healthDataUnavailable
         }
@@ -473,7 +473,6 @@ public final class HealthKitService: @unchecked Sendable {
         })
     }
 
-
     /// Configures background delivery for all supported data types.
     public func enableBackgroundDelivery() async throws {
         try await enableBackgroundDelivery(for: HealthKitService.readSampleTypes)
@@ -564,12 +563,12 @@ public final class HealthKitService: @unchecked Sendable {
 
     /// Returns the current authorization status for a specific sample type.
     public func authorizationStatus(for sampleType: HKSampleType) -> HKAuthorizationStatus {
-#if DEBUG
+        #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn,
            let override = HealthKitAuthorizationOverrides.shared.status(for: sampleType.identifier) {
             return override
         }
-#endif
+        #endif
         return healthStore.authorizationStatus(for: sampleType)
     }
 
@@ -596,9 +595,9 @@ public final class HealthKitService: @unchecked Sendable {
                                 ])
             }
             let query = HKAnchoredObjectQuery(type: sampleType,
-                                             predicate: predicate,
-                                             anchor: currentAnchor,
-                                             limit: HKObjectQueryNoLimit) { [weak self] _, samples, deletedObjects, newAnchor, error in
+                                              predicate: predicate,
+                                              anchor: currentAnchor,
+                                              limit: HKObjectQueryNoLimit) { [weak self] _, samples, deletedObjects, newAnchor, error in
                 defer { completion?() }
 
                 guard let self else { return }
@@ -772,10 +771,10 @@ private extension HealthKitService {
             return .healthDataUnavailable
         case .errorNoData:
             return .notDetermined
-#if compiler(>=6.0)
+        #if compiler(>=6.0)
         case .errorNotPermissibleForGuestUserMode:
             return .healthDataUnavailable
-#endif
+        #endif
         default:
             return .error(domain: HKError.errorDomain, code: code.rawValue)
         }

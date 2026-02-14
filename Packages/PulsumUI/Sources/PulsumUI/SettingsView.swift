@@ -32,37 +32,37 @@ struct SettingsScreen: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: PulsumSpacing.lg) {
-                        // Wellbeing Score Display (moved from MainView)
-                        wellbeingScoreSection
+                            // Wellbeing Score Display (moved from MainView)
+                            wellbeingScoreSection
 
-                        // Cloud Processing Section
-                        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                            Text("Cloud Processing")
-                                .font(.pulsumHeadline)
-                                .foregroundStyle(Color.pulsumTextPrimary)
-                                .padding(.horizontal, PulsumSpacing.lg)
-
+                            // Cloud Processing Section
                             VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                                HStack(alignment: .top, spacing: PulsumSpacing.sm) {
-                                    VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                                        Text("Use GPT-5 phrasing")
-                                            .font(.pulsumBody)
-                                            .foregroundStyle(Color.pulsumTextPrimary)
-                                        Text("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
-                                            .font(.pulsumCaption)
-                                            .foregroundStyle(Color.pulsumTextSecondary)
-                                            .lineSpacing(2)
-                                    }
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        consentBinding.wrappedValue.toggle()
-                                    }
+                                Text("Cloud Processing")
+                                    .font(.pulsumHeadline)
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .padding(.horizontal, PulsumSpacing.lg)
 
-                                    Spacer(minLength: PulsumSpacing.sm)
+                                VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                    HStack(alignment: .top, spacing: PulsumSpacing.sm) {
+                                        VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                                            Text("Use GPT-5 phrasing")
+                                                .font(.pulsumBody)
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                            Text("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                                .lineSpacing(2)
+                                        }
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            consentBinding.wrappedValue.toggle()
+                                        }
 
-                                    Toggle(isOn: consentBinding) {
-                                        EmptyView()
-                                    }
+                                        Spacer(minLength: PulsumSpacing.sm)
+
+                                        Toggle(isOn: consentBinding) {
+                                            EmptyView()
+                                        }
                                         .toggleStyle(.switch)
                                         .labelsHidden()
                                         .tint(Color.pulsumGreenSoft)
@@ -70,446 +70,445 @@ struct SettingsScreen: View {
                                         .accessibilityHint("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
                                         .accessibilityIdentifier("CloudConsentToggle")
                                         .accessibilityValue(viewModel.consentGranted ? "1" : "0")
-                                }
-
-                                if let updated = relativeDate(for: viewModel.lastConsentUpdated) {
-                                    Text("Updated \(updated)")
-                                        .font(.pulsumFootnote)
-                                        .foregroundStyle(Color.pulsumTextTertiary)
-                                }
-
-                                Divider()
-
-                                VStack(alignment: .leading, spacing: PulsumSpacing.sm) {
-                                    VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
-                                        Text("GPT-5 API Key")
-                                            .font(.pulsumCallout.weight(.semibold))
-                                            .foregroundStyle(Color.pulsumTextPrimary)
-                                        SecureField("sk-...", text: $viewModel.gptAPIKeyDraft)
-                                            .textFieldStyle(.roundedBorder)
-#if os(iOS)
-                                            .textInputAutocapitalization(.never)
-#endif
-                                            .autocorrectionDisabled()
-#if os(iOS)
-                                            .font(.pulsumBody)
-#else
-                                            .font(.body)
-#endif
-                                            .foregroundStyle(Color.pulsumTextPrimary)
-                                            .accessibilityIdentifier("CloudAPIKeyField")
                                     }
 
-                                    HStack(spacing: PulsumSpacing.sm) {
-                                        Button {
-                                            Task { await viewModel.saveAPIKey(viewModel.gptAPIKeyDraft) }
-                                        } label: {
-                                            Text("Save Key")
+                                    if let updated = relativeDate(for: viewModel.lastConsentUpdated) {
+                                        Text("Updated \(updated)")
+                                            .font(.pulsumFootnote)
+                                            .foregroundStyle(Color.pulsumTextTertiary)
+                                    }
+
+                                    Divider()
+
+                                    VStack(alignment: .leading, spacing: PulsumSpacing.sm) {
+                                        VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                            Text("GPT-5 API Key")
                                                 .font(.pulsumCallout.weight(.semibold))
                                                 .foregroundStyle(Color.pulsumTextPrimary)
-                                                .frame(maxWidth: .infinity)
+                                            SecureField("sk-...", text: $viewModel.gptAPIKeyDraft)
+                                                .textFieldStyle(.roundedBorder)
+                                            #if os(iOS)
+                                                .textInputAutocapitalization(.never)
+                                            #endif
+                                                .autocorrectionDisabled()
+                                            #if os(iOS)
+                                                .font(.pulsumBody)
+                                            #else
+                                                .font(.body)
+                                            #endif
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                                .accessibilityIdentifier("CloudAPIKeyField")
                                         }
-                                        .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.6)).interactive())
-                                        .disabled(viewModel.gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTestingAPIKey)
 
-                                        Button {
-                                            Task { await viewModel.testCurrentAPIKey() }
-                                        } label: {
-                                            if viewModel.isTestingAPIKey {
-                                                ProgressView()
-                                                    .progressViewStyle(.circular)
-                                                    .tint(Color.pulsumTextPrimary)
-                                                    .frame(maxWidth: .infinity)
-                                            } else {
-                                                Text("Test Connection")
+                                        HStack(spacing: PulsumSpacing.sm) {
+                                            Button {
+                                                Task { await viewModel.saveAPIKey(viewModel.gptAPIKeyDraft) }
+                                            } label: {
+                                                Text("Save Key")
                                                     .font(.pulsumCallout.weight(.semibold))
                                                     .foregroundStyle(Color.pulsumTextPrimary)
                                                     .frame(maxWidth: .infinity)
                                             }
+                                            .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.6)).interactive())
+                                            .disabled(viewModel.gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTestingAPIKey)
+
+                                            Button {
+                                                Task { await viewModel.testCurrentAPIKey() }
+                                            } label: {
+                                                if viewModel.isTestingAPIKey {
+                                                    ProgressView()
+                                                        .progressViewStyle(.circular)
+                                                        .tint(Color.pulsumTextPrimary)
+                                                        .frame(maxWidth: .infinity)
+                                                } else {
+                                                    Text("Test Connection")
+                                                        .font(.pulsumCallout.weight(.semibold))
+                                                        .foregroundStyle(Color.pulsumTextPrimary)
+                                                        .frame(maxWidth: .infinity)
+                                                }
+                                            }
+                                            .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                            .disabled(viewModel.isTestingAPIKey)
+                                            .accessibilityIdentifier("CloudTestConnectionButton")
                                         }
-                                        .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
-                                        .disabled(viewModel.isTestingAPIKey)
-                                        .accessibilityIdentifier("CloudTestConnectionButton")
-                                    }
 
-                                    HStack(spacing: PulsumSpacing.sm) {
-                                        gptStatusBadge(isWorking: viewModel.isGPTAPIWorking,
-                                                       status: viewModel.gptAPIStatus)
-                                        Text(viewModel.gptAPIStatus)
-                                            .font(.pulsumFootnote)
-                                            .foregroundStyle(Color.pulsumTextSecondary)
-                                            .lineSpacing(2)
-                                            .accessibilityIdentifier("GPTAPIStatusText")
-                                    }
-                                }
-                            }
-                            .padding(PulsumSpacing.lg)
-                            .background(Color.pulsumCardWhite)
-                            .cornerRadius(PulsumRadius.xl)
-                            .shadow(
-                                color: PulsumShadow.small.color,
-                                radius: PulsumShadow.small.radius,
-                                x: PulsumShadow.small.x,
-                                y: PulsumShadow.small.y
-                            )
-                        }
-                        .id(cloudSectionId)
-
-                        // HealthKit Section
-                        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                        Text("Apple HealthKit")
-                            .font(.pulsumHeadline)
-                            .foregroundStyle(Color.pulsumTextPrimary)
-                            .padding(.horizontal, PulsumSpacing.lg)
-
-                        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                            HStack(alignment: .top, spacing: PulsumSpacing.sm) {
-                                Image(systemName: "heart.text.square.fill")
-                                    .font(.pulsumTitle3)
-                                    .foregroundStyle(Color.pulsumPinkSoft)
-                                    .symbolRenderingMode(.hierarchical)
-                                VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                                    Text("Health Data Access")
-                                        .font(.pulsumHeadline)
-                                        .foregroundStyle(Color.pulsumTextPrimary)
-                                    Text(viewModel.healthKitSummary)
-                                        .font(.pulsumCallout)
-                                        .foregroundStyle(Color.pulsumTextSecondary)
-                                        .lineSpacing(2)
-                                        .accessibilityIdentifier("HealthAccessSummaryLabel")
-                                }
-                            }
-
-                            if let detail = viewModel.missingHealthKitDetail {
-                                Text(detail)
-                                    .font(.pulsumCaption)
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                                    .padding(.horizontal, PulsumSpacing.xs)
-                                    .padding(.vertical, PulsumSpacing.xxs)
-                                    .background(Color.pulsumBackgroundCream.opacity(0.6))
-                                    .cornerRadius(PulsumRadius.sm)
-                                    .accessibilityIdentifier("HealthAccessMissingLabel")
-                            }
-
-                            if viewModel.showHealthKitUnavailableBanner {
-                                HStack(spacing: PulsumSpacing.xs) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumWarning)
-                                    Text("Health data is unavailable on this device.")
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumWarning)
-                                }
-                                .padding(.horizontal, PulsumSpacing.sm)
-                                .padding(.vertical, PulsumSpacing.xs)
-                                .background(Color.pulsumWarning.opacity(0.1))
-                                .cornerRadius(PulsumRadius.sm)
-                            }
-
-                            if let success = viewModel.healthKitSuccessMessage {
-                                HStack {
-                                    Image(systemName: "checkmark.seal.fill")
-                                        .foregroundStyle(Color.pulsumGreenSoft)
-                                    Text(success)
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumGreenSoft)
-                                        .accessibilityIdentifier("HealthAccessSuccessToast")
-                                    Spacer()
-                                }
-                                .padding(.horizontal, PulsumSpacing.sm)
-                                .padding(.vertical, PulsumSpacing.xs)
-                                .background(Color.pulsumGreenSoft.opacity(0.12))
-                                .cornerRadius(PulsumRadius.sm)
-                            }
-
-                            Divider()
-                                .padding(.vertical, PulsumSpacing.xs)
-
-                            VStack(spacing: PulsumSpacing.sm) {
-                                ForEach(viewModel.healthAccessRows) { row in
-                                    HStack(spacing: PulsumSpacing.sm) {
-                                        Image(systemName: row.iconName)
-                                            .font(.pulsumTitle3)
-                                            .foregroundStyle(Color.pulsumTextPrimary.opacity(0.7))
-                                        VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                                            Text(row.title)
-                                                .font(.pulsumCallout.weight(.semibold))
-                                                .foregroundStyle(Color.pulsumTextPrimary)
-                                            Text(row.detail)
+                                        HStack(spacing: PulsumSpacing.sm) {
+                                            gptStatusBadge(isWorking: viewModel.isGPTAPIWorking,
+                                                           status: viewModel.gptAPIStatus)
+                                            Text(viewModel.gptAPIStatus)
                                                 .font(.pulsumFootnote)
                                                 .foregroundStyle(Color.pulsumTextSecondary)
+                                                .lineSpacing(2)
+                                                .accessibilityIdentifier("GPTAPIStatusText")
                                         }
-                                        Spacer()
-                                        statusBadge(for: row.status)
-                                    }
-                                    .padding(.vertical, PulsumSpacing.xs)
-                                    .accessibilityIdentifier("HealthAccessRow-\(row.id)")
-                                }
-                            }
-
-                            if let error = viewModel.healthKitError {
-                                HStack(spacing: PulsumSpacing.xs) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumWarning)
-                                    Text(error)
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumWarning)
-                                }
-                                .padding(.horizontal, PulsumSpacing.sm)
-                                .padding(.vertical, PulsumSpacing.xs)
-                                .background(Color.pulsumWarning.opacity(0.1))
-                                .cornerRadius(PulsumRadius.sm)
-                            }
-
-                            Divider()
-                                .padding(.vertical, PulsumSpacing.xs)
-
-                            Button {
-                                Task {
-                                    await viewModel.requestHealthKitAuthorization()
-                                }
-                            } label: {
-                                HStack {
-                                    if viewModel.isRequestingHealthKitAuthorization {
-                                        ProgressView()
-                                            .progressViewStyle(.circular)
-                                            .tint(Color.pulsumTextPrimary)
-                                        Text("Requesting...")
-                                            .font(.pulsumCallout.weight(.semibold))
-                                            .foregroundStyle(Color.pulsumTextPrimary)
-                                    } else {
-                                        Text("Request Health Data Access")
-                                            .font(.pulsumCallout.weight(.semibold))
-                                            .foregroundStyle(Color.pulsumTextPrimary)
                                     }
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, PulsumSpacing.sm)
+                                .padding(PulsumSpacing.lg)
+                                .background(Color.pulsumCardWhite)
+                                .cornerRadius(PulsumRadius.xl)
+                                .shadow(
+                                    color: PulsumShadow.small.color,
+                                    radius: PulsumShadow.small.radius,
+                                    x: PulsumShadow.small.x,
+                                    y: PulsumShadow.small.y
+                                )
                             }
+                            .id(cloudSectionId)
+
+                            // HealthKit Section
+                            VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                Text("Apple HealthKit")
+                                    .font(.pulsumHeadline)
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .padding(.horizontal, PulsumSpacing.lg)
+
+                                VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                    HStack(alignment: .top, spacing: PulsumSpacing.sm) {
+                                        Image(systemName: "heart.text.square.fill")
+                                            .font(.pulsumTitle3)
+                                            .foregroundStyle(Color.pulsumPinkSoft)
+                                            .symbolRenderingMode(.hierarchical)
+                                        VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                                            Text("Health Data Access")
+                                                .font(.pulsumHeadline)
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                            Text(viewModel.healthKitSummary)
+                                                .font(.pulsumCallout)
+                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                                .lineSpacing(2)
+                                                .accessibilityIdentifier("HealthAccessSummaryLabel")
+                                        }
+                                    }
+
+                                    if let detail = viewModel.missingHealthKitDetail {
+                                        Text(detail)
+                                            .font(.pulsumCaption)
+                                            .foregroundStyle(Color.pulsumTextSecondary)
+                                            .padding(.horizontal, PulsumSpacing.xs)
+                                            .padding(.vertical, PulsumSpacing.xxs)
+                                            .background(Color.pulsumBackgroundCream.opacity(0.6))
+                                            .cornerRadius(PulsumRadius.sm)
+                                            .accessibilityIdentifier("HealthAccessMissingLabel")
+                                    }
+
+                                    if viewModel.showHealthKitUnavailableBanner {
+                                        HStack(spacing: PulsumSpacing.xs) {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumWarning)
+                                            Text("Health data is unavailable on this device.")
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumWarning)
+                                        }
+                                        .padding(.horizontal, PulsumSpacing.sm)
+                                        .padding(.vertical, PulsumSpacing.xs)
+                                        .background(Color.pulsumWarning.opacity(0.1))
+                                        .cornerRadius(PulsumRadius.sm)
+                                    }
+
+                                    if let success = viewModel.healthKitSuccessMessage {
+                                        HStack {
+                                            Image(systemName: "checkmark.seal.fill")
+                                                .foregroundStyle(Color.pulsumGreenSoft)
+                                            Text(success)
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumGreenSoft)
+                                                .accessibilityIdentifier("HealthAccessSuccessToast")
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, PulsumSpacing.sm)
+                                        .padding(.vertical, PulsumSpacing.xs)
+                                        .background(Color.pulsumGreenSoft.opacity(0.12))
+                                        .cornerRadius(PulsumRadius.sm)
+                                    }
+
+                                    Divider()
+                                        .padding(.vertical, PulsumSpacing.xs)
+
+                                    VStack(spacing: PulsumSpacing.sm) {
+                                        ForEach(viewModel.healthAccessRows) { row in
+                                            HStack(spacing: PulsumSpacing.sm) {
+                                                Image(systemName: row.iconName)
+                                                    .font(.pulsumTitle3)
+                                                    .foregroundStyle(Color.pulsumTextPrimary.opacity(0.7))
+                                                VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                                                    Text(row.title)
+                                                        .font(.pulsumCallout.weight(.semibold))
+                                                        .foregroundStyle(Color.pulsumTextPrimary)
+                                                    Text(row.detail)
+                                                        .font(.pulsumFootnote)
+                                                        .foregroundStyle(Color.pulsumTextSecondary)
+                                                }
+                                                Spacer()
+                                                statusBadge(for: row.status)
+                                            }
+                                            .padding(.vertical, PulsumSpacing.xs)
+                                            .accessibilityIdentifier("HealthAccessRow-\(row.id)")
+                                        }
+                                    }
+
+                                    if let error = viewModel.healthKitError {
+                                        HStack(spacing: PulsumSpacing.xs) {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumWarning)
+                                            Text(error)
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumWarning)
+                                        }
+                                        .padding(.horizontal, PulsumSpacing.sm)
+                                        .padding(.vertical, PulsumSpacing.xs)
+                                        .background(Color.pulsumWarning.opacity(0.1))
+                                        .cornerRadius(PulsumRadius.sm)
+                                    }
+
+                                    Divider()
+                                        .padding(.vertical, PulsumSpacing.xs)
+
+                                    Button {
+                                        Task {
+                                            await viewModel.requestHealthKitAuthorization()
+                                        }
+                                    } label: {
+                                        HStack {
+                                            if viewModel.isRequestingHealthKitAuthorization {
+                                                ProgressView()
+                                                    .progressViewStyle(.circular)
+                                                    .tint(Color.pulsumTextPrimary)
+                                                Text("Requesting...")
+                                                    .font(.pulsumCallout.weight(.semibold))
+                                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                            } else {
+                                                Text("Request Health Data Access")
+                                                    .font(.pulsumCallout.weight(.semibold))
+                                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, PulsumSpacing.sm)
+                                    }
                                     .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
                                     .disabled(viewModel.isRequestingHealthKitAuthorization ||
-                                              (!viewModel.canRequestHealthKitAccess && !AppRuntimeConfig.isUITesting))
+                                        (!viewModel.canRequestHealthKitAccess && !AppRuntimeConfig.isUITesting))
                                     .accessibilityIdentifier("HealthAccessRequestButton")
 
-                                Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
-                                    .font(.pulsumFootnote)
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                                    .lineSpacing(3)
-
-                                Divider()
-                                    .padding(.vertical, PulsumSpacing.xs)
-
-                            VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
-                                Text("Health access status")
-                                    .font(.pulsumFootnote.weight(.semibold))
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                                Text(viewModel.healthKitDebugSummary.isEmpty ? "Tap Refresh to fetch status" : viewModel.healthKitDebugSummary)
-                                    .font(.system(.footnote, design: .monospaced))
-                                    .foregroundStyle(Color.pulsumTextPrimary)
-                                    .textSelection(.enabled)
-                                    .accessibilityIdentifier("HealthAccessDebugSummaryLabel")
-                                HStack(spacing: PulsumSpacing.sm) {
-                                    Button("Refresh Status") {
-                                        viewModel.refreshHealthAccessStatus()
-                                    }
-                                    .font(.pulsumFootnote.weight(.semibold))
-                                    .foregroundStyle(Color.pulsumTextPrimary)
-                                    .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
-                                    Button("Copy") {
-                                        copyToClipboard(viewModel.healthKitDebugSummary)
-                                    }
-                                    .font(.pulsumFootnote.weight(.semibold))
-                                    .foregroundStyle(Color.pulsumTextPrimary)
-                                    .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
-                                    .accessibilityIdentifier("HealthAccessCopyButton")
-                                }
-                            }
-
-                            Divider()
-                                .padding(.vertical, PulsumSpacing.xs)
-
-                            VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
-                                Text("App debug log")
-                                    .font(.pulsumFootnote.weight(.semibold))
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                                Text(viewModel.debugLogSnapshot.isEmpty ? "Tap Refresh Log to capture recent events" : viewModel.debugLogSnapshot)
-                                    .font(.system(.footnote, design: .monospaced))
-                                    .foregroundStyle(Color.pulsumTextPrimary)
-                                    .textSelection(.enabled)
-                                    .accessibilityIdentifier("DebugLogSnapshotLabel")
-                                    .frame(maxHeight: 160, alignment: .topLeading)
-                                    .lineLimit(nil)
-                                HStack(spacing: PulsumSpacing.sm) {
-                                    Button("Refresh Log") {
-                                        Task { await viewModel.refreshDebugLog() }
-                                    }
-                                    .font(.pulsumFootnote.weight(.semibold))
-                                    .foregroundStyle(Color.pulsumTextPrimary)
-                                    .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
-                                    Button("Copy Log") {
-                                        copyToClipboard(viewModel.debugLogSnapshot)
-                                    }
-                                    .font(.pulsumFootnote.weight(.semibold))
-                                    .foregroundStyle(Color.pulsumTextPrimary)
-                                    .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
-                                    .accessibilityIdentifier("DebugLogCopyButton")
-                                }
-                            }
-                        }
-                        .padding(PulsumSpacing.lg)
-                        .background(Color.pulsumCardWhite)
-                        .cornerRadius(PulsumRadius.xl)
-                        .shadow(
-                            color: PulsumShadow.small.color,
-                            radius: PulsumShadow.small.radius,
-                            x: PulsumShadow.small.x,
-                            y: PulsumShadow.small.y
-                        )
-                    }
-
-                    // AI Models Section
-                    VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                        Text("AI Models")
-                            .font(.pulsumHeadline)
-                            .foregroundStyle(Color.pulsumTextPrimary)
-                            .padding(.horizontal, PulsumSpacing.lg)
-
-                        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                            // Apple Intelligence
-                            HStack(alignment: .top, spacing: PulsumSpacing.sm) {
-                                Image(systemName: "sparkles")
-                                    .font(.pulsumTitle3)
-                                    .foregroundStyle(Color.pulsumBlueSoft)
-                                VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                                    Text("Apple Intelligence")
-                                        .font(.pulsumHeadline)
-                                        .foregroundStyle(Color.pulsumTextPrimary)
-                                    Text(viewModel.foundationModelsStatus)
-                                        .font(.pulsumCallout)
+                                    Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
+                                        .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
-                                        .lineSpacing(2)
+                                        .lineSpacing(3)
+
+                                    Divider()
+                                        .padding(.vertical, PulsumSpacing.xs)
+
+                                    VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                        Text("Health access status")
+                                            .font(.pulsumFootnote.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextSecondary)
+                                        Text(viewModel.healthKitDebugSummary.isEmpty ? "Tap Refresh to fetch status" : viewModel.healthKitDebugSummary)
+                                            .font(.system(.footnote, design: .monospaced))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .textSelection(.enabled)
+                                            .accessibilityIdentifier("HealthAccessDebugSummaryLabel")
+                                        HStack(spacing: PulsumSpacing.sm) {
+                                            Button("Refresh Status") {
+                                                viewModel.refreshHealthAccessStatus()
+                                            }
+                                            .font(.pulsumFootnote.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                            Button("Copy") {
+                                                copyToClipboard(viewModel.healthKitDebugSummary)
+                                            }
+                                            .font(.pulsumFootnote.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
+                                            .accessibilityIdentifier("HealthAccessCopyButton")
+                                        }
+                                    }
+
+                                    Divider()
+                                        .padding(.vertical, PulsumSpacing.xs)
+
+                                    VStack(alignment: .leading, spacing: PulsumSpacing.xs) {
+                                        Text("App debug log")
+                                            .font(.pulsumFootnote.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextSecondary)
+                                        Text(viewModel.debugLogSnapshot.isEmpty ? "Tap Refresh Log to capture recent events" : viewModel.debugLogSnapshot)
+                                            .font(.system(.footnote, design: .monospaced))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .textSelection(.enabled)
+                                            .accessibilityIdentifier("DebugLogSnapshotLabel")
+                                            .frame(maxHeight: 160, alignment: .topLeading)
+                                            .lineLimit(nil)
+                                        HStack(spacing: PulsumSpacing.sm) {
+                                            Button("Refresh Log") {
+                                                Task { await viewModel.refreshDebugLog() }
+                                            }
+                                            .font(.pulsumFootnote.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                            Button("Copy Log") {
+                                                copyToClipboard(viewModel.debugLogSnapshot)
+                                            }
+                                            .font(.pulsumFootnote.weight(.semibold))
+                                            .foregroundStyle(Color.pulsumTextPrimary)
+                                            .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
+                                            .accessibilityIdentifier("DebugLogCopyButton")
+                                        }
+                                    }
                                 }
+                                .padding(PulsumSpacing.lg)
+                                .background(Color.pulsumCardWhite)
+                                .cornerRadius(PulsumRadius.xl)
+                                .shadow(
+                                    color: PulsumShadow.small.color,
+                                    radius: PulsumShadow.small.radius,
+                                    x: PulsumShadow.small.x,
+                                    y: PulsumShadow.small.y
+                                )
                             }
 
-                            if needsEnableLink(status: viewModel.foundationModelsStatus) {
-#if os(macOS)
-                                Link(destination: URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings")!) {
-                                    appleIntelligenceLinkContent()
+                            // AI Models Section
+                            VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                Text("AI Models")
+                                    .font(.pulsumHeadline)
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .padding(.horizontal, PulsumSpacing.lg)
+
+                                VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                    // Apple Intelligence
+                                    HStack(alignment: .top, spacing: PulsumSpacing.sm) {
+                                        Image(systemName: "sparkles")
+                                            .font(.pulsumTitle3)
+                                            .foregroundStyle(Color.pulsumBlueSoft)
+                                        VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
+                                            Text("Apple Intelligence")
+                                                .font(.pulsumHeadline)
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                            Text(viewModel.foundationModelsStatus)
+                                                .font(.pulsumCallout)
+                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                                .lineSpacing(2)
+                                        }
+                                    }
+
+                                    if needsEnableLink(status: viewModel.foundationModelsStatus) {
+                                        #if os(macOS)
+                                        Link(destination: URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings")!) {
+                                            appleIntelligenceLinkContent()
+                                        }
+                                        #else
+                                        Button {
+                                            openAppleIntelligenceSettings()
+                                        } label: {
+                                            appleIntelligenceLinkContent()
+                                        }
+                                        .accessibilityIdentifier("AppleIntelligenceLinkButton")
+                                        #endif
+                                    }
                                 }
-#else
-                                Button {
-                                    openAppleIntelligenceSettings()
-                                } label: {
-                                    appleIntelligenceLinkContent()
+                                .padding(PulsumSpacing.lg)
+                                .background(Color.pulsumCardWhite)
+                                .cornerRadius(PulsumRadius.xl)
+                                .shadow(
+                                    color: PulsumShadow.small.color,
+                                    radius: PulsumShadow.small.radius,
+                                    x: PulsumShadow.small.x,
+                                    y: PulsumShadow.small.y
+                                )
+                            }
+                            .id(aiSectionId)
+
+                            // Safety Section
+                            VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                Text("Safety")
+                                    .font(.pulsumHeadline)
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .padding(.horizontal, PulsumSpacing.lg)
+
+                                VStack(spacing: PulsumSpacing.sm) {
+                                    Link(destination: URL(string: "tel://911")!) {
+                                        HStack {
+                                            Text("If you're in crisis, dial 911")
+                                                .font(.pulsumBody)
+                                                .foregroundStyle(Color.pulsumError)
+                                            Spacer()
+                                            Image(systemName: "phone.fill")
+                                                .foregroundStyle(Color.pulsumError)
+                                        }
+                                    }
+
+                                    Divider()
+
+                                    Link(destination: URL(string: "tel://988")!) {
+                                        HStack {
+                                            Text("988 Suicide & Crisis Lifeline")
+                                                .font(.pulsumBody)
+                                                .foregroundStyle(Color.pulsumTextPrimary)
+                                            Spacer()
+                                            Image(systemName: "phone.fill")
+                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                        }
+                                    }
                                 }
-                                .accessibilityIdentifier("AppleIntelligenceLinkButton")
-#endif
+                                .padding(PulsumSpacing.lg)
+                                .background(Color.pulsumCardWhite)
+                                .cornerRadius(PulsumRadius.xl)
+                                .shadow(
+                                    color: PulsumShadow.small.color,
+                                    radius: PulsumShadow.small.radius,
+                                    x: PulsumShadow.small.x,
+                                    y: PulsumShadow.small.y
+                                )
                             }
 
-                        }
-                        .padding(PulsumSpacing.lg)
-                        .background(Color.pulsumCardWhite)
-                        .cornerRadius(PulsumRadius.xl)
-                        .shadow(
-                            color: PulsumShadow.small.color,
-                            radius: PulsumShadow.small.radius,
-                            x: PulsumShadow.small.x,
-                            y: PulsumShadow.small.y
-                        )
-                    }
-                    .id(aiSectionId)
+                            // Privacy Section
+                            VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                Text("Privacy")
+                                    .font(.pulsumHeadline)
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .padding(.horizontal, PulsumSpacing.lg)
 
-                    // Safety Section
-                    VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                        Text("Safety")
-                            .font(.pulsumHeadline)
-                            .foregroundStyle(Color.pulsumTextPrimary)
-                            .padding(.horizontal, PulsumSpacing.lg)
+                                VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                                    Link(destination: URL(string: "https://pulsum.ai/privacy")!) {
+                                        HStack {
+                                            Text("Privacy policy")
+                                                .font(.pulsumBody)
+                                                .foregroundStyle(Color.pulsumBlueSoft)
+                                            Spacer()
+                                            Image(systemName: "arrow.up.right")
+                                                .font(.pulsumCaption)
+                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                        }
+                                    }
 
-                        VStack(spacing: PulsumSpacing.sm) {
-                            Link(destination: URL(string: "tel://911")!) {
-                                HStack {
-                                    Text("If you're in crisis, dial 911")
-                                        .font(.pulsumBody)
-                                        .foregroundStyle(Color.pulsumError)
-                                    Spacer()
-                                    Image(systemName: "phone.fill")
-                                        .foregroundStyle(Color.pulsumError)
-                                }
-                            }
-
-                            Divider()
-
-                            Link(destination: URL(string: "tel://988")!) {
-                                HStack {
-                                    Text("988 Suicide & Crisis Lifeline")
-                                        .font(.pulsumBody)
-                                        .foregroundStyle(Color.pulsumTextPrimary)
-                                    Spacer()
-                                    Image(systemName: "phone.fill")
+                                    Text("Pulsum stores all health data on-device with NSFileProtectionComplete and never uploads your journals.")
+                                        .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
+                                        .lineSpacing(3)
                                 }
-                            }
-                        }
-                        .padding(PulsumSpacing.lg)
-                        .background(Color.pulsumCardWhite)
-                        .cornerRadius(PulsumRadius.xl)
-                        .shadow(
-                            color: PulsumShadow.small.color,
-                            radius: PulsumShadow.small.radius,
-                            x: PulsumShadow.small.x,
-                            y: PulsumShadow.small.y
-                        )
-                    }
-
-                    // Privacy Section
-                    VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                        Text("Privacy")
-                            .font(.pulsumHeadline)
-                            .foregroundStyle(Color.pulsumTextPrimary)
-                            .padding(.horizontal, PulsumSpacing.lg)
-
-                        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                            Link(destination: URL(string: "https://pulsum.ai/privacy")!) {
-                                HStack {
-                                    Text("Privacy policy")
-                                        .font(.pulsumBody)
-                                        .foregroundStyle(Color.pulsumBlueSoft)
-                                    Spacer()
-                                    Image(systemName: "arrow.up.right")
-                                        .font(.pulsumCaption)
-                                        .foregroundStyle(Color.pulsumTextSecondary)
-                                }
+                                .padding(PulsumSpacing.lg)
+                                .background(Color.pulsumCardWhite)
+                                .cornerRadius(PulsumRadius.xl)
+                                .shadow(
+                                    color: PulsumShadow.small.color,
+                                    radius: PulsumShadow.small.radius,
+                                    x: PulsumShadow.small.x,
+                                    y: PulsumShadow.small.y
+                                )
                             }
 
-                            Text("Pulsum stores all health data on-device with NSFileProtectionComplete and never uploads your journals.")
-                                .font(.pulsumFootnote)
-                                .foregroundStyle(Color.pulsumTextSecondary)
-                                .lineSpacing(3)
-                        }
-                        .padding(PulsumSpacing.lg)
-                        .background(Color.pulsumCardWhite)
-                        .cornerRadius(PulsumRadius.xl)
-                        .shadow(
-                            color: PulsumShadow.small.color,
-                            radius: PulsumShadow.small.radius,
-                            x: PulsumShadow.small.x,
-                            y: PulsumShadow.small.y
-                        )
-                    }
+                            diagnosticsSection
 
-                    diagnosticsSection
-
-#if DEBUG
-                    if viewModel.diagnosticsVisible {
-                        DiagnosticsPanel(routeHistory: viewModel.routeHistory,
-                                         coverageSummary: viewModel.lastCoverageSummary,
-                                         cloudError: viewModel.lastCloudError,
-                                         healthStatusSummary: viewModel.healthKitDebugSummary)
-                            .transition(.opacity)
-                    }
-#endif
+                            #if DEBUG
+                            if viewModel.diagnosticsVisible {
+                                DiagnosticsPanel(routeHistory: viewModel.routeHistory,
+                                                 coverageSummary: viewModel.lastCoverageSummary,
+                                                 cloudError: viewModel.lastCloudError,
+                                                 healthStatusSummary: viewModel.healthKitDebugSummary)
+                                    .transition(.opacity)
+                            }
+                            #endif
                         }
                         .padding(PulsumSpacing.lg)
                         .padding(.bottom, PulsumSpacing.xxl)
@@ -527,59 +526,59 @@ struct SettingsScreen: View {
                         }
                     }
                     .background(Color.pulsumBackgroundBeige.ignoresSafeArea())
-#if DEBUG
-#if os(iOS)
-                    .navigationBarTitleDisplayMode(.inline)
-#endif
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            Text("Settings")
-                                .font(.pulsumHeadline)
-                                .foregroundStyle(Color.pulsumTextPrimary)
-                                .onTapGesture(count: 3) {
-                                    viewModel.toggleDiagnosticsVisibility()
+                    #if DEBUG
+                    #if os(iOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                Text("Settings")
+                                    .font(.pulsumHeadline)
+                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                    .onTapGesture(count: 3) {
+                                        viewModel.toggleDiagnosticsVisibility()
+                                    }
+                            }
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button {
+                                    dismiss()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.pulsumTextSecondary)
+                                        .symbolRenderingMode(.hierarchical)
                                 }
-                        }
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button {
-                                dismiss()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                                    .symbolRenderingMode(.hierarchical)
+                                .accessibilityLabel("Close Settings")
+                                .keyboardShortcut(.cancelAction)
                             }
-                            .accessibilityLabel("Close Settings")
-                            .keyboardShortcut(.cancelAction)
                         }
-                    }
-#if os(iOS)
-                    .toolbarBackground(.automatic, for: .navigationBar)
-#endif
-#else
-                    .navigationTitle("Settings")
-#if os(iOS)
-                    .navigationBarTitleDisplayMode(.large)
-#endif
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button {
-                                dismiss()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(Color.pulsumTextSecondary)
-                                    .symbolRenderingMode(.hierarchical)
+                    #if os(iOS)
+                        .toolbarBackground(.automatic, for: .navigationBar)
+                    #endif
+                    #else
+                        .navigationTitle("Settings")
+                    #if os(iOS)
+                        .navigationBarTitleDisplayMode(.large)
+                    #endif
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button {
+                                    dismiss()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.pulsumTextSecondary)
+                                        .symbolRenderingMode(.hierarchical)
+                                }
+                                .accessibilityLabel("Close Settings")
+                                .keyboardShortcut(.cancelAction)
                             }
-                            .accessibilityLabel("Close Settings")
-                            .keyboardShortcut(.cancelAction)
                         }
-                    }
-#if os(iOS)
-                    .toolbarBackground(.automatic, for: .navigationBar)
-#endif
-#endif
-                    .task {
+                    #if os(iOS)
+                        .toolbarBackground(.automatic, for: .navigationBar)
+                    #endif
+                    #endif
+                        .task {
                         viewModel.refreshFoundationStatus()
                         viewModel.refreshHealthAccessStatus()
                         if !AppRuntimeConfig.isUITesting {
@@ -629,13 +628,13 @@ struct SettingsScreen: View {
     }
 
     private func copyToClipboard(_ text: String) {
-#if canImport(UIKit)
+        #if canImport(UIKit)
         UIPasteboard.general.string = text
-#elseif canImport(AppKit)
+        #elseif canImport(AppKit)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-#endif
+        #endif
     }
 
     private var diagnosticsSection: some View {
@@ -757,7 +756,6 @@ struct SettingsScreen: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 
-    @ViewBuilder
     private func appleIntelligenceLinkContent() -> some View {
         VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
             HStack(spacing: PulsumSpacing.xs) {
@@ -831,7 +829,7 @@ struct SettingsScreen: View {
 
     private func openAppleIntelligenceSettings() {
         let forceFallback = AppRuntimeConfig.forceSettingsFallback
-#if canImport(UIKit)
+        #if canImport(UIKit)
         if !forceFallback,
            let settingsURL = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(settingsURL, options: [:]) { success in
@@ -843,7 +841,7 @@ struct SettingsScreen: View {
             }
             return
         }
-#endif
+        #endif
         openSupportArticle()
     }
 
@@ -879,7 +877,7 @@ struct SettingsScreen: View {
 private extension View {
     func onEscapeDismiss(_ action: @escaping () -> Void) -> some View {
         Group {
-#if os(iOS)
+            #if os(iOS)
             if #available(iOS 17.0, macOS 14.0, *) {
                 self.onKeyPress(.escape) {
                     action()
@@ -903,7 +901,7 @@ private extension View {
                             .accessibilityHidden(true)
                     )
             }
-#else
+            #else
             if #available(iOS 17.0, macOS 14.0, *) {
                 self.onKeyPress(.escape) {
                     action()
@@ -912,7 +910,7 @@ private extension View {
             } else {
                 self
             }
-#endif
+            #endif
         }
     }
 }
@@ -921,13 +919,13 @@ private extension View {
 private struct EscapeKeyCatcher: UIViewRepresentable {
     let onEscape: () -> Void
 
-    func makeUIView(context: Context) -> EscapeKeyCommandView {
+    func makeUIView(context _: Context) -> EscapeKeyCommandView {
         let view = EscapeKeyCommandView()
         view.onEscape = onEscape
         return view
     }
 
-    func updateUIView(_ uiView: EscapeKeyCommandView, context: Context) {
+    func updateUIView(_ uiView: EscapeKeyCommandView, context _: Context) {
         uiView.onEscape = onEscape
     }
 }
@@ -956,13 +954,13 @@ private final class EscapeKeyCommandView: UIView {
 private struct EscapeKeyControllerCatcher: UIViewControllerRepresentable {
     let onEscape: () -> Void
 
-    func makeUIViewController(context: Context) -> EscapeKeyController {
+    func makeUIViewController(context _: Context) -> EscapeKeyController {
         let controller = EscapeKeyController()
         controller.onEscape = onEscape
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: EscapeKeyController, context: Context) {
+    func updateUIViewController(_ uiViewController: EscapeKeyController, context _: Context) {
         uiViewController.onEscape = onEscape
         uiViewController.ensureFirstResponderIfNeeded()
     }
@@ -1080,6 +1078,7 @@ private struct DiagnosticsPanel: View {
 #endif
 
 // MARK: - Wellbeing Score Loading Card
+
 struct WellbeingScoreLoadingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: PulsumSpacing.md) {
@@ -1214,7 +1213,7 @@ struct WellbeingNoDataCard: View {
 
 struct WellbeingErrorCard: View {
     let message: String
-    var retry: (() -> Void)? = nil
+    var retry: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: PulsumSpacing.md) {
@@ -1256,6 +1255,7 @@ struct WellbeingErrorCard: View {
 }
 
 // MARK: - Wellbeing Score Card
+
 struct WellbeingScoreCard: View {
     let score: Double
 
@@ -1304,8 +1304,8 @@ struct WellbeingScoreCard: View {
     private var scoreColor: Color {
         switch score {
         case ..<(-1): return Color.pulsumWarning
-        case -1..<0.5: return Color.pulsumTextSecondary
-        case 0.5..<1.5: return Color.pulsumGreenSoft
+        case -1 ..< 0.5: return Color.pulsumTextSecondary
+        case 0.5 ..< 1.5: return Color.pulsumGreenSoft
         default: return Color.pulsumSuccess
         }
     }
@@ -1313,8 +1313,8 @@ struct WellbeingScoreCard: View {
     private var interpretedScore: String {
         switch score {
         case ..<(-1): return "Let's go gentle today"
-        case -1..<0.5: return "Maintaining base"
-        case 0.5..<1.5: return "Positive momentum"
+        case -1 ..< 0.5: return "Maintaining base"
+        case 0.5 ..< 1.5: return "Positive momentum"
         default: return "Strong recovery"
         }
     }

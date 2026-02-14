@@ -5,7 +5,8 @@ public struct GateDecision: Sendable {
     public let isOnTopic: Bool
     public let reason: String
     public let confidence: Double
-    public let topic: String?  // Canonical topics: "sleep", "stress", "energy", "hrv", "mood", "movement", "mindfulness", "goals", or nil for greetings
+    public let topic: String? // Canonical topics: "sleep", "stress", "energy", "hrv", "mood", "movement",
+    // "mindfulness", "goals", or nil for greetings
 
     public init(isOnTopic: Bool, reason: String, confidence: Double, topic: String? = nil) {
         self.isOnTopic = isOnTopic

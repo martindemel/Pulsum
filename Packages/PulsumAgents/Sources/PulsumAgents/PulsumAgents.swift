@@ -16,7 +16,7 @@ public enum PulsumAgents {
         let metadata = PulsumServices.storageMetadata()
         return !metadata.storeURL.path.isEmpty && !metadata.anchorsDirectory.path.isEmpty
     }
-    
+
     public static func foundationModelsStatus() -> String {
         if #available(iOS 26.0, *) {
             let status = FoundationModelsAvailability.checkAvailability()
@@ -26,12 +26,3 @@ public enum PulsumAgents {
         }
     }
 }
-
-
-
-
-
-
-
-
-

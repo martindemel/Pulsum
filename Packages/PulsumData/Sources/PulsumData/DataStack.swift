@@ -80,9 +80,9 @@ public final class DataStack {
         container = NSPersistentContainer(name: "Pulsum", managedObjectModel: managedObjectModel)
         let description = NSPersistentStoreDescription(url: storagePaths.sqliteStoreURL)
         description.type = NSSQLiteStoreType
-#if os(iOS)
+        #if os(iOS)
         description.setOption(FileProtectionType.complete as NSObject, forKey: NSPersistentStoreFileProtectionKey)
-#endif
+        #endif
         description.shouldMigrateStoreAutomatically = true
         description.shouldInferMappingModelAutomatically = true
         description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
@@ -160,11 +160,11 @@ public final class DataStack {
         return issue
     }
 
-#if DEBUG
+    #if DEBUG
     static func debugApplyBackupExclusion(to urls: [URL]) -> BackupSecurityIssue? {
         applyBackupExclusion(to: urls)
     }
-#endif
+    #endif
 
     private static func loadManagedObjectModel() -> NSManagedObjectModel {
         PulsumManagedObjectModel.shared

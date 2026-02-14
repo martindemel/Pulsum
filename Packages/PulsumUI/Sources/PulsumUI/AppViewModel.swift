@@ -81,12 +81,12 @@ final class AppViewModel {
         "journal_embeddings_pending",
         "unknown"
     ]
-#if DEBUG
+    #if DEBUG
     private var isRunningUnderXCTest: Bool {
         let env = ProcessInfo.processInfo.environment
         return env.keys.contains("XCTestConfigurationFilePath") || env.keys.contains("XCTestBundlePath")
     }
-#endif
+    #endif
 
     init(consentStore: ConsentStore = ConsentStore(),
          userDefaults: UserDefaults = AppRuntimeConfig.runtimeDefaults,
@@ -109,11 +109,11 @@ final class AppViewModel {
         if AppRuntimeConfig.hideConsentBanner {
             self.shouldHideConsentBanner = true
         }
-#if canImport(UIKit)
+        #if canImport(UIKit)
         if AppRuntimeConfig.disableAnimations {
             UIView.setAnimationsEnabled(false)
         }
-#endif
+        #endif
 
         settingsVM.onConsentChanged = { [weak self] newValue in
             guard let self else { return }
@@ -168,12 +168,12 @@ final class AppViewModel {
 
     func start() {
         guard startupState == .idle else { return }
-#if DEBUG
+        #if DEBUG
         if isRunningUnderXCTest && !AppRuntimeConfig.isUITesting {
             startupState = .ready
             return
         }
-#endif
+        #endif
         emitFirstRunStartIfNeeded()
         if AppRuntimeConfig.skipHeavyStartupWork {
             startupState = .ready
@@ -344,7 +344,6 @@ final class AppViewModel {
             await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: startupTraceId)
         }
     }
-
 }
 
 private final class NotificationObserverBag {

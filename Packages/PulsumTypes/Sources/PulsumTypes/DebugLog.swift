@@ -42,9 +42,9 @@ public actor DebugLogBuffer {
         lines.removeAll()
     }
 
-#if DEBUG
+    #if DEBUG
     public func _testReset() {
         lines.removeAll()
     }
-#endif
+    #endif
 }

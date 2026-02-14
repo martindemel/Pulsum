@@ -60,27 +60,27 @@ struct ScoreBreakdownScreen: View {
                 }
             }
             .navigationTitle("Score details")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(Color.pulsumTextSecondary)
-                            .symbolRenderingMode(.hierarchical)
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.large)
+            #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.pulsumTextSecondary)
+                                .symbolRenderingMode(.hierarchical)
+                        }
                     }
                 }
-            }
-#if os(iOS)
-            .toolbarBackground(.automatic, for: .navigationBar)
-#endif
-            .task {
-                await viewModel.refresh()
-            }
+            #if os(iOS)
+                .toolbarBackground(.automatic, for: .navigationBar)
+            #endif
+                .task {
+                    await viewModel.refresh()
+                }
         }
     }
 }
@@ -147,8 +147,8 @@ private struct SummaryCard: View {
     private func scoreColor(_ value: Double) -> Color {
         switch value {
         case ..<(-1): return Color.pulsumWarning
-        case -1..<0.5: return Color.pulsumTextSecondary
-        case 0.5..<1.5: return Color.pulsumGreenSoft
+        case -1 ..< 0.5: return Color.pulsumTextSecondary
+        case 0.5 ..< 1.5: return Color.pulsumGreenSoft
         default: return Color.pulsumSuccess
         }
     }
@@ -156,8 +156,8 @@ private struct SummaryCard: View {
     private func summaryCopy(for value: Double) -> String {
         switch value {
         case ..<(-1): return "Focus on rest and low-load actions."
-        case -1..<0.5: return "Holding steady around baseline."
-        case 0.5..<1.5: return "Positive momentum building."
+        case -1 ..< 0.5: return "Holding steady around baseline."
+        case 0.5 ..< 1.5: return "Positive momentum building."
         default: return "Strong recovery signal today."
         }
     }
@@ -215,7 +215,7 @@ private struct MetricCard: View {
                     Text(detail.name)
                         .font(.pulsumHeadline)
                         .foregroundStyle(Color.pulsumTextPrimary)
-                    if let valueLine = valueLine {
+                    if let valueLine {
                         Text(valueLine)
                             .font(.pulsumCallout)
                             .foregroundStyle(Color.pulsumTextSecondary)
@@ -230,16 +230,16 @@ private struct MetricCard: View {
             }
 
             VStack(alignment: .leading, spacing: PulsumSpacing.xxs) {
-                if let zScoreLine = zScoreLine {
+                if let zScoreLine {
                     InfoRow(systemName: "chart.line.uptrend.xyaxis", text: zScoreLine)
                 }
-                if let coverageLine = coverageLine {
+                if let coverageLine {
                     InfoRow(systemName: "stethoscope", text: coverageLine)
                 }
-                if let baselineLine = baselineLine {
+                if let baselineLine {
                     InfoRow(systemName: "calendar", text: baselineLine)
                 }
-                if let ewmaLine = ewmaLine {
+                if let ewmaLine {
                     InfoRow(systemName: "waveform.path.ecg", text: ewmaLine)
                 }
             }

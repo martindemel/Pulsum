@@ -13,7 +13,7 @@ public enum SentimentAgentError: LocalizedError {
     case noActiveRecording
     case noSpeechDetected
     case sessionAlreadyActive
-    
+
     public var errorDescription: String? {
         switch self {
         case .noActiveRecording:
@@ -34,11 +34,11 @@ public final class SentimentAgent {
     private let sentimentService: SentimentService
     private let sessionState = JournalSessionState()
     private let logger = Logger(subsystem: "com.pulsum", category: "SentimentAgent")
-    
+
     public var audioLevels: AsyncStream<Float>? {
         sessionState.audioLevels
     }
-    
+
     public var speechStream: AsyncThrowingStream<SpeechSegment, Error>? {
         sessionState.speechStream
     }
@@ -73,12 +73,12 @@ public final class SentimentAgent {
             throw error
         }
     }
-    
+
     /// Updates the latest transcript. Called by the UI as it consumes the speech stream.
     public func updateTranscript(_ transcript: String) {
         sessionState.updateTranscript(transcript)
     }
-    
+
     /// Completes the voice journal recording that was started with `beginVoiceJournal()`.
     /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
     /// Returns the persisted journal result with transcript and sentiment.
@@ -86,25 +86,25 @@ public final class SentimentAgent {
         guard let (session, cachedTranscript) = sessionState.takeSession() else {
             throw SentimentAgentError.noActiveRecording
         }
-        
+
         defer { session.stop() }
-        
+
         // Use provided transcript or fall back to stored transcript
         let finalTranscript = transcript ?? cachedTranscript
-        
+
         // Check for empty transcript
         let trimmed = finalTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw SentimentAgentError.noSpeechDetected
         }
-        
+
         return try await persistJournal(transcript: trimmed)
     }
 
     /// Legacy method that combines begin + finish for backward compatibility
     public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalResult {
         try await beginVoiceJournal(maxDuration: maxDuration)
-        
+
         // Consume the speech stream to get the transcript
         var transcript = ""
         if let stream = speechStream {
@@ -118,7 +118,7 @@ public final class SentimentAgent {
                 throw error
             }
         }
-        
+
         return try await finishVoiceJournal(transcript: transcript)
     }
 
@@ -187,9 +187,9 @@ public final class SentimentAgent {
                                 ],
                                 traceId: traceId,
                                 error: error)
-#if DEBUG
+                #if DEBUG
                 logger.error("Failed to reprocess pending journal embedding: \(error.localizedDescription, privacy: .public)")
-#endif
+                #endif
             }
             await monitor.heartbeat(progressFields: ["succeeded": .int(succeeded), "failed": .int(failed)])
         }
@@ -209,9 +209,9 @@ public final class SentimentAgent {
                 }
             }
         } catch {
-#if DEBUG
+            #if DEBUG
             logger.error("Failed to save reprocessed journal embeddings: \(error.localizedDescription, privacy: .public)")
-#endif
+            #endif
         }
 
         await monitor.stop(finalFields: ["succeeded": .int(succeeded), "failed": .int(failed)])
@@ -234,7 +234,7 @@ public final class SentimentAgent {
                                     fields: [
                                         "transcript_chars": .int(charCount)
                                     ])
-        
+
         // Use async Foundation Models sentiment analysis
         let sentiment = await sentimentService.sentiment(for: sanitized)
 
@@ -248,9 +248,9 @@ public final class SentimentAgent {
                 vectorURL = try persistVector(vector: vector, id: entryID)
             } catch {
                 embeddingPending = true
-#if DEBUG
+                #if DEBUG
                 logger.error("Failed to persist journal embedding: \(error.localizedDescription, privacy: .public)")
-#endif
+                #endif
                 Diagnostics.log(level: .warn,
                                 category: .sentiment,
                                 name: "sentiment.embedding.pending",
@@ -262,9 +262,9 @@ public final class SentimentAgent {
             }
         } catch {
             embeddingPending = true
-#if DEBUG
+            #if DEBUG
             logger.error("Embedding unavailable for journal: \(error.localizedDescription, privacy: .public)")
-#endif
+            #endif
             Diagnostics.log(level: .warn,
                             category: .sentiment,
                             name: "sentiment.embedding.pending",
@@ -310,14 +310,14 @@ public final class SentimentAgent {
         return result
     }
 
-    nonisolated private static func encodeSensitiveFlags(embeddingPending: Bool) -> String? {
+    private nonisolated static func encodeSensitiveFlags(embeddingPending: Bool) -> String? {
         guard embeddingPending else { return "{}" }
         let payload: [String: Any] = ["embedding_pending": true]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return "{}" }
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
-    nonisolated private func persistVector(vector: [Float], id: UUID) throws -> URL {
+    private nonisolated func persistVector(vector: [Float], id: UUID) throws -> URL {
         let directory = PulsumData.vectorIndexDirectory.appendingPathComponent("JournalEntries", isDirectory: true)
         #if os(iOS)
         try FileManager.default.createDirectory(at: directory,

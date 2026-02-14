@@ -17,6 +17,7 @@ final class PulseViewModel {
             }
         }
     }
+
     @ObservationIgnored private var orchestrator: AgentOrchestrator?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var recordingTask: Task<Void, Never>?
@@ -126,18 +127,18 @@ final class PulseViewModel {
 
     func stopRecording() {
         guard isRecording else { return }
-        
+
         // Stop audio capture but keep processing state
         // The recording task will continue and save the transcript
         cancelCountdown()
         isRecording = false
         audioLevelTask?.cancel()
         audioLevelTask = nil
-        
+
         // This signals the speech service to stop capturing audio
         // The transcript captured so far will be processed
         orchestrator?.stopVoiceJournalRecording()
-        
+
         // isAnalyzing remains true - will be set to false when processing completes
         // recordingTask continues running to save the transcript
     }

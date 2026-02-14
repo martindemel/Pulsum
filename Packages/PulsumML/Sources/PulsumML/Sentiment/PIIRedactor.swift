@@ -19,7 +19,7 @@ public enum PIIRedactor {
             let tagger = NLTagger(tagSchemes: [.nameType])
             tagger.string = output
             var replacements: [Range<String.Index>] = []
-            tagger.enumerateTags(in: output.startIndex..<output.endIndex,
+            tagger.enumerateTags(in: output.startIndex ..< output.endIndex,
                                  unit: .word,
                                  scheme: .nameType,
                                  options: [.omitWhitespace, .omitPunctuation]) { tag, range in

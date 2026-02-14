@@ -22,19 +22,19 @@ final class CoreMLEmbeddingFallbackProvider: TextEmbeddingProviding {
             embedding = loaded
         } else {
             embedding = nil
-#if DEBUG
+            #if DEBUG
             assertionFailure("PulsumFallbackEmbedding.{mlmodel|mlmodelc} is missing from the PulsumML bundle.")
             logger.error("Failed to locate PulsumFallbackEmbedding in bundle \(bundle.bundleURL, privacy: .public)")
-#endif
+            #endif
         }
     }
 
     func embedding(for text: String) throws -> [Float] {
         guard let embedding,
               let vector = embedding.vector(for: text) else {
-#if DEBUG
+            #if DEBUG
             logger.error("PulsumFallbackEmbedding failed to load; throwing generatorUnavailable.")
-#endif
+            #endif
             throw EmbeddingError.generatorUnavailable
         }
         let adjusted = adjustDimension(vector.map { Float($0) })

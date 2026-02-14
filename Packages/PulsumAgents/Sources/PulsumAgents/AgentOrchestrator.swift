@@ -174,29 +174,29 @@ public final class AgentOrchestrator {
     private var isVoiceJournalActive = false
     private let recommendationSnapshotTimeoutSeconds: Double = 2
     private let recommendationsTimeoutSeconds: Double
-    
+
     public init() throws {
         // Check Foundation Models availability
-#if canImport(FoundationModels) && os(iOS)
+        #if canImport(FoundationModels) && os(iOS)
         if #available(iOS 26.0, *) {
             self.afmAvailable = SystemLanguageModel.default.isAvailable
         } else {
             self.afmAvailable = false
         }
-#else
+        #else
         self.afmAvailable = false
-#endif
+        #endif
 
         // Initialize TopicGate with cascade: AFM → embedding fallback
-#if canImport(FoundationModels) && os(iOS)
+        #if canImport(FoundationModels) && os(iOS)
         if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
             self.topicGate = FoundationModelsTopicGateProvider()
         } else {
             self.topicGate = EmbeddingTopicGateProvider()
         }
-#else
+        #else
         self.topicGate = EmbeddingTopicGateProvider()
-#endif
+        #endif
 
         self.dataAgent = DataAgent()
         self.sentimentAgent = SentimentAgent()
@@ -206,16 +206,17 @@ public final class AgentOrchestrator {
         self.embeddingService = EmbeddingService.shared
         self.recommendationsTimeoutSeconds = 30
     }
-#if DEBUG
+
+    #if DEBUG
     init(dataAgent: any DataAgentProviding,
-                sentimentAgent: any SentimentAgentProviding,
-                coachAgent: CoachAgent,
-                safetyAgent: SafetyAgent,
-                cheerAgent: CheerAgent,
-                topicGate: TopicGateProviding,
-                embeddingService: EmbeddingService = .shared,
-                afmAvailable: Bool = false,
-                recommendationsTimeoutSeconds: Double = 30) {
+         sentimentAgent: any SentimentAgentProviding,
+         coachAgent: CoachAgent,
+         safetyAgent: SafetyAgent,
+         cheerAgent: CheerAgent,
+         topicGate: TopicGateProviding,
+         embeddingService: EmbeddingService = .shared,
+         afmAvailable: Bool = false,
+         recommendationsTimeoutSeconds: Double = 30) {
         self.dataAgent = dataAgent
         self.sentimentAgent = sentimentAgent
         self.coachAgent = coachAgent
@@ -226,9 +227,9 @@ public final class AgentOrchestrator {
         self.embeddingService = embeddingService
         self.recommendationsTimeoutSeconds = recommendationsTimeoutSeconds
     }
-#endif
+    #endif
 
-#if DEBUG
+    #if DEBUG
     init(testDataAgent: DataAgent,
          testSentimentAgent: any SentimentAgentProviding,
          testCoachAgent: CoachAgent,
@@ -247,8 +248,8 @@ public final class AgentOrchestrator {
         self.embeddingService = .shared
         self.recommendationsTimeoutSeconds = recommendationsTimeoutSeconds
     }
-#endif
-    
+    #endif
+
     public var foundationModelsStatus: String {
         if #available(iOS 26.0, *) {
             let status = FoundationModelsAvailability.checkAvailability()
@@ -347,7 +348,8 @@ public final class AgentOrchestrator {
         try await dataAgent.restartIngestionAfterPermissionsChange()
     }
 
-    /// Re-probes on-device embedding availability and retries any deferred work (pending journal embeddings, library indexing).
+    /// Re-probes on-device embedding availability and retries any deferred work (pending journal embeddings, library
+    /// indexing).
     public func refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: UUID? = nil) async {
         embeddingService.invalidateAvailabilityCache()
         let mode = await embeddingService.refreshAvailability(force: true, trigger: "retry_deferred")
@@ -378,7 +380,7 @@ public final class AgentOrchestrator {
             throw error
         }
     }
-    
+
     /// Completes the voice journal recording that was started with `beginVoiceJournalRecording()`.
     /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
     /// Returns the journal result with safety evaluation.
@@ -435,11 +437,11 @@ public final class AgentOrchestrator {
         isVoiceJournalActive = false
         sentimentAgent.stopRecording()
     }
-    
+
     public var voiceJournalAudioLevels: AsyncStream<Float>? {
         sentimentAgent.audioLevels
     }
-    
+
     public var voiceJournalSpeechStream: AsyncThrowingStream<SpeechSegment, Error>? {
         sentimentAgent.speechStream
     }
@@ -550,7 +552,7 @@ public final class AgentOrchestrator {
                                                   wellbeingScore: snapshot.wellbeingScore,
                                                   contributions: snapshot.contributions,
                                                   wellbeingState: .ready(score: snapshot.wellbeingScore,
-                                                                          contributions: snapshot.contributions),
+                                                                         contributions: snapshot.contributions),
                                                   notice: "Recommendations are taking longer than expected. Try refreshing again soon.")
                 case .value(let cards):
                     let notice = coachAgent.recommendationNotice
@@ -558,7 +560,7 @@ public final class AgentOrchestrator {
                                                   wellbeingScore: snapshot.wellbeingScore,
                                                   contributions: snapshot.contributions,
                                                   wellbeingState: .ready(score: snapshot.wellbeingScore,
-                                                                          contributions: snapshot.contributions),
+                                                                         contributions: snapshot.contributions),
                                                   notice: notice)
                 }
             } catch {
@@ -632,11 +634,11 @@ public final class AgentOrchestrator {
     }
 
     public func chat(userInput: String, consentGranted: Bool) async throws -> String {
-#if DEBUG
+        #if DEBUG
         if AppRuntimeConfig.useStubLLM {
             return "Stub response: Pulsum coach stub reply for UI testing."
         }
-#endif
+        #endif
         let sanitizedInput = PIIRedactor.redact(userInput)
         Diagnostics.log(level: .info,
                         category: .coach,
@@ -659,7 +661,7 @@ public final class AgentOrchestrator {
                                  diagnosticsContext: "live")
     }
 
-#if DEBUG
+    #if DEBUG
     public func chat(userInput: String,
                      consentGranted: Bool,
                      snapshotOverride: FeatureVectorSnapshot) async -> String {
@@ -677,7 +679,7 @@ public final class AgentOrchestrator {
                                  consentGranted: consentGranted,
                                  diagnosticsContext: "override")
     }
-#endif
+    #endif
 
     private func performChat(userInput: String,
                              sanitizedInput: String,
@@ -776,11 +778,11 @@ public final class AgentOrchestrator {
         if !embeddingService.isAvailable() {
             logger.error("Embeddings unavailable; skipping coverage and routing to on-device response.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unavailable → on-device",
-                                decision: nil,
-                                top: nil,
-                                median: nil,
-                                count: nil,
-                                context: diagnosticsContext)
+                                 decision: nil,
+                                 top: nil,
+                                 median: nil,
+                                 count: nil,
+                                 context: diagnosticsContext)
             let topic = intentTopic ?? "wellbeing"
             let context = coachAgent.minimalCoachContext(from: snapshot, topic: topic)
             let payload = await coachAgent.generateResponse(context: context,
@@ -822,27 +824,27 @@ public final class AgentOrchestrator {
         case .strong:
             groundingFloor = 0.50
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=strong → \(routeDestination)",
-                                decision: decision,
-                                top: decision.top,
-                                median: decision.median,
-                                count: decision.count,
-                                context: diagnosticsContext)
+                                 decision: decision,
+                                 top: decision.top,
+                                 median: decision.median,
+                                 count: decision.count,
+                                 context: diagnosticsContext)
         case .soft:
             groundingFloor = 0.40
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=soft → \(routeDestination)",
-                                decision: decision,
-                                top: decision.top,
-                                median: decision.median,
-                                count: decision.count,
-                                context: diagnosticsContext)
+                                 decision: decision,
+                                 top: decision.top,
+                                 median: decision.median,
+                                 count: decision.count,
+                                 context: diagnosticsContext)
         case .fail:
             if intentTopic == nil {
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → on-device",
-                                    decision: decision,
-                                    top: decision.top,
-                                    median: decision.median,
-                                    count: decision.count,
-                                    context: diagnosticsContext)
+                                     decision: decision,
+                                     top: decision.top,
+                                     median: decision.median,
+                                     count: decision.count,
+                                     context: diagnosticsContext)
                 let context = coachAgent.minimalCoachContext(from: snapshot, topic: "greeting")
                 let payload = await coachAgent.generateResponse(context: context,
                                                                 intentTopic: "greeting",
@@ -851,11 +853,11 @@ public final class AgentOrchestrator {
                 return payload.coachReply
             }
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=fail → on-device",
-                                decision: decision,
-                                top: decision.top,
-                                median: decision.median,
-                                count: decision.count,
-                                context: diagnosticsContext)
+                                 decision: decision,
+                                 top: decision.top,
+                                 median: decision.median,
+                                 count: decision.count,
+                                 context: diagnosticsContext)
             let context = coachAgent.minimalCoachContext(from: snapshot, topic: intentTopic!)
             let payload = await coachAgent.generateResponse(context: context,
                                                             intentTopic: intentTopic,
@@ -902,7 +904,7 @@ public final class AgentOrchestrator {
                         category: .coach,
                         name: "coach.route",
                         fields: fields)
-#if DEBUG
+        #if DEBUG
         var info: [String: Any] = [
             "route": line,
             "context": context
@@ -916,7 +918,7 @@ public final class AgentOrchestrator {
         NotificationCenter.default.post(name: .pulsumChatRouteDiagnostics,
                                         object: nil,
                                         userInfo: info)
-#endif
+        #endif
     }
 
     public func logCompletion(momentId: String) async throws -> CheerEvent {
@@ -928,7 +930,7 @@ public final class AgentOrchestrator {
     // MARK: - Intent Mapping Helpers
 
     /// Extract dominant topic from candidate moments (Step 3 of intent mapping)
-    private func dominantTopic(from candidates: [CandidateMoment], coachAgent: CoachAgent) -> String? {
+    private func dominantTopic(from candidates: [CandidateMoment], coachAgent _: CoachAgent) -> String? {
         // Use embedding similarity to infer dominant topic from candidate titles
         let topicKeywords: [String: [String]] = [
             "sleep": ["sleep", "rest", "recovery", "insomnia", "tired"],
@@ -959,5 +961,4 @@ public final class AgentOrchestrator {
         let greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
         return greetings.contains(where: { lower.hasPrefix($0) || lower == $0 })
     }
-
 }

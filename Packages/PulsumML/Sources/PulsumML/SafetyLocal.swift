@@ -17,9 +17,9 @@ public struct SafetyLocalConfig {
     public init(
         crisisKeywords: [String] = ["suicide", "kill myself", "ending it", "overdose", "hurt myself"],
         cautionKeywords: [String] = ["depressed", "hopeless", "panic", "anxious", "self-harm"],
-        crisisSimilarityThreshold: Float = 0.65,  // Raised from 0.48 - less aggressive for bench testing
+        crisisSimilarityThreshold: Float = 0.65, // Raised from 0.48 - less aggressive for bench testing
         cautionSimilarityThreshold: Float = 0.35, // Raised from 0.22 - less aggressive for bench testing
-        resolutionMargin: Float = 0.10            // Raised from 0.05 - require clearer signal
+        resolutionMargin: Float = 0.10 // Raised from 0.05 - require clearer signal
     ) {
         self.crisisKeywords = crisisKeywords
         self.cautionKeywords = cautionKeywords
@@ -65,7 +65,7 @@ public final class SafetyLocal {
         #if DEBUG
         logger.debug("SafetyLocal classify lengthBucket=\(self.lengthBucket(for: normalized), privacy: .public)")
         #endif
-        
+
         if containsKeyword(from: config.crisisKeywords, in: normalized) {
             #if DEBUG
             logger.debug("SafetyLocal keyword-based crisis trigger")
@@ -88,7 +88,7 @@ public final class SafetyLocal {
             #endif
             return fallbackClassification(for: normalized)
         }
-        
+
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
         for prototype in localPrototypes {
             let similarity = cosineSimilarity(embedding, prototype.embedding)
@@ -120,7 +120,7 @@ public final class SafetyLocal {
             #endif
             return .caution(reason: caution.prototype.text)
         }
-        
+
         #if DEBUG
         logger.debug("SafetyLocal → safe")
         #endif
@@ -204,7 +204,7 @@ public final class SafetyLocal {
         var dot: Float = 0
         var lhsNorm: Float = 0
         var rhsNorm: Float = 0
-        for index in 0..<lhs.count {
+        for index in 0 ..< lhs.count {
             dot += lhs[index] * rhs[index]
             lhsNorm += lhs[index] * lhs[index]
             rhsNorm += rhs[index] * rhs[index]
@@ -216,8 +216,8 @@ public final class SafetyLocal {
 
     private func lengthBucket(for text: String) -> String {
         switch text.count {
-        case 0...20: return "0-20"
-        case 21...80: return "21-80"
+        case 0 ... 20: return "0-20"
+        case 21 ... 80: return "21-80"
         default: return "81+"
         }
     }

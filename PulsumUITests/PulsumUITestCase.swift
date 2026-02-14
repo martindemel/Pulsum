@@ -33,7 +33,7 @@ class PulsumUITestCase: XCTestCase {
         app.launchArguments.append("-ui_testing")
         var merged = defaultEnvironment
         additionalEnvironment.forEach { merged[$0.key] = $0.value }
-        merged.forEach { key, value in
+        for (key, value) in merged {
             app.launchEnvironment[key] = value
         }
         app.launch()
@@ -119,7 +119,7 @@ class PulsumUITestCase: XCTestCase {
     /// Relying on keyboard existence alone can be flaky on simulator CI.
     @discardableResult
     func tapAndWaitForKeyboard(_ element: XCUIElement, retries: Int = 3) -> Bool {
-        for attempt in 0..<retries {
+        for attempt in 0 ..< retries {
             element.tapWhenHittable(timeout: 3)
             _ = app.keyboards.firstMatch.waitForExistence(timeout: attempt == 0 ? 2 : 3)
             if element.hasKeyboardFocusValue {
@@ -175,7 +175,7 @@ class PulsumUITestCase: XCTestCase {
 
     private func triggerInterruptionHandlers(maxAttempts: Int = 3) {
         guard app != nil else { return }
-        for _ in 0..<maxAttempts {
+        for _ in 0 ..< maxAttempts {
             if app.alerts.firstMatch.waitForExistence(timeout: 1) {
                 app.tap()
             } else {
@@ -202,7 +202,7 @@ class PulsumUITestCase: XCTestCase {
         while Date() < deadline {
             let count = query.count
             if count > 0 {
-                for index in 0..<count {
+                for index in 0 ..< count {
                     let element = query.element(boundBy: index)
                     if element.exists && element.isHittable {
                         return element

@@ -100,11 +100,11 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
     }
 
     return CoverageDecision(kind: .fail,
-                             reason: "low-coverage",
-                             count: count,
-                             top: top,
-                             median: med,
-                             thresholdUsed: 0.40)
+                            reason: "low-coverage",
+                            count: count,
+                            top: top,
+                            median: med,
+                            thresholdUsed: 0.40)
 }
 
 public func logCoverage(_ decision: CoverageDecision) {

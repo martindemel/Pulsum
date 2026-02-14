@@ -225,10 +225,10 @@ public final class CoachAgent {
                                       zScoreSummary: summary,
                                       candidateMoments: candidateMoments)
         return await llmGateway.generateCoachResponse(context: context,
-                                                     intentTopic: intentTopic,
-                                                     candidateMoments: candidateMoments,
-                                                     consentGranted: consentGranted,
-                                                     groundingFloor: groundingFloor)
+                                                      intentTopic: intentTopic,
+                                                      candidateMoments: candidateMoments,
+                                                      consentGranted: consentGranted,
+                                                      groundingFloor: groundingFloor)
     }
 
     private func mapIntentToSignal(intentTopic: String?, snapshot: FeatureVectorSnapshot) -> String {
@@ -472,7 +472,7 @@ public final class CoachAgent {
                                               acceptanceRate: acceptance,
                                               timeCostFit: timeFit,
                                               zScores: zScores)
-        
+
         let card = RecommendationCard(id: moment.id,
                                       title: moment.title,
                                       body: buildBody(for: moment),
@@ -515,12 +515,12 @@ public final class CoachAgent {
     }
 
     private func cautionMessage(for moment: MicroMomentSnapshot, snapshot: FeatureVectorSnapshot) async -> String? {
-#if canImport(FoundationModels) && os(iOS)
+        #if canImport(FoundationModels) && os(iOS)
         // Use Foundation Models for intelligent caution assessment instead of simple rules
         if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
             return await generateFoundationModelsCaution(for: moment, snapshot: snapshot)
         }
-#endif
+        #endif
         // Fallback to basic heuristics only when Foundation Models unavailable
         guard let difficulty = moment.difficulty?.lowercased() else { return nil }
         if difficulty.contains("hard") {
@@ -532,7 +532,7 @@ public final class CoachAgent {
         return nil
     }
 
-#if canImport(FoundationModels) && os(iOS)
+    #if canImport(FoundationModels) && os(iOS)
     @available(iOS 26.0, *)
     private func generateFoundationModelsCaution(for moment: MicroMomentSnapshot, snapshot: FeatureVectorSnapshot) async -> String? {
         let session = LanguageModelSession(
@@ -544,7 +544,7 @@ public final class CoachAgent {
             Return empty string if no caution needed.
             """)
         )
-        
+
         let contextInfo = """
         Activity: \(moment.title)
         Difficulty: \(moment.difficulty ?? "Unknown")
@@ -553,7 +553,7 @@ public final class CoachAgent {
         Energy level: \(snapshot.features["subj_energy"] ?? 0)
         Stress level: \(snapshot.features["subj_stress"] ?? 0)
         """
-        
+
         do {
             let response = try await session.respond(
                 to: Prompt("Should this activity have a caution message? \(contextInfo)"),
@@ -565,7 +565,7 @@ public final class CoachAgent {
             return nil // No caution on error
         }
     }
-#endif
+    #endif
 
     private func badgeScore(_ badge: String?) -> Double {
         switch badge {
@@ -617,7 +617,7 @@ public final class CoachAgent {
         switch sampleCount {
         case ..<3:
             return "coldstart"
-        case 3..<10:
+        case 3 ..< 10:
             return "learning"
         default:
             return "stable"
@@ -653,7 +653,7 @@ public final class CoachAgent {
         return normalized
     }
 
-#if DEBUG
+    #if DEBUG
     func _testRankerMetrics() -> RankerMetrics {
         ranker.getPerformanceMetrics()
     }
@@ -661,7 +661,7 @@ public final class CoachAgent {
     func _injectRankedFeaturesForTesting(_ features: [RecommendationFeatures]) {
         lastRankedFeatures = features
     }
-#endif
+    #endif
 }
 
 private struct CardCandidate {
@@ -750,8 +750,8 @@ private extension CoachAgent {
     }
 }
 
-extension CoachAgent {
-    public var recommendationNotice: String? { lastRecommendationNotice }
+public extension CoachAgent {
+    var recommendationNotice: String? { lastRecommendationNotice }
 }
 
 private extension CoachAgent {

@@ -14,7 +14,7 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
     private struct WellbeingPrototype {
         let text: String
         let embedding: [Float]
-        let topic: String?  // Canonical topic or nil for greetings
+        let topic: String? // Canonical topic or nil for greetings
     }
 
     private static let OOD_PROTOTYPES: [String] = [
@@ -50,7 +50,7 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
             ("journal feelings emotions reflection", "mood"),
             ("health goals wellness habits routine motivation motivated momentum keep going stick with consistency", "goals"),
             ("micro-moment micromoment micro activity quick action nudge habit tiny step", "goals"),
-            ("hi coach hello coach hey pulsum good morning coach", nil)  // Greetings have no topic
+            ("hi coach hello coach hey pulsum good morning coach", nil) // Greetings have no topic
         ]
 
         self.wellbeingPrototypes = prototypeData.compactMap { text, topic in
@@ -70,8 +70,8 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
         return decision.decision
     }
 
-#if DEBUG
-    internal func debugScores(for text: String) async throws -> (domain: Double, ood: Double, margin: Double, topic: String?) {
+    #if DEBUG
+    func debugScores(for text: String) async throws -> (domain: Double, ood: Double, margin: Double, topic: String?) {
         let decision = computeDecision(for: text.lowercased())
         return (
             domain: Double(decision.domainScore),
@@ -80,14 +80,14 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
             topic: decision.topic
         )
     }
-#endif
+    #endif
 
     private func cosineSimilarity(_ lhs: [Float], _ rhs: [Float]) -> Float {
         guard lhs.count == rhs.count else { return 0 }
         var dot: Float = 0
         var lhsNorm: Float = 0
         var rhsNorm: Float = 0
-        for index in 0..<lhs.count {
+        for index in 0 ..< lhs.count {
             dot += lhs[index] * rhs[index]
             lhsNorm += lhs[index] * lhs[index]
             rhsNorm += rhs[index] * rhs[index]

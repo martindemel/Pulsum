@@ -304,15 +304,15 @@ public final class LLMGateway {
         self.usesUITestStub = stubEnabled
 
         let resolvedCloudClient: CloudLLMClient
-#if DEBUG
+        #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn && stubEnabled {
             resolvedCloudClient = UITestMockCloudClient()
         } else {
             resolvedCloudClient = cloudClient ?? GPT5Client(session: session)
         }
-#else
+        #else
         resolvedCloudClient = cloudClient ?? GPT5Client(session: session)
-#endif
+        #endif
         self.cloudClient = resolvedCloudClient
 
         self.localGenerator = localGenerator ?? createDefaultLocalGenerator()
@@ -365,7 +365,7 @@ public final class LLMGateway {
             return false
         }
 
-        guard (200...299).contains(httpResponse.statusCode) else {
+        guard (200 ... 299).contains(httpResponse.statusCode) else {
             let code = httpResponse.statusCode
             let errorText = String(data: data, encoding: .utf8) ?? "HTTP \(code)"
             logger.error("Ping failed: status=\(code) body=\(errorText.prefix(200), privacy: .public)")
@@ -431,11 +431,11 @@ public final class LLMGateway {
     }
 
     private func notifyCloudError(_ message: String) {
-#if DEBUG
+        #if DEBUG
         NotificationCenter.default.post(name: .pulsumChatCloudError,
                                         object: nil,
                                         userInfo: ["message": message])
-#endif
+        #endif
     }
 
     private func keySourceDescriptor() -> String {
@@ -501,19 +501,19 @@ public final class LLMGateway {
     // Gate-1b: UITest seams are compiled out of Release builds.
     // In Release, env flags are ignored so remote stubs never activate.
     private static func isUITestStubEnabled() -> Bool {
-#if DEBUG
+        #if DEBUG
         return BuildFlags.uiTestSeamsCompiledIn && AppRuntimeConfig.useStubLLM
-#else
+        #else
         return false
-#endif
+        #endif
     }
 }
 
-fileprivate func validateChatPayload(body: [String: Any],
-                                     context: CoachLLMContext,
-                                     intentTopic: String?,
-                                     candidateMoments: [CandidateMoment],
-                                     maxTokens: Int) -> Bool {
+private func validateChatPayload(body: [String: Any],
+                                 context: CoachLLMContext,
+                                 intentTopic _: String?,
+                                 candidateMoments: [CandidateMoment],
+                                 maxTokens: Int) -> Bool {
     guard
         let text = body["text"] as? [String: Any],
         let format = text["format"] as? [String: Any],
@@ -541,7 +541,7 @@ fileprivate func validateChatPayload(body: [String: Any],
         return false
     }
 
-    if !(128...1024).contains(maxTokens) { return false }
+    if !(128 ... 1024).contains(maxTokens) { return false }
 
     guard let input = body["input"] as? [[String: Any]], input.count == 2,
           (input.first? ["role"] as? String) == "system",
@@ -571,44 +571,44 @@ fileprivate func validateChatPayload(body: [String: Any],
 
 extension LLMGateway {
     static func validatePingPayload(_ body: [String: Any]) -> Bool {
-    guard
-        let text = body["text"] as? [String: Any],
-        let format = text["format"] as? [String: Any],
-        (format["type"] as? String) == "json_schema"
-    else {
-        return false
-    }
+        guard
+            let text = body["text"] as? [String: Any],
+            let format = text["format"] as? [String: Any],
+            (format["type"] as? String) == "json_schema"
+        else {
+            return false
+        }
 
-    let schemaNamePresent = (format["name"] as? String) == "CoachPhrasing"
-    guard schemaNamePresent,
-          let schema = format["schema"] as? [String: Any] else {
-        return false
-    }
+        let schemaNamePresent = (format["name"] as? String) == "CoachPhrasing"
+        guard schemaNamePresent,
+              let schema = format["schema"] as? [String: Any] else {
+            return false
+        }
 
-    validationLogger.debug("validatePingPayload schemaNamePresent=true schemaPresent=true")
+        validationLogger.debug("validatePingPayload schemaNamePresent=true schemaPresent=true")
 
-    guard schema["type"] as? String == "object",
-          (schema["additionalProperties"] as? Bool) == false,
-          let properties = schema["properties"] as? [String: Any],
-          let required = schema["required"] as? [String] else {
-        return false
-    }
+        guard schema["type"] as? String == "object",
+              (schema["additionalProperties"] as? Bool) == false,
+              let properties = schema["properties"] as? [String: Any],
+              let required = schema["required"] as? [String] else {
+            return false
+        }
 
-    guard Set(required) == Set(properties.keys) else {
-        return false
-    }
+        guard Set(required) == Set(properties.keys) else {
+            return false
+        }
 
-    guard body["max_output_tokens"] as? Int == 32 else { return false }
+        guard body["max_output_tokens"] as? Int == 32 else { return false }
 
-    guard let input = body["input"] as? [[String: Any]],
-          input.count == 1,
-          (input.first? ["role"] as? String) == "user",
-          let content = (input.first? ["content"] as? String)?.lowercased(),
-          content == "ping" else {
-        return false
-    }
+        guard let input = body["input"] as? [[String: Any]],
+              input.count == 1,
+              (input.first? ["role"] as? String) == "user",
+              let content = (input.first? ["content"] as? String)?.lowercased(),
+              content == "ping" else {
+            return false
+        }
 
-    return true
+        return true
     }
 }
 
@@ -670,7 +670,7 @@ public final class GPT5Client: CloudLLMClient {
                 throw LLMGatewayError.cloudGenerationFailed("Invalid HTTP response")
             }
 
-            if (200...299).contains(httpResponse.statusCode) {
+            if (200 ... 299).contains(httpResponse.statusCode) {
                 do {
                     let phrasing = try parseAndValidateStructuredResponse(data: data)
                     logger.debug("Cloud chat succeeded. Grounding: \(String(format: "%.2f", phrasing.groundingScore), privacy: .public), isOnTopic: \(phrasing.isOnTopic, privacy: .public), hasNextAction: \(phrasing.nextAction != nil, privacy: .public)")
@@ -791,8 +791,8 @@ private final class UITestMockCloudClient: CloudLLMClient {
 
     func generateResponse(context: CoachLLMContext,
                           intentTopic: String?,
-                          candidateMoments: [CandidateMoment],
-                          apiKey: String,
+                          candidateMoments _: [CandidateMoment],
+                          apiKey _: String,
                           keySource: String) async throws -> CoachPhrasing {
         logger.debug("UITest stub invoked. keySource=\(keySource, privacy: .public)")
         let reply = "Stub response: focus on \(context.topSignal.lowercased()). Three steady breaths and a quick stretch keep momentum."
@@ -825,7 +825,7 @@ public final class LegacyCoachGenerator: OnDeviceCoachGenerator {
 
     public init() {}
 
-    public func generate(context: CoachLLMContext) async -> CoachReplyPayload {
+    public func generate(context _: CoachLLMContext) async -> CoachReplyPayload {
         logger.warning("Legacy generator called on pre-iOS 26 device. Foundation Models unavailable.")
         // Honest failure - no rule-based coaching
         return CoachReplyPayload(
@@ -847,23 +847,23 @@ extension LLMGateway {
         let userPayload = try minimized.encodedJSONString()
 
         let systemMessage =
-"""
-You are Pulsum, a supportive wellness coach. You MUST return ONLY JSON that matches the CoachPhrasing schema provided via text.format (no prose, no markdown). The user input is a JSON blob with keys: userToneHints, topSignal, topMomentId, rationale, zScoreSummary, candidateMoments[]. Each candidate includes id, title, short, detail, and evidenceBadge. Use ONLY that minimized context (no assumptions, no external data).
+            """
+            You are Pulsum, a supportive wellness coach. You MUST return ONLY JSON that matches the CoachPhrasing schema provided via text.format (no prose, no markdown). The user input is a JSON blob with keys: userToneHints, topSignal, topMomentId, rationale, zScoreSummary, candidateMoments[]. Each candidate includes id, title, short, detail, and evidenceBadge. Use ONLY that minimized context (no assumptions, no external data).
 
-Style for coachReply:
-- 1–2 short sentences.
-- Warm, actionable, specific to the user's top signal and context.
-- Avoid disclaimers and generic platitudes.
+            Style for coachReply:
+            - 1–2 short sentences.
+            - Warm, actionable, specific to the user's top signal and context.
+            - Avoid disclaimers and generic platitudes.
 
-Field rules:
-- isOnTopic: true if the message touches sleep, stress, energy, mood, movement, or nutrition; false otherwise.
-- refusalReason: "" when isOnTopic is true; otherwise a short code like "off_topic_smalltalk".
-- groundingScore: number 0.0–1.0; estimate confidence from provided z-scores (higher confidence → closer to 1.0). Round to two decimals.
-- intentTopic: one of ["sleep","stress","energy","mood","movement","nutrition","goals"] based on the input.
-- nextAction: one concrete step the user can do in < 8 words, e.g., "Dim lights 30 min before bed".
+            Field rules:
+            - isOnTopic: true if the message touches sleep, stress, energy, mood, movement, or nutrition; false otherwise.
+            - refusalReason: "" when isOnTopic is true; otherwise a short code like "off_topic_smalltalk".
+            - groundingScore: number 0.0–1.0; estimate confidence from provided z-scores (higher confidence → closer to 1.0). Round to two decimals.
+            - intentTopic: one of ["sleep","stress","energy","mood","movement","nutrition","goals"] based on the input.
+            - nextAction: one concrete step the user can do in < 8 words, e.g., "Dim lights 30 min before bed".
 
-Keep JSON compact. Do not echo the schema or input.
-"""
+            Keep JSON compact. Do not echo the schema or input.
+            """
 
         let body: [String: Any] = [
             "model": "gpt-5",
