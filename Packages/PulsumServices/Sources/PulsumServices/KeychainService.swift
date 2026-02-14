@@ -135,4 +135,5 @@ public final class KeychainService: KeychainStoring {
     }
 }
 
-extension KeychainService: @unchecked Sendable {}
+// SAFETY: All stored properties are immutable (`let`) and Sendable (String, String?).
+extension KeychainService: Sendable {}

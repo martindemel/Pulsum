@@ -75,4 +75,6 @@ private extension String {
     }
 }
 
+// SAFETY: All mutable file I/O is serialized through `queue` (serial DispatchQueue).
+// Immutable properties (`directory`, `fileManager`) are set once in init.
 extension HealthKitAnchorStore: @unchecked Sendable {}

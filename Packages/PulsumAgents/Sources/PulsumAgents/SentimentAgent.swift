@@ -297,7 +297,7 @@ public final class SentimentAgent {
 
             try context.save()
 
-            return JournalResult(entryID: entry.objectID,
+            return JournalResult(entryID: entryID,
                                  date: entry.date,
                                  transcript: sanitized,
                                  sentimentScore: sentiment,

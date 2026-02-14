@@ -37,7 +37,19 @@ public final class LibraryImporter {
     private let configuration: LibraryImporterConfiguration
     private let vectorIndex: VectorIndexProviding
     private let persistentContainer: NSPersistentContainer
-    public private(set) var lastImportHadDeferredEmbeddings = false
+    private let stateLock = NSLock()
+    private var _lastImportHadDeferredEmbeddings = false
+    public var lastImportHadDeferredEmbeddings: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return _lastImportHadDeferredEmbeddings
+    }
+
+    private func setLastImportHadDeferredEmbeddings(_ value: Bool) {
+        stateLock.lock()
+        _lastImportHadDeferredEmbeddings = value
+        stateLock.unlock()
+    }
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
                 vectorIndex: VectorIndexProviding = VectorIndexManager.shared,
@@ -48,7 +60,7 @@ public final class LibraryImporter {
     }
 
     public func ingestIfNeeded() async throws {
-        lastImportHadDeferredEmbeddings = false
+        setLastImportHadDeferredEmbeddings(false)
         let urls = discoverLibraryURLs()
         guard !urls.isEmpty else {
             Diagnostics.log(level: .info,
@@ -117,7 +129,7 @@ public final class LibraryImporter {
                     indexedCount = payloadCount
                 } catch {
                     if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
-                        lastImportHadDeferredEmbeddings = true
+                        setLastImportHadDeferredEmbeddings(true)
                         Diagnostics.log(level: .warn,
                                         category: .library,
                                         name: "library.import.deferred",
@@ -393,4 +405,6 @@ private struct PodcastRecommendation: Decodable {
     let cooldownSec: Int?
 }
 
+// SAFETY: Mutable state (`_lastImportHadDeferredEmbeddings`) is protected by `stateLock`.
+// Immutable properties (`configuration`, `vectorIndex`, `persistentContainer`) are set once in init.
 extension LibraryImporter: @unchecked Sendable {}

@@ -370,4 +370,7 @@ public extension EmbeddingService {
 }
 #endif
 
+// SAFETY: Mutable state (`availabilityState`, `lastReportedAvailability`) is exclusively
+// accessed under `availabilityQueue`. Immutable properties (`primaryProvider`, `fallbackProvider`,
+// `dimension`, `reprobeInterval`, `dateProvider`) are set once in init and never mutated.
 extension EmbeddingService: @unchecked Sendable {}

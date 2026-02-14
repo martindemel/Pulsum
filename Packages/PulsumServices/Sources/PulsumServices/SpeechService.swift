@@ -202,6 +202,7 @@ private struct SpeechUITestOverrides {
 
 private final class LegacySpeechBackend: SpeechBackending {
     private let recognizer: SFSpeechRecognizer?
+    private let stateQueue = DispatchQueue(label: "ai.pulsum.speech.legacy.state")
     private var audioEngine: AVAudioEngine?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -275,7 +276,7 @@ private final class LegacySpeechBackend: SpeechBackending {
 
         // Create audio level stream with stored continuation
         let audioLevelStream = AsyncStream<Float> { continuation in
-            self.levelContinuation = continuation
+            self.stateQueue.sync { self.levelContinuation = continuation }
             continuation.onTermination = { @Sendable _ in
                 speechLogger.debug("Audio level stream terminated.")
             }
@@ -301,12 +302,14 @@ private final class LegacySpeechBackend: SpeechBackending {
             throw SpeechServiceError.engineError(error.localizedDescription)
         }
 
-        audioEngine = engine
-        recognitionRequest = request
+        stateQueue.sync {
+            audioEngine = engine
+            recognitionRequest = request
+        }
 
         // Create speech segment stream with stored continuation
         let stream = AsyncThrowingStream<SpeechSegment, Error> { continuation in
-            self.streamContinuation = continuation
+            self.stateQueue.sync { self.streamContinuation = continuation }
             continuation.onTermination = { @Sendable _ in
                 speechLogger.debug("Speech segment stream terminated.")
             }
@@ -314,13 +317,13 @@ private final class LegacySpeechBackend: SpeechBackending {
 
         // Start recognition task IMMEDIATELY (not deferred until stream consumption)
         speechLogger.debug("Starting recognition task.")
-        self.recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+        let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
 
             if let error {
                 let info = Self.safeErrorInfo(error)
                 speechLogger.error("Recognition error. domain=\(info.domain, privacy: .public) code=\(info.code, privacy: .public)")
-                self.streamContinuation?.finish(throwing: error)
+                self.stateQueue.sync { self.streamContinuation }?.finish(throwing: error)
                 return
             }
 
@@ -336,16 +339,17 @@ private final class LegacySpeechBackend: SpeechBackending {
                         .debug("PULSUM_TRANSCRIPT_LOG_MARKER final=\(result.isFinal, privacy: .public) chars=\(transcript.count, privacy: .public) confidence=\(confidence, privacy: .public)")
                 }
                 #endif
-                self.streamContinuation?.yield(
+                self.stateQueue.sync { self.streamContinuation }?.yield(
                     SpeechSegment(transcript: transcript, isFinal: result.isFinal, confidence: confidence)
                 )
             }
 
             if result.isFinal {
                 speechLogger.info("Recognition completed with final transcript.")
-                self.streamContinuation?.finish()
+                self.stateQueue.sync { self.streamContinuation }?.finish()
             }
         }
+        stateQueue.sync { self.recognitionTask = task }
 
         speechLogger.info("Recognition task listening.")
 
@@ -390,22 +394,29 @@ private final class LegacySpeechBackend: SpeechBackending {
     func stopRecording() {
         speechLogger.info("Stopping recording.")
 
+        // Take all mutable state under lock, then perform cleanup outside to avoid deadlock
+        // (recognitionTask?.finish() could synchronously fire recognition callback)
+        let (stream, level, request, task, engine) = stateQueue.sync {
+            let snapshot = (streamContinuation, levelContinuation, recognitionRequest, recognitionTask, audioEngine)
+            streamContinuation = nil
+            levelContinuation = nil
+            recognitionRequest = nil
+            recognitionTask = nil
+            audioEngine = nil
+            return snapshot
+        }
+
         // Finish streams
-        streamContinuation?.finish()
-        streamContinuation = nil
-        levelContinuation?.finish()
-        levelContinuation = nil
+        stream?.finish()
+        level?.finish()
 
         // Cancel recognition task (not cancel, just finish cleanly)
-        recognitionRequest?.endAudio()
-        recognitionRequest = nil
-        recognitionTask?.finish()
-        recognitionTask = nil
+        request?.endAudio()
+        task?.finish()
 
         // Stop audio engine
-        audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine = nil
+        engine?.stop()
+        engine?.inputNode.removeTap(onBus: 0)
 
         #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -414,6 +425,8 @@ private final class LegacySpeechBackend: SpeechBackending {
     }
 }
 
+// SAFETY: Mutable state (`audioEngine`, `recognitionTask`, `recognitionRequest`,
+// `streamContinuation`, `levelContinuation`) is exclusively accessed under `stateQueue`.
 extension LegacySpeechBackend: @unchecked Sendable {}
 
 #if DEBUG
@@ -421,6 +434,7 @@ extension LegacySpeechBackend: @unchecked Sendable {}
 private final class FakeSpeechBackend: SpeechBackending {
     private let authorizationProvider: SpeechAuthorizationProviding
     private let autoGrantPermissions: Bool
+    private let stateQueue = DispatchQueue(label: "ai.pulsum.speech.fake.state")
     private var streamTask: Task<Void, Never>?
     private var levelTask: Task<Void, Never>?
     private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
@@ -443,45 +457,53 @@ private final class FakeSpeechBackend: SpeechBackending {
 
     func startRecording(maxDuration: TimeInterval) async throws -> SpeechService.Session {
         let stream = AsyncThrowingStream<SpeechSegment, Error> { continuation in
-            self.streamContinuation = continuation
-            self.streamTask = Task {
-                for segment in Self.scriptedSegments {
-                    if Task.isCancelled { break }
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                    continuation.yield(segment)
+            self.stateQueue.sync {
+                self.streamContinuation = continuation
+                self.streamTask = Task {
+                    for segment in Self.scriptedSegments {
+                        if Task.isCancelled { break }
+                        try? await Task.sleep(nanoseconds: 350_000_000)
+                        continuation.yield(segment)
+                    }
+                    let deadline = Date().addingTimeInterval(maxDuration)
+                    while !Task.isCancelled && Date() < deadline {
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                    }
+                    continuation.finish()
                 }
-                let deadline = Date().addingTimeInterval(maxDuration)
-                while !Task.isCancelled && Date() < deadline {
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                }
-                continuation.finish()
             }
         }
 
         let levelStream = AsyncStream<Float> { continuation in
-            self.levelContinuation = continuation
-            self.levelTask = Task {
-                var cursor: Float = 0.15
-                while !Task.isCancelled {
-                    cursor = cursor >= 0.9 ? 0.2 : cursor + 0.15
-                    continuation.yield(cursor)
-                    try? await Task.sleep(nanoseconds: 120_000_000)
+            self.stateQueue.sync {
+                self.levelContinuation = continuation
+                self.levelTask = Task {
+                    var cursor: Float = 0.15
+                    while !Task.isCancelled {
+                        cursor = cursor >= 0.9 ? 0.2 : cursor + 0.15
+                        continuation.yield(cursor)
+                        try? await Task.sleep(nanoseconds: 120_000_000)
+                    }
                 }
             }
         }
 
         let stop: @Sendable () -> Void = { [weak self] in
             guard let self else { return }
-            self.streamTask?.cancel()
-            self.levelTask?.cancel()
-            self.streamContinuation?.finish()
-            self.levelContinuation?.finish()
-            self.streamTask = nil
-            self.levelTask = nil
-            self.streamContinuation = nil
-            self.levelContinuation = nil
+            let (sTask, lTask, sCont, lCont) = self.stateQueue.sync {
+                let snapshot = (self.streamTask, self.levelTask, self.streamContinuation, self.levelContinuation)
+                self.streamTask = nil
+                self.levelTask = nil
+                self.streamContinuation = nil
+                self.levelContinuation = nil
+                return snapshot
+            }
+            sTask?.cancel()
+            lTask?.cancel()
+            sCont?.finish()
+            lCont?.finish()
         }
-        stopHandler = stop
+        stateQueue.sync { stopHandler = stop }
 
         return SpeechService.Session(
             stream: stream,
@@ -491,8 +513,12 @@ private final class FakeSpeechBackend: SpeechBackending {
     }
 
     func stopRecording() {
-        stopHandler?()
-        stopHandler = nil
+        let handler = stateQueue.sync { () -> (@Sendable () -> Void)? in
+            let h = stopHandler
+            stopHandler = nil
+            return h
+        }
+        handler?()
     }
 
     private static let scriptedSegments: [SpeechSegment] = [
@@ -502,6 +528,7 @@ private final class FakeSpeechBackend: SpeechBackending {
     ]
 }
 
+// SAFETY: Mutable state is exclusively accessed under `stateQueue`.
 extension FakeSpeechBackend: @unchecked Sendable {}
 #endif
 #endif
@@ -544,6 +571,7 @@ private final class ModernSpeechBackend: SpeechBackending {
     }
 }
 
+// SAFETY: Only immutable `let` properties plus `nonisolated(unsafe)` debug-only static.
 @available(iOS 26.0, *)
 extension ModernSpeechBackend: @unchecked Sendable {}
 

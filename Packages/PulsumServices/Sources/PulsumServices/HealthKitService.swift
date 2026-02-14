@@ -144,6 +144,9 @@ private final class HealthKitAuthorizationOverrides: @unchecked Sendable {
 #endif
 
 /// Encapsulates HealthKit anchored + observer queries for Pulsum ingestion.
+// SAFETY: Mutable state (`activeObserverQueries`, `activeAnchoredQueries`) is exclusively
+// accessed under `processingQueue`. Immutable properties (`healthStore`, `anchorStore`,
+// `calendar`, `initialAnchorWindowDays`) are set once in init and never mutated.
 public final class HealthKitService: @unchecked Sendable {
     public struct AnchoredUpdate {
         public let samples: [HKSample]

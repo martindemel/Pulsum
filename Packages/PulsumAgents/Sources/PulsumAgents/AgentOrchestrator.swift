@@ -1,5 +1,4 @@
 import Foundation
-import CoreData
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -138,8 +137,8 @@ public struct SafetyDecision {
     public let crisisMessage: String?
 }
 
-public struct JournalResult: @unchecked Sendable {
-    public let entryID: NSManagedObjectID
+public struct JournalResult: Sendable {
+    public let entryID: UUID
     public let date: Date
     public let transcript: String
     public let sentimentScore: Double
