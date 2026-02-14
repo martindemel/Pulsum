@@ -67,6 +67,10 @@ private final class TestVectorHandle: VectorIndexFileHandle {
         handle.write(data)
     }
 
+    func synchronize() throws {
+        try handle.synchronize()
+    }
+
     func close() throws {
         try handle.close()
         if shouldFailClose {

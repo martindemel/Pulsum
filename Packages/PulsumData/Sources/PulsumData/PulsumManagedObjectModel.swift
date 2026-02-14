@@ -1,11 +1,14 @@
 import CoreData
 import Foundation
+import os.log
 
 /// Canonical Pulsum Core Data model loader. Uses the packaged `.momd` from PulsumData resources
 /// and exposes a singleton instance so tests and production share the same model pointer.
 public enum PulsumManagedObjectModel {
+    private static let logger = Logger(subsystem: "ai.pulsum", category: "ManagedObjectModel")
+
     // NSManagedObjectModel is immutable after loading; safe to reuse across threads for testing/production.
-    public nonisolated(unsafe) static let shared: NSManagedObjectModel = {
+    public nonisolated(unsafe) static let shared: NSManagedObjectModel? = {
         let bundle = Bundle.pulsumDataResources
         let candidates = [
             bundle.url(forResource: "Pulsum", withExtension: "momd"),
@@ -84,6 +87,7 @@ public enum PulsumManagedObjectModel {
             }
         }
 
-        fatalError("PulsumData: NSManagedObjectModel 'Pulsum' not found in bundle resources")
+        logger.critical("PulsumData: NSManagedObjectModel 'Pulsum' not found in bundle resources")
+        return nil
     }()
 }

@@ -139,8 +139,11 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     }
 
     private static func makePersistentContainer(storeURL: URL) -> NSPersistentContainer {
+        guard let model = PulsumManagedObjectModel.shared else {
+            return NSPersistentContainer(name: "Pulsum", managedObjectModel: NSManagedObjectModel())
+        }
         let container = NSPersistentContainer(name: "Pulsum",
-                                              managedObjectModel: PulsumManagedObjectModel.shared)
+                                              managedObjectModel: model)
         let description = NSPersistentStoreDescription(url: storeURL)
         description.type = NSSQLiteStoreType
         description.shouldAddStoreAsynchronously = false

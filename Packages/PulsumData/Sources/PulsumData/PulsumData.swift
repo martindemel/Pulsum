@@ -3,6 +3,9 @@ import CoreData
 
 /// Facade exposing Pulsum's persistent data infrastructure.
 public enum PulsumData {
+    /// Error from DataStack initialization, if any. Check at app startup.
+    public static var initializationError: Error? { DataStack.initializationError }
+
     /// Shared Core Data stack configured for on-device only storage.
     public static var dataStack: DataStack { DataStack.shared }
 

@@ -184,6 +184,15 @@ final class AppViewModel {
             ])
             return
         }
+        if let error = PulsumData.initializationError {
+            startupState = .failed(error.localizedDescription)
+            Task { await DebugLogBuffer.shared.append("Startup failed: DataStack initialization error: \(error.localizedDescription)") }
+            emitFirstRunEnd(fields: [
+                "reason": .safeString(.stage("failed",
+                                             allowed: firstRunReasonAllowlist))
+            ], error: error)
+            return
+        }
         if let issue = PulsumData.backupSecurityIssue {
             let location = issue.url.lastPathComponent
             startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")

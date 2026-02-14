@@ -6,6 +6,7 @@ protocol VectorIndexFileHandle: AnyObject {
     func seek(toOffset offset: UInt64) throws
     func read(upToCount count: Int) throws -> Data?
     func write(_ data: Data)
+    func synchronize() throws
     func close() throws
 }
 
@@ -83,7 +84,6 @@ private final class VectorIndexShard {
     private let dimension: Int
     private let fileManager: FileManager
     private let fileHandleFactory: VectorIndexFileHandleFactory
-    private let queue = DispatchQueue(label: "ai.pulsum.vectorindex.shard", attributes: .concurrent)
 
     init(baseDirectory: URL,
          name: String,
@@ -97,7 +97,7 @@ private final class VectorIndexShard {
         let shardDirectory = baseDirectory.appendingPathComponent(name, isDirectory: true)
         if !fileManager.fileExists(atPath: shardDirectory.path) {
             #if os(iOS)
-            try fileManager.createDirectory(at: shardDirectory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
+            try fileManager.createDirectory(at: shardDirectory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUnlessOpen])
             #else
             try fileManager.createDirectory(at: shardDirectory, withIntermediateDirectories: true, attributes: nil)
             #endif
@@ -108,7 +108,7 @@ private final class VectorIndexShard {
             let header = VectorIndexHeader(dimension: UInt16(dimension), recordCount: 0)
             try header.data().write(to: shardURL, options: .atomic)
             #if os(iOS)
-            try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: shardURL.path)
+            try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: shardURL.path)
             #endif
         }
         if fileManager.fileExists(atPath: metadataURL.path) {
@@ -127,35 +127,29 @@ private final class VectorIndexShard {
             throw VectorIndexError.invalidDimension(expected: dimension, actual: vector.count)
         }
 
-        try queue.sync(flags: .barrier) {
-            try self.withHandle { handle in
-                var metadataChanged = false
-
-                if let existingOffset = metadata[id] {
-                    try markRecordDeleted(at: existingOffset, handle: handle)
-                    metadataChanged = true
-                }
-
-                let offset = try appendRecord(id: id, vector: vector, handle: handle)
-                metadata[id] = offset
-                metadataChanged = true
-
-                if metadataChanged {
-                    try persistMetadata()
-                    try updateRecordCount(handle: handle)
-                }
+        try withHandle { handle in
+            if let existingOffset = metadata[id] {
+                try markRecordDeleted(at: existingOffset, handle: handle)
             }
+
+            let offset = try appendRecord(id: id, vector: vector, handle: handle)
+            metadata[id] = offset
+
+            // Flush shard data to disk before updating metadata, so a crash
+            // between these steps leaves metadata pointing at valid offsets.
+            try handle.synchronize()
+            try persistMetadata()
+            try updateRecordCount(handle: handle)
         }
     }
 
     func remove(id: String) throws {
-        try queue.sync(flags: .barrier) {
-            guard let offset = metadata.removeValue(forKey: id) else { return }
-            try self.withHandle { handle in
-                try markRecordDeleted(at: offset, handle: handle)
-                try persistMetadata()
-                try updateRecordCount(handle: handle)
-            }
+        guard let offset = metadata.removeValue(forKey: id) else { return }
+        try withHandle { handle in
+            try markRecordDeleted(at: offset, handle: handle)
+            try handle.synchronize()
+            try persistMetadata()
+            try updateRecordCount(handle: handle)
         }
     }
 
@@ -164,42 +158,34 @@ private final class VectorIndexShard {
             throw VectorIndexError.invalidDimension(expected: dimension, actual: query.count)
         }
 
-        var result: Result<[VectorMatch], Error> = .success([])
-        queue.sync {
-            do {
-                let data = try Data(contentsOf: shardURL, options: .mappedIfSafe)
-                _ = try currentHeader(from: data)
-                var cursor = VectorIndexHeader.byteSize
-                var matches: [VectorMatch] = []
-                while cursor < data.count {
-                    guard let header = readRecordHeader(data: data, offset: cursor) else { break }
-                    cursor += VectorRecordHeader.byteSize
-                    guard cursor + Int(header.idLength) <= data.count else { break }
-                    let idData = data[cursor ..< (cursor + Int(header.idLength))]
-                    cursor += Int(header.idLength)
-                    let vectorByteCount = dimension * MemoryLayout<Float>.size
-                    guard cursor + vectorByteCount <= data.count else { break }
-                    if header.flags == 0 {
-                        let vectorData = data[cursor ..< (cursor + vectorByteCount)]
-                        let score = l2Distance(query: query, vectorData: vectorData)
-                        let identifier = String(decoding: idData, as: UTF8.self)
-                        if matches.count < topK {
-                            matches.append(VectorMatch(id: identifier, score: score))
-                            matches.sort { $0.score < $1.score }
-                        } else if let worst = matches.last, score < worst.score {
-                            matches.removeLast()
-                            matches.append(VectorMatch(id: identifier, score: score))
-                            matches.sort { $0.score < $1.score }
-                        }
-                    }
-                    cursor += vectorByteCount
+        let data = try Data(contentsOf: shardURL, options: .mappedIfSafe)
+        _ = try currentHeader(from: data)
+        var cursor = VectorIndexHeader.byteSize
+        var matches: [VectorMatch] = []
+        while cursor < data.count {
+            guard let header = readRecordHeader(data: data, offset: cursor) else { break }
+            cursor += VectorRecordHeader.byteSize
+            guard cursor + Int(header.idLength) <= data.count else { break }
+            let idData = data[cursor ..< (cursor + Int(header.idLength))]
+            cursor += Int(header.idLength)
+            let vectorByteCount = dimension * MemoryLayout<Float>.size
+            guard cursor + vectorByteCount <= data.count else { break }
+            if header.flags == 0 {
+                let vectorData = data[cursor ..< (cursor + vectorByteCount)]
+                let score = l2Distance(query: query, vectorData: vectorData)
+                let identifier = String(decoding: idData, as: UTF8.self)
+                if matches.count < topK {
+                    matches.append(VectorMatch(id: identifier, score: score))
+                    matches.sort { $0.score < $1.score }
+                } else if let worst = matches.last, score < worst.score {
+                    matches.removeLast()
+                    matches.append(VectorMatch(id: identifier, score: score))
+                    matches.sort { $0.score < $1.score }
                 }
-                result = .success(matches)
-            } catch {
-                result = .failure(error)
             }
+            cursor += vectorByteCount
         }
-        return try result.get()
+        return matches
     }
 
     private func appendRecord(id: String, vector: [Float], handle: VectorIndexFileHandle) throws -> UInt64 {
@@ -232,7 +218,7 @@ private final class VectorIndexShard {
         let data = try JSONEncoder().encode(metadata)
         try data.write(to: metadataURL, options: .atomic)
         #if os(iOS)
-        try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: metadataURL.path)
+        try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: metadataURL.path)
         #endif
     }
 
@@ -331,7 +317,6 @@ actor VectorIndex {
     private let directory: URL
     private let fileHandleFactory: VectorIndexFileHandleFactory
     private var shards: [Int: VectorIndexShard] = [:]
-    private let shardLock = NSLock()
 
     init(name: String,
          dimension: Int = 384,
@@ -380,14 +365,22 @@ actor VectorIndex {
     }
 
     private func shard(for id: String) throws -> VectorIndexShard {
-        let shardIndex = abs(id.hashValue) % shardCount
+        let shardIndex = Int(Self.fnv1a(id) % UInt64(shardCount))
         return try shard(forShardIndex: shardIndex)
     }
 
-    private func shard(forShardIndex index: Int) throws -> VectorIndexShard {
-        shardLock.lock()
-        defer { shardLock.unlock() }
+    /// FNV-1a 64-bit hash — deterministic across process launches (unlike String.hashValue).
+    private static func fnv1a(_ string: String) -> UInt64 {
+        Data(string.utf8).withUnsafeBytes { ptr -> UInt64 in
+            var h: UInt64 = 0xcbf29ce484222325
+            for byte in ptr {
+                h = (h ^ UInt64(byte)) &* 0x100000001b3
+            }
+            return h
+        }
+    }
 
+    private func shard(forShardIndex index: Int) throws -> VectorIndexShard {
         if let existing = shards[index] {
             return existing
         }

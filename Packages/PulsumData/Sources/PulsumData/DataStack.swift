@@ -5,6 +5,7 @@ import os.log
 public enum PulsumDataError: LocalizedError {
     case storeInitializationFailed(underlying: Error)
     case directoryCreationFailed(url: URL, underlying: Error)
+    case modelNotFound
 
     public var errorDescription: String? {
         switch self {
@@ -12,6 +13,8 @@ public enum PulsumDataError: LocalizedError {
             return "Failed to initialize persistent stores: \(underlying.localizedDescription)"
         case let .directoryCreationFailed(url, underlying):
             return "Unable to create directory at \(url.path): \(underlying.localizedDescription)"
+        case .modelNotFound:
+            return "Core Data model 'Pulsum' could not be found in bundle resources."
         }
     }
 }
@@ -26,6 +29,16 @@ public struct StoragePaths {
     public let sqliteStoreURL: URL
     public let vectorIndexDirectory: URL
     public let healthAnchorsDirectory: URL
+
+    /// Package-internal fallback for degraded DataStack initialization.
+    init(degraded _: Void) {
+        let base = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("PulsumDegraded", isDirectory: true)
+        self.applicationSupport = base
+        self.sqliteStoreURL = base.appendingPathComponent("Pulsum.sqlite")
+        self.vectorIndexDirectory = base.appendingPathComponent("VectorIndex", isDirectory: true)
+        self.healthAnchorsDirectory = base.appendingPathComponent("Anchors", isDirectory: true)
+    }
 
     public init(appGroup: String? = nil) throws {
         let fileManager = FileManager.default
@@ -53,7 +66,8 @@ public struct StoragePaths {
 }
 
 public final class DataStack {
-    public static let shared = DataStack()
+    public static let shared: DataStack = DataStack._create()
+    public private(set) nonisolated(unsafe) static var initializationError: Error?
 
     public let container: NSPersistentContainer
     public let storagePaths: StoragePaths
@@ -62,26 +76,38 @@ public final class DataStack {
     private let fileManager: FileManager
     private static let logger = Logger(subsystem: "ai.pulsum", category: "DataStack")
 
-    public init(fileManager: FileManager = .default, appGroupIdentifier: String? = nil) {
+    private static func _create() -> DataStack {
+        do {
+            return try DataStack()
+        } catch {
+            initializationError = error
+            logger.critical("DataStack initialization failed: \(error.localizedDescription, privacy: .public)")
+            return DataStack(degraded: error)
+        }
+    }
+
+    /// Degraded initializer used when the primary init fails.
+    /// The DataStack is non-functional; check `initializationError` at startup.
+    private init(degraded _: Error) {
+        self.fileManager = .default
+        self.storagePaths = StoragePaths(degraded: ())
+        self.container = NSPersistentContainer(name: "Pulsum-Degraded", managedObjectModel: NSManagedObjectModel())
+    }
+
+    public init(fileManager: FileManager = .default, appGroupIdentifier: String? = nil) throws {
         self.fileManager = fileManager
-        do {
-            storagePaths = try StoragePaths(appGroup: appGroupIdentifier)
-        } catch {
-            fatalError("Pulsum data directories could not be resolved: \(error)")
-        }
+        self.storagePaths = try StoragePaths(appGroup: appGroupIdentifier)
 
-        do {
-            try DataStack.prepareDirectories(paths: storagePaths, fileManager: fileManager)
-        } catch {
-            fatalError("Pulsum data directories could not be created: \(error)")
-        }
+        try DataStack.prepareDirectories(paths: storagePaths, fileManager: fileManager)
 
-        let managedObjectModel = DataStack.loadManagedObjectModel()
+        guard let managedObjectModel = DataStack.loadManagedObjectModel() else {
+            throw PulsumDataError.modelNotFound
+        }
         container = NSPersistentContainer(name: "Pulsum", managedObjectModel: managedObjectModel)
         let description = NSPersistentStoreDescription(url: storagePaths.sqliteStoreURL)
         description.type = NSSQLiteStoreType
         #if os(iOS)
-        description.setOption(FileProtectionType.complete as NSObject, forKey: NSPersistentStoreFileProtectionKey)
+        description.setOption(FileProtectionType.completeUnlessOpen as NSObject, forKey: NSPersistentStoreFileProtectionKey)
         #endif
         description.shouldMigrateStoreAutomatically = true
         description.shouldInferMappingModelAutomatically = true
@@ -96,10 +122,12 @@ public final class DataStack {
 
         container.persistentStoreDescriptions = [description]
 
+        var storeLoadError: Error?
         container.loadPersistentStores { _, error in
-            if let error {
-                fatalError("Unresolved Core Data error: \(error)")
-            }
+            storeLoadError = error
+        }
+        if let storeLoadError {
+            throw PulsumDataError.storeInitializationFailed(underlying: storeLoadError)
         }
 
         container.viewContext.automaticallyMergesChangesFromParent = true
@@ -122,7 +150,7 @@ public final class DataStack {
     private static func prepareDirectories(paths: StoragePaths, fileManager: FileManager) throws {
         #if os(iOS)
         let protectionAttributes: [FileAttributeKey: Any] = [
-            .protectionKey: FileProtectionType.complete
+            .protectionKey: FileProtectionType.completeUnlessOpen
         ]
         #else
         let protectionAttributes: [FileAttributeKey: Any] = [:]
@@ -166,7 +194,7 @@ public final class DataStack {
     }
     #endif
 
-    private static func loadManagedObjectModel() -> NSManagedObjectModel {
+    private static func loadManagedObjectModel() -> NSManagedObjectModel? {
         PulsumManagedObjectModel.shared
     }
 }

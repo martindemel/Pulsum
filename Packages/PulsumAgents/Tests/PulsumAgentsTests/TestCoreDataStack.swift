@@ -4,7 +4,10 @@ import CoreData
 
 public final class TestCoreDataStack {
     public static func makeContainer() -> NSPersistentContainer {
-        let container = NSPersistentContainer(name: "Pulsum", managedObjectModel: PulsumManagedObjectModel.shared)
+        guard let model = PulsumManagedObjectModel.shared else {
+            fatalError("Test setup: PulsumManagedObjectModel not found")
+        }
+        let container = NSPersistentContainer(name: "Pulsum", managedObjectModel: model)
         
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
