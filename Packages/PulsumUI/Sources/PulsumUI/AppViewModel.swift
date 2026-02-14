@@ -56,6 +56,7 @@ final class AppViewModel {
     var isPresentingSettings = false
     var isShowingSafetyCard = false
     var safetyMessage: String?
+    var showOnboarding = false
 
     var consentGranted: Bool
     var shouldHideConsentBanner = false
@@ -118,6 +119,12 @@ final class AppViewModel {
         settingsVM.onConsentChanged = { [weak self] newValue in
             guard let self else { return }
             self.updateConsent(to: newValue)
+        }
+
+        settingsVM.onDataDeleted = { [weak self] in
+            guard let self else { return }
+            self.showOnboarding = true
+            self.isPresentingSettings = false
         }
 
         pulseVM.onSafetyDecision = { [weak self] decision in
@@ -340,6 +347,10 @@ final class AppViewModel {
             guard let self, let orchestrator else { return }
             await coachViewModel.complete(card: card, orchestrator: orchestrator)
         }
+    }
+
+    func completeOnboarding() {
+        showOnboarding = false
     }
 
     func dismissSafetyCard() {

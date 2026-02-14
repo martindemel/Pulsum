@@ -6,6 +6,7 @@ import PulsumTypes
 
 public struct PulsumRootView: View {
     @State private var viewModel: AppViewModel
+    @AppStorage("ai.pulsum.hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     public init() {
         _viewModel = State(initialValue: AppViewModel())
@@ -28,6 +29,22 @@ public struct PulsumRootView: View {
                     .transition(.opacity)
             }
         }
+        .sheet(isPresented: onboardingBinding) {
+            OnboardingView(
+                isPresented: onboardingBinding,
+                onComplete: {
+                    hasCompletedOnboarding = true
+                    viewModel.completeOnboarding()
+                },
+                orchestrator: viewModel.orchestrator
+            )
+            .interactiveDismissDisabled()
+        }
+        .onChange(of: viewModel.showOnboarding) { _, newValue in
+            if newValue {
+                hasCompletedOnboarding = false
+            }
+        }
         .task { viewModel.start() }
         .onChange(of: viewModel.startupState) { _, newValue in
             let label: String
@@ -45,6 +62,18 @@ public struct PulsumRootView: View {
                                 "state": .safeString(.stage(label, allowed: ["idle", "loading", "ready", "failed", "blocked"]))
                             ])
         }
+    }
+
+    private var onboardingBinding: Binding<Bool> {
+        Binding(
+            get: { !hasCompletedOnboarding || viewModel.showOnboarding },
+            set: { newValue in
+                if !newValue {
+                    hasCompletedOnboarding = true
+                    viewModel.completeOnboarding()
+                }
+            }
+        )
     }
 
     @ViewBuilder

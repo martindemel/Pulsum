@@ -486,6 +486,13 @@ struct SettingsScreen: View {
                                         .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(3)
+
+                                    Divider()
+
+                                    Text("This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment.")
+                                        .font(.pulsumFootnote)
+                                        .foregroundStyle(Color.pulsumTextSecondary)
+                                        .lineSpacing(3)
                                 }
                                 .padding(PulsumSpacing.lg)
                                 .background(Color.pulsumCardWhite)
@@ -497,6 +504,8 @@ struct SettingsScreen: View {
                                     y: PulsumShadow.small.y
                                 )
                             }
+
+                            dataManagementSection
 
                             diagnosticsSection
 
@@ -635,6 +644,71 @@ struct SettingsScreen: View {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         #endif
+    }
+
+    private var dataManagementSection: some View {
+        VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+            Text("Data Management")
+                .font(.pulsumHeadline)
+                .foregroundStyle(Color.pulsumTextPrimary)
+                .padding(.horizontal, PulsumSpacing.lg)
+
+            VStack(alignment: .leading, spacing: PulsumSpacing.md) {
+                Text("Delete all your data stored in Pulsum, including journals, health metrics, recommendations, and AI configuration.")
+                    .font(.pulsumFootnote)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .lineSpacing(3)
+
+                Button(role: .destructive) {
+                    viewModel.showDeleteAllConfirmation = true
+                } label: {
+                    HStack {
+                        Image(systemName: "trash.fill")
+                        Text("Delete All My Data")
+                            .font(.pulsumCallout.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.pulsumError)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, PulsumSpacing.sm)
+                }
+                .glassEffect(.regular.tint(Color.pulsumError.opacity(0.15)).interactive())
+                .accessibilityIdentifier("DeleteAllDataButton")
+
+                if viewModel.isDeletingAllData {
+                    HStack(spacing: PulsumSpacing.sm) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(Color.pulsumError)
+                        Text("Deleting...")
+                            .font(.pulsumCallout)
+                            .foregroundStyle(Color.pulsumError)
+                    }
+                }
+
+                if let message = viewModel.deleteAllDataMessage {
+                    Text(message)
+                        .font(.pulsumFootnote)
+                        .foregroundStyle(Color.pulsumTextSecondary)
+                }
+            }
+            .padding(PulsumSpacing.lg)
+            .background(Color.pulsumCardWhite)
+            .cornerRadius(PulsumRadius.xl)
+            .shadow(
+                color: PulsumShadow.small.color,
+                radius: PulsumShadow.small.radius,
+                x: PulsumShadow.small.x,
+                y: PulsumShadow.small.y
+            )
+        }
+        .alert("Delete All Data?", isPresented: $viewModel.showDeleteAllConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Everything", role: .destructive) {
+                Task { await viewModel.deleteAllData() }
+            }
+        } message: {
+            Text("This will permanently delete all your journals, health metrics, recommendations, vector index, API keys, and preferences. This action cannot be undone.")
+        }
     }
 
     private var diagnosticsSection: some View {

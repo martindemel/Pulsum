@@ -8,6 +8,7 @@ struct OnboardingView: View {
     var orchestrator: AgentOrchestrator?
 
     @State private var currentPage = 0
+    @State private var disclaimerAcknowledged = false
     @State private var isRequestingHealthKit = false
     @State private var healthKitError: String?
     @State private var healthAccessSummary: String = "Checking..."
@@ -81,6 +82,31 @@ struct OnboardingView: View {
                     .padding(.horizontal, PulsumSpacing.xl)
             }
 
+            // Health disclaimer
+            VStack(spacing: PulsumSpacing.md) {
+                Text("This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment.")
+                    .font(.pulsumCallout)
+                    .foregroundStyle(Color.pulsumTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.horizontal, PulsumSpacing.xl)
+
+                Button {
+                    withAnimation(.pulsumStandard) {
+                        disclaimerAcknowledged.toggle()
+                    }
+                } label: {
+                    HStack(spacing: PulsumSpacing.sm) {
+                        Image(systemName: disclaimerAcknowledged ? "checkmark.square.fill" : "square")
+                            .foregroundStyle(disclaimerAcknowledged ? Color.pulsumGreenSoft : Color.pulsumTextSecondary)
+                        Text("I understand and acknowledge this disclaimer")
+                            .font(.pulsumCallout)
+                            .foregroundStyle(Color.pulsumTextPrimary)
+                    }
+                }
+                .accessibilityIdentifier("DisclaimerAcknowledgeButton")
+            }
+
             Spacer()
 
             Button {
@@ -95,6 +121,8 @@ struct OnboardingView: View {
                     .padding(.vertical, PulsumSpacing.md)
             }
             .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.7)).interactive())
+            .disabled(!disclaimerAcknowledged)
+            .opacity(disclaimerAcknowledged ? 1.0 : 0.5)
             .padding(.horizontal, PulsumSpacing.xl)
             .padding(.bottom, PulsumSpacing.xxl)
         }
