@@ -10,14 +10,15 @@ enum BuildFlags {
     #endif
 
     #if DEBUG
-    private nonisolated(unsafe) static var modernSpeechOverride: Bool?
+    private static let overrideLock = NSLock()
+    private nonisolated(unsafe) static var _modernSpeechOverride: Bool?
 
     static func overrideModernSpeechBackend(_ value: Bool?) {
-        modernSpeechOverride = value
+        overrideLock.withLock { _modernSpeechOverride = value }
     }
 
     static var useModernSpeechBackend: Bool {
-        if let override = modernSpeechOverride { return override }
+        if let override = overrideLock.withLock({ _modernSpeechOverride }) { return override }
         return ProcessInfo.processInfo.environment["PULSUM_USE_MODERN_SPEECH"] == "1"
     }
     #else

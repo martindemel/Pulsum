@@ -1,4 +1,5 @@
 import Foundation
+import PulsumTypes
 
 public struct RecommendationFeatures: Sendable {
     public let id: String
@@ -112,11 +113,16 @@ public actor RecRanker {
     public init(state: RecRankerState? = nil) {
         var weights = Self.defaultWeights
         var learningRate = 0.05
-        if let state, state.version == Self.schemaVersion {
-            for (key, value) in state.weights {
-                weights[key] = min(max(value, -3.0), 3.0)
+        if let state {
+            if state.version == Self.schemaVersion {
+                for (key, value) in state.weights {
+                    weights[key] = min(max(value, -3.0), 3.0)
+                }
+                learningRate = state.learningRate
+            } else {
+                Diagnostics.log(level: .warn, category: .coach, name: "recranker.state.version_mismatch",
+                                fields: ["persisted": .int(state.version), "expected": .int(Self.schemaVersion)])
             }
-            learningRate = state.learningRate
         }
         self.weights = weights
         self.learningRate = learningRate

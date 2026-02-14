@@ -101,7 +101,10 @@ extension Color {
         _ = scanner.scanString("#")
 
         var hexNumber: UInt64 = 0
-        scanner.scanHexInt64(&hexNumber)
+        guard scanner.scanHexInt64(&hexNumber) else {
+            self.init(red: 0, green: 0, blue: 0)
+            return
+        }
 
         let r = Double((hexNumber & 0xff0000) >> 16) / 255
         let g = Double((hexNumber & 0x00ff00) >> 8) / 255

@@ -11,6 +11,10 @@ import HealthKit
 import UIKit
 #endif
 
+private enum PulsumDefaults {
+    static let hasLaunched = "ai.pulsum.hasLaunched"
+}
+
 @MainActor
 @Observable
 final class AppViewModel {
@@ -93,8 +97,7 @@ final class AppViewModel {
          userDefaults: UserDefaults = AppRuntimeConfig.runtimeDefaults,
          sessionInfo: (version: String, build: String) = AppViewModel.makeVersionInfo()) {
         let consent = consentStore.loadConsent()
-        let launchKey = "ai.pulsum.hasLaunched"
-        let hasLaunched = userDefaults.bool(forKey: launchKey)
+        let hasLaunched = userDefaults.bool(forKey: PulsumDefaults.hasLaunched)
         let coachVM = CoachViewModel()
         let pulseVM = PulseViewModel()
         let settingsVM = SettingsViewModel(initialConsent: consent)
@@ -103,7 +106,7 @@ final class AppViewModel {
         self.consentGranted = consent
         self.sessionInfo = sessionInfo
         self.firstLaunch = !hasLaunched
-        userDefaults.set(true, forKey: launchKey)
+        userDefaults.set(true, forKey: PulsumDefaults.hasLaunched)
         self.coachViewModel = coachVM
         self.pulseViewModel = pulseVM
         self.settingsViewModel = settingsVM

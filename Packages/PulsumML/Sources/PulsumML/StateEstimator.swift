@@ -1,4 +1,5 @@
 import Foundation
+import PulsumTypes
 
 public struct StateEstimatorConfig {
     public let learningRate: Double
@@ -66,11 +67,19 @@ public actor StateEstimator {
     }
 
     public func predict(features: [String: Double]) -> Double {
+        guard features.allSatisfy({ !$0.value.isNaN }) else {
+            Diagnostics.log(level: .warn, category: .dataAgent, name: "nan.features", fields: [:])
+            return bias
+        }
         let contributions = contributionVector(features: features)
         return contributions.values.reduce(bias, +)
     }
 
     public func update(features: [String: Double], target: Double) -> StateEstimatorSnapshot {
+        guard features.allSatisfy({ !$0.value.isNaN }) else {
+            Diagnostics.log(level: .warn, category: .dataAgent, name: "nan.features.update", fields: [:])
+            return currentSnapshot(features: features)
+        }
         let prediction = predict(features: features)
         let error = target - prediction
 

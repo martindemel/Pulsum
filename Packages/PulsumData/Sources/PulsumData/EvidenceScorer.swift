@@ -8,7 +8,6 @@ public enum EvidenceBadge: String {
 
 struct EvidenceScorer {
     private static let strongDomains: [String] = [
-        "pubmed",
         "nih.gov",
         ".gov",
         ".edu",

@@ -80,6 +80,8 @@ final class CoachViewModel {
     private var recommendationsSoftTimeoutTask: Task<Void, Never>?
     private var recommendationsSoftTimedOut = false
     private var activeRecommendationsRefreshID: Int?
+    @ObservationIgnored private var reloadTask: Task<Void, Never>?
+    @ObservationIgnored private var cheerResetTask: Task<Void, Never>?
 
     var recommendationsSoftTimeoutMessage: String?
 
@@ -162,7 +164,8 @@ final class CoachViewModel {
     }
 
     func reloadIfNeeded() {
-        Task { [weak self] in
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
             guard let self else { return }
             await self.refreshRecommendations()
         }
@@ -251,7 +254,8 @@ final class CoachViewModel {
     }
 
     private func scheduleCheerReset() {
-        Task { [weak self] in
+        cheerResetTask?.cancel()
+        cheerResetTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard let self else { return }
             cheerEventMessage = nil
@@ -467,5 +471,10 @@ final class CoachViewModel {
         recommendationsSoftTimeoutTask = nil
         recommendationsSoftTimedOut = false
         recommendationsSoftTimeoutMessage = nil
+    }
+
+    deinit {
+        reloadTask?.cancel()
+        cheerResetTask?.cancel()
     }
 }

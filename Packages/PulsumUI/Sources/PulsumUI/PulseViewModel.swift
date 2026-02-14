@@ -23,6 +23,8 @@ final class PulseViewModel {
     @ObservationIgnored private var recordingTask: Task<Void, Never>?
     @ObservationIgnored private var audioLevelTask: Task<Void, Never>?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    @ObservationIgnored private var submitTask: Task<Void, Never>?
+    @ObservationIgnored private var submissionResetTask: Task<Void, Never>?
 
     var isRecording = false
     var recordingSecondsRemaining: Int = 30
@@ -151,7 +153,8 @@ final class PulseViewModel {
         isSubmittingInputs = true
         sliderErrorMessage = nil
         sliderSubmissionMessage = nil
-        Task { [weak self] in
+        submitTask?.cancel()
+        submitTask = Task { [weak self] in
             guard let self else { return }
             do {
                 try await orchestrator.updateSubjectiveInputs(
@@ -180,7 +183,8 @@ final class PulseViewModel {
     }
 
     private func scheduleSubmissionReset() {
-        Task { [weak self] in
+        submissionResetTask?.cancel()
+        submissionResetTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let self else { return }
             self.sliderSubmissionMessage = nil
@@ -255,5 +259,7 @@ final class PulseViewModel {
         recordingTask?.cancel()
         audioLevelTask?.cancel()
         toastTask?.cancel()
+        submitTask?.cancel()
+        submissionResetTask?.cancel()
     }
 }

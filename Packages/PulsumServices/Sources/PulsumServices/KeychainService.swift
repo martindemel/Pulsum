@@ -50,7 +50,11 @@ public final class KeychainService: KeychainStoring {
     private let service = "ai.pulsum.app"
 
     private var useFallbackStore: Bool {
-        AppRuntimeConfig.disableKeychain
+        #if DEBUG
+        return AppRuntimeConfig.disableKeychain
+        #else
+        return false
+        #endif
     }
 
     public init(accessGroup: String? = nil) {

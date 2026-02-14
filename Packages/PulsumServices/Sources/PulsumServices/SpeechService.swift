@@ -184,7 +184,6 @@ private protocol SpeechBackending: Sendable {
 }
 
 // Gate-1b: UITest seams are compiled out of Release builds.
-// Gate-1b: UITest seams are compiled out of Release builds.
 private struct SpeechUITestOverrides {
     let useFakeBackend: Bool
     let autoGrantPermissions: Bool
@@ -437,7 +436,6 @@ private final class LegacySpeechBackend: SpeechBackending {
 extension LegacySpeechBackend: @unchecked Sendable {}
 
 #if DEBUG
-#if DEBUG
 private final class FakeSpeechBackend: SpeechBackending {
     private let authorizationProvider: SpeechAuthorizationProviding
     private let autoGrantPermissions: Bool
@@ -537,7 +535,6 @@ private final class FakeSpeechBackend: SpeechBackending {
 
 // SAFETY: Mutable state is exclusively accessed under `stateQueue`.
 extension FakeSpeechBackend: @unchecked Sendable {}
-#endif
 #endif
 
 @available(iOS 26.0, *)

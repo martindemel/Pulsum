@@ -88,10 +88,14 @@ struct ScoreBreakdownScreen: View {
 private struct SummaryCard: View {
     let breakdown: ScoreBreakdown
 
-    private var dateString: String {
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return formatter.string(from: breakdown.date)
+        return formatter
+    }()
+
+    private var dateString: String {
+        Self.dateFormatter.string(from: breakdown.date)
     }
 
     private var topPositiveDriver: ScoreBreakdown.MetricDetail? {
@@ -511,12 +515,21 @@ private func formatValue(_ value: Double, unit: String?) -> String? {
     }
 }
 
-private func formatSigned(value: Double, decimals: Int) -> String {
+private let signedFormatter2: NumberFormatter = {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
-    formatter.maximumFractionDigits = decimals
-    formatter.minimumFractionDigits = decimals
-    let formatted = formatter.string(from: NSNumber(value: abs(value))) ?? String(format: "%.*f", decimals, abs(value))
+    formatter.maximumFractionDigits = 2
+    formatter.minimumFractionDigits = 2
+    return formatter
+}()
+
+private func formatSigned(value: Double, decimals: Int) -> String {
+    let formatted: String
+    if decimals == 2 {
+        formatted = signedFormatter2.string(from: NSNumber(value: abs(value))) ?? String(format: "%.*f", decimals, abs(value))
+    } else {
+        formatted = String(format: "%.*f", decimals, abs(value))
+    }
     return value >= 0 ? "+\(formatted)" : "-\(formatted)"
 }
 

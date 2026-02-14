@@ -824,10 +824,14 @@ struct SettingsScreen: View {
         }
     }
 
-    private func relativeDate(for date: Date) -> String? {
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return formatter
+    }()
+
+    private func relativeDate(for date: Date) -> String? {
+        Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func appleIntelligenceLinkContent() -> some View {
