@@ -52,8 +52,8 @@ public final class LibraryImporter {
     }
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
-                vectorIndex: VectorIndexProviding = VectorIndexManager.shared,
-                persistentContainer: NSPersistentContainer = PulsumData.container) {
+                vectorIndex: VectorIndexProviding,
+                persistentContainer: NSPersistentContainer) {
         self.configuration = configuration
         self.vectorIndex = vectorIndex
         self.persistentContainer = persistentContainer

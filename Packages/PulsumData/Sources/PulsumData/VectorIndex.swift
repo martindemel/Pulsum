@@ -320,7 +320,7 @@ actor VectorIndex {
 
     init(name: String,
          dimension: Int = 384,
-         directory: URL = PulsumData.vectorIndexDirectory,
+         directory: URL,
          shardCount: Int = 16,
          fileHandleFactory: VectorIndexFileHandleFactory = SystemVectorIndexFileHandleFactory()) {
         self.name = name

@@ -14,14 +14,12 @@ public extension VectorIndexProviding {
 }
 
 public actor VectorIndexManager: VectorIndexProviding {
-    public static let shared = VectorIndexManager()
-
     private let microMomentsIndex: VectorIndex
     private let embeddingService: EmbeddingService
 
-    public init(embeddingService: EmbeddingService = .shared) {
+    public init(directory: URL, embeddingService: EmbeddingService = .shared) {
         self.embeddingService = embeddingService
-        self.microMomentsIndex = VectorIndex(name: "micro_moments")
+        self.microMomentsIndex = VectorIndex(name: "micro_moments", directory: directory)
     }
 
     init(embeddingService: EmbeddingService = .shared, microMomentsIndex: VectorIndex) {
