@@ -306,7 +306,7 @@ private final class VectorIndexShard {
             sum += diff * diff
             index = end
         }
-        return sqrt(sum)
+        return sqrt(max(sum, 0))
     }
 }
 

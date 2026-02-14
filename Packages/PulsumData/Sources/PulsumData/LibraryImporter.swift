@@ -113,10 +113,8 @@ public final class LibraryImporter {
                         updates.append(update)
                     }
                 }
-
-                if context.hasChanges {
-                    try context.save()
-                }
+                // Don't save yet — defer until indexing succeeds so all changes
+                // (MicroMoments + LibraryIngest records) commit atomically.
                 return (payloads, updates)
             }
 
@@ -130,6 +128,10 @@ public final class LibraryImporter {
                 } catch {
                     if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
                         setLastImportHadDeferredEmbeddings(true)
+                        // Save MicroMoments without ingest records so they're re-indexed on next launch
+                        try await context.perform {
+                            if context.hasChanges { try context.save() }
+                        }
                         Diagnostics.log(level: .warn,
                                         category: .library,
                                         name: "library.import.deferred",
@@ -160,6 +162,7 @@ public final class LibraryImporter {
                 }
             }
 
+            // Atomic save: MicroMoments + LibraryIngest records in a single transaction
             if !result.1.isEmpty {
                 try await context.perform {
                     for update in result.1 {
@@ -182,6 +185,11 @@ public final class LibraryImporter {
                     if context.hasChanges {
                         try context.save()
                     }
+                }
+            } else {
+                // No ingest updates but we may have MicroMoment changes to save
+                try await context.perform {
+                    if context.hasChanges { try context.save() }
                 }
             }
 

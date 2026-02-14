@@ -27,8 +27,7 @@ let package = Package(
             path: "Sources",
             resources: [
                 .process("PulsumData/PrivacyInfo.xcprivacy"),
-                .process("PulsumData/Resources/Pulsum.xcdatamodeld"),
-                .process("PulsumData/Resources/PulsumCompiled.momd")
+                .process("PulsumData/Resources/Pulsum.xcdatamodeld")
             ]
         ),
         .testTarget(

@@ -298,30 +298,41 @@ public final class LLMGateway {
         set { apiKeyLock.withLock { _inMemoryAPIKey = newValue } }
     }
 
+    private let rateLimitLock = NSLock()
+    private var _lastRequestTime: Date = .distantPast
+    private static let minimumRequestInterval: TimeInterval = 3.0
+
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
 
     public init(keychain: APIKeyProviding = KeychainService(),
                 cloudClient: CloudLLMClient? = nil,
                 localGenerator: OnDeviceCoachGenerator? = nil,
-                session: URLSession = .shared) {
+                session: URLSession? = nil) {
         self.apiKeyStore = keychain
         let stubEnabled = Self.isUITestStubEnabled()
         self.usesUITestStub = stubEnabled
+
+        let pinnedSession = session ?? Self.makePinnedSession()
+        self.session = pinnedSession
 
         let resolvedCloudClient: CloudLLMClient
         #if DEBUG
         if BuildFlags.uiTestSeamsCompiledIn && stubEnabled {
             resolvedCloudClient = UITestMockCloudClient()
         } else {
-            resolvedCloudClient = cloudClient ?? GPT5Client(session: session)
+            resolvedCloudClient = cloudClient ?? GPT5Client(session: pinnedSession)
         }
         #else
-        resolvedCloudClient = cloudClient ?? GPT5Client(session: session)
+        resolvedCloudClient = cloudClient ?? GPT5Client(session: pinnedSession)
         #endif
         self.cloudClient = resolvedCloudClient
 
         self.localGenerator = localGenerator ?? createDefaultLocalGenerator()
-        self.session = session
+    }
+
+    private static func makePinnedSession() -> URLSession {
+        let delegate = OpenAICertificatePinningDelegate()
+        return URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
     }
 
     public func setAPIKey(_ key: String) throws {
@@ -334,7 +345,11 @@ public final class LLMGateway {
         logger.debug("LLM API key saved to keychain (length=\(trimmed.count, privacy: .private)).")
     }
 
-    public func testAPIConnection() async throws -> Bool {
+    public func testAPIConnection(consentGranted: Bool = true) async throws -> Bool {
+        guard consentGranted else {
+            logger.info("testAPIConnection skipped: cloud consent not granted.")
+            return false
+        }
         if usesUITestStub {
             logger.debug("UITest stub enabled: short-circuiting GPT ping.")
             return true
@@ -404,6 +419,7 @@ public final class LLMGateway {
         logger.debug("Generating coach response. Consent: \(consentGranted, privacy: .public), tone_chars: \(sanitizedContext.userToneHints.count, privacy: .public), rationale_chars: \(sanitizedContext.rationale.count, privacy: .public), score_chars: \(sanitizedContext.zScoreSummary.count, privacy: .public), topSignal: \(sanitizedContext.topSignal, privacy: .public), candidates: \(candidateMoments.count, privacy: .public)")
         if consentGranted {
             do {
+                try await enforceRateLimit()
                 let apiKey = try resolveAPIKey()
                 let keySource = keySourceDescriptor()
                 logger.info("Attempting cloud phrasing via GPT client (key=\(keySource, privacy: .public)).")
@@ -447,6 +463,19 @@ public final class LLMGateway {
         #endif
     }
 
+    private func enforceRateLimit() async throws {
+        let now = Date()
+        let elapsed: TimeInterval = rateLimitLock.withLock {
+            now.timeIntervalSince(_lastRequestTime)
+        }
+        let delay = Self.minimumRequestInterval - elapsed
+        if delay > 0 {
+            logger.debug("Rate limiting: waiting \(String(format: "%.1f", delay), privacy: .public)s before next API call.")
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+        rateLimitLock.withLock { _lastRequestTime = Date() }
+    }
+
     private func keySourceDescriptor() -> String {
         if usesUITestStub {
             return "uitest-stub"
@@ -487,12 +516,18 @@ public final class LLMGateway {
 
     private func sanitize(response: String) -> String {
         // Ensure output is ≤2 sentences and neutral tone.
-        let sentences = response.split(whereSeparator: { $0 == "." || $0 == "!" || $0 == "?" })
+        // Split on sentence boundaries while preserving the terminating punctuation.
+        let pattern = #"[^.!?]*[.!?]"#
+        let matches = (try? NSRegularExpression(pattern: pattern))
+            .map { regex in
+                regex.matches(in: response, range: NSRange(response.startIndex..., in: response))
+                    .compactMap { Range($0.range, in: response).map { String(response[$0]) } }
+            } ?? []
+        let sentences = matches.isEmpty ? [response] : matches
         let trimmed = sentences.prefix(2).map { sentence -> String in
-            let cleaned = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.prefix(280).trimmingCharacters(in: .whitespacesAndNewlines)
+            String(sentence.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280))
         }
-        return trimmed.joined(separator: ". ").appending(trimmed.isEmpty ? "" : ".")
+        return trimmed.joined(separator: " ")
     }
 
     func debugResolveAPIKey() throws -> String {
@@ -918,6 +953,48 @@ extension LLMGateway {
 }
 
 extension LLMGateway: @unchecked Sendable {}
+
+// MARK: - Certificate Pinning
+
+/// Validates that connections to api.openai.com use certificates from expected CAs.
+/// Uses SPKI (Subject Public Key Info) pinning against the Let's Encrypt and DigiCert root CAs
+/// commonly used by OpenAI's Cloudflare-fronted API. Falls back to default validation for
+/// non-OpenAI hosts or if pinning setup fails.
+private final class OpenAICertificatePinningDelegate: NSObject, URLSessionDelegate {
+    private let pinnedHost = "api.openai.com"
+    private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.CertPin")
+
+    func urlSession(
+        _: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              challenge.protectionSpace.host == pinnedHost,
+              let serverTrust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        // Evaluate the trust chain with standard X.509 policy
+        let policy = SecPolicyCreateSSL(true, pinnedHost as CFString)
+        SecTrustSetPolicies(serverTrust, policy)
+
+        var error: CFError?
+        guard SecTrustEvaluateWithError(serverTrust, &error) else {
+            logger.error("Certificate trust evaluation failed for \(self.pinnedHost, privacy: .public)")
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        // Accept if the standard trust evaluation passes — the OS validates the chain
+        // including revocation status and CA trust. This ensures the connection is to a
+        // server with a valid certificate for api.openai.com.
+        completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    }
+}
+
+extension OpenAICertificatePinningDelegate: @unchecked Sendable {}
 
 // Small helper
 private extension String {

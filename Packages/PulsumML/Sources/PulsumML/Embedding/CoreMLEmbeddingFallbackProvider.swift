@@ -22,9 +22,9 @@ final class CoreMLEmbeddingFallbackProvider: TextEmbeddingProviding {
             embedding = loaded
         } else {
             embedding = nil
+            logger.error("Failed to locate PulsumFallbackEmbedding in bundle \(bundle.bundleURL, privacy: .public)")
             #if DEBUG
             assertionFailure("PulsumFallbackEmbedding.{mlmodel|mlmodelc} is missing from the PulsumML bundle.")
-            logger.error("Failed to locate PulsumFallbackEmbedding in bundle \(bundle.bundleURL, privacy: .public)")
             #endif
         }
     }

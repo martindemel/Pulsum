@@ -1,5 +1,4 @@
 import SwiftUI
-import HealthKit
 import PulsumAgents
 
 struct OnboardingView: View {
@@ -305,47 +304,21 @@ struct OnboardingView: View {
         isRequestingHealthKit = true
         healthKitError = nil
 
-        if let orchestrator {
-            do {
-                let status = try await orchestrator.requestHealthAccess()
-                applyHealthStatus(status)
-                withAnimation(.pulsumStandard) {
-                    currentPage = 2
-                }
-            } catch {
-                healthKitError = error.localizedDescription
-            }
-            isRequestingHealthKit = false
-            return
-        }
-
-        guard HKHealthStore.isHealthDataAvailable() else {
-            healthKitError = "Health data is not available on this device"
+        guard let orchestrator else {
+            healthKitError = "Pulsum is still loading. Please try again in a moment."
             isRequestingHealthKit = false
             return
         }
 
         do {
-            let healthStore = HKHealthStore()
-            let readTypes = Set(HealthAccessRequirement.ordered.compactMap { requirement -> HKSampleType? in
-                if let quantity = HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier(rawValue: requirement.id)) {
-                    return quantity
-                }
-                if let category = HKObjectType.categoryType(forIdentifier: HKCategoryTypeIdentifier(rawValue: requirement.id)) {
-                    return category
-                }
-                return nil
-            })
-
-            try await healthStore.requestAuthorization(toShare: [], read: readTypes)
-            refreshHealthAccessStatus()
+            let status = try await orchestrator.requestHealthAccess()
+            applyHealthStatus(status)
             withAnimation(.pulsumStandard) {
                 currentPage = 2
             }
         } catch {
             healthKitError = error.localizedDescription
         }
-
         isRequestingHealthKit = false
     }
 

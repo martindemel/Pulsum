@@ -241,7 +241,7 @@ public enum DiagnosticsDayFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = TimeZone.current
         return formatter
     }()
 

@@ -87,12 +87,18 @@ public final class FoundationModelsCoachGenerator: OnDeviceCoachGenerator {
     }
 
     private func sanitizeResponse(_ response: String) -> String {
-        let sentences = response.split(whereSeparator: { $0 == "." || $0 == "!" || $0 == "?" })
+        // Split on sentence boundaries while preserving the terminating punctuation.
+        let pattern = #"[^.!?]*[.!?]"#
+        let matches = (try? NSRegularExpression(pattern: pattern))
+            .map { regex in
+                regex.matches(in: response, range: NSRange(response.startIndex..., in: response))
+                    .compactMap { Range($0.range, in: response).map { String(response[$0]) } }
+            } ?? []
+        let sentences = matches.isEmpty ? [response] : matches
         let trimmed = sentences.prefix(2).map { sentence -> String in
-            let cleaned = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.prefix(280).trimmingCharacters(in: .whitespacesAndNewlines)
+            String(sentence.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280))
         }
-        return trimmed.joined(separator: ". ").appending(trimmed.isEmpty ? "" : ".")
+        return trimmed.joined(separator: " ")
     }
 
     private func fallbackResponse(for signal: String) -> CoachReplyPayload {

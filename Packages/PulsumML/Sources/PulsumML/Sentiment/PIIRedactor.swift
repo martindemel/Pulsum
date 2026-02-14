@@ -6,8 +6,11 @@ public enum PIIRedactor {
         guard !transcript.isEmpty else { return transcript }
         var output = transcript
         let patterns = [
-            #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
-            #"\+?\d[\d\s\-]{7,}\d"#
+            #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#, // Email
+            #"\+?\d[\d\s\-]{7,}\d"#, // Phone numbers
+            #"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"#, // SSN (###-##-####)
+            #"\b(?:4\d{3}|5[1-5]\d{2}|3[47]\d{2}|6(?:011|5\d{2}))[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"#, // Credit card
+            #"\b\d{1,5}\s+\w+\s+(?:St(?:reet)?|Ave(?:nue)?|Blvd|Dr(?:ive)?|Ln|Rd|Ct|Pl|Way)\b"# // Street address
         ]
         for pattern in patterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {

@@ -10,14 +10,25 @@ import PulsumServices
 import UIKit
 #endif
 
+/// Settings view model — coordinates HealthKit, API key, diagnostics, and data deletion.
+///
+/// Method implementations are split across focused extensions:
+/// - `SettingsViewModel+HealthKit.swift` — HealthKit authorization & status
+/// - `SettingsViewModel+APIKey.swift` — GPT API key management
+/// - `SettingsViewModel+Diagnostics.swift` — Diagnostics config/export
+/// - `SettingsViewModel+DataDeletion.swift` — GDPR/CCPA data deletion
 @MainActor
 @Observable
 final class SettingsViewModel {
-    @ObservationIgnored private var orchestrator: AgentOrchestrator?
-    private(set) var foundationModelsStatus: String = ""
+    // MARK: - Core
+
+    @ObservationIgnored var orchestrator: AgentOrchestrator?
+    var foundationModelsStatus: String = ""
     var consentGranted: Bool
     var lastConsentUpdated: Date = Date()
-    var healthKitDebugSummary: String = ""
+    var onConsentChanged: ((Bool) -> Void)?
+
+    // MARK: - HealthKit State
 
     struct HealthAccessRow: Identifiable, Equatable {
         let id: String
@@ -27,10 +38,10 @@ final class SettingsViewModel {
         let status: HealthAccessGrantState
     }
 
-    // HealthKit State
-    private(set) var healthKitSummary: String = "Checking..."
-    private(set) var missingHealthKitDetail: String?
-    private(set) var healthAccessRows: [HealthAccessRow] = HealthAccessRequirement.ordered.map {
+    var healthKitDebugSummary: String = ""
+    var healthKitSummary: String = "Checking..."
+    var missingHealthKitDetail: String?
+    var healthAccessRows: [HealthAccessRow] = HealthAccessRequirement.ordered.map {
         HealthAccessRow(id: $0.id,
                         title: $0.title,
                         detail: $0.detail,
@@ -38,44 +49,51 @@ final class SettingsViewModel {
                         status: .pending)
     }
 
-    private(set) var showHealthKitUnavailableBanner: Bool = false
-    private(set) var isRequestingHealthKitAuthorization: Bool = false
-    private(set) var canRequestHealthKitAccess: Bool = true
-    private(set) var healthKitError: String?
-    private(set) var healthKitSuccessMessage: String?
-    @ObservationIgnored private var healthKitSuccessTask: Task<Void, Never>?
-    private var lastHealthAccessStatus: HealthAccessStatus?
-    private var awaitingToastAfterRequest: Bool = false
-    private var didApplyInitialStatus: Bool = false
+    var showHealthKitUnavailableBanner: Bool = false
+    var isRequestingHealthKitAuthorization: Bool = false
+    var canRequestHealthKitAccess: Bool = true
+    var healthKitError: String?
+    var healthKitSuccessMessage: String?
+    @ObservationIgnored var healthKitSuccessTask: Task<Void, Never>?
+    var lastHealthAccessStatus: HealthAccessStatus?
+    var awaitingToastAfterRequest: Bool = false
+    var didApplyInitialStatus: Bool = false
+
+    // MARK: - Diagnostics State
+
     var debugLogSnapshot: String = ""
     var diagnosticsConfig: DiagnosticsConfig = Diagnostics.currentConfig()
     var diagnosticsSessionId: UUID = Diagnostics.sessionId
     var diagnosticsExportURL: URL?
     var isExportingDiagnostics = false
 
-    // GPT-5 API Status
-    private(set) var gptAPIStatus: String = "Missing API key"
-    private(set) var isGPTAPIWorking: Bool = false
-    var gptAPIKeyDraft: String = ""
-    private(set) var isTestingAPIKey: Bool = false
+    // MARK: - GPT API State
 
-    // Data Deletion
+    var gptAPIStatus: String = "Missing API key"
+    var isGPTAPIWorking: Bool = false
+    var gptAPIKeyDraft: String = ""
+    var isTestingAPIKey: Bool = false
+
+    // MARK: - Data Deletion State
+
     var showDeleteAllConfirmation = false
-    private(set) var isDeletingAllData = false
-    private(set) var deleteAllDataMessage: String?
+    var isDeletingAllData = false
+    var deleteAllDataMessage: String?
     var onDataDeleted: (() -> Void)?
 
-    var onConsentChanged: ((Bool) -> Void)?
+    // MARK: - Debug (DEBUG only)
 
     #if DEBUG
     var diagnosticsVisible: Bool = false
     var routeHistory: [String] = []
     var lastCoverageSummary: String = "—"
     var lastCloudError: String = "None"
-    @ObservationIgnored private var routeTask: Task<Void, Never>?
-    @ObservationIgnored private var errorTask: Task<Void, Never>?
-    private let diagnosticsHistoryLimit = 5
+    @ObservationIgnored var routeTask: Task<Void, Never>?
+    @ObservationIgnored var errorTask: Task<Void, Never>?
+    let diagnosticsHistoryLimit = 5
     #endif
+
+    // MARK: - Init
 
     init(initialConsent: Bool) {
         self.consentGranted = initialConsent
@@ -84,6 +102,8 @@ final class SettingsViewModel {
         #endif
         refreshDiagnosticsConfig()
     }
+
+    // MARK: - Orchestrator Binding
 
     func bind(orchestrator: AgentOrchestrator) {
         self.orchestrator = orchestrator
@@ -109,115 +129,6 @@ final class SettingsViewModel {
         foundationModelsStatus = orchestrator.foundationModelsStatus
     }
 
-    func refreshHealthAccessStatus() {
-        guard let orchestrator else {
-            healthKitSummary = "Agent unavailable"
-            canRequestHealthKitAccess = false
-            healthKitDebugSummary = ""
-            debugLogSnapshot = ""
-            return
-        }
-        Task { [weak self] in
-            guard let self else { return }
-            let status = await orchestrator.currentHealthAccessStatus()
-            await MainActor.run {
-                if AppRuntimeConfig.isUITesting,
-                   let last = self.lastHealthAccessStatus,
-                   last.isFullyGranted,
-                   !status.isFullyGranted {
-                    return
-                }
-                self.applyHealthStatus(status)
-                self.healthKitDebugSummary = Self.debugSummary(from: status)
-                self.debugLogSnapshot = ""
-            }
-        }
-    }
-
-    func requestHealthKitAuthorization() async {
-        guard let orchestrator else {
-            healthKitError = "Agent unavailable"
-            return
-        }
-        isRequestingHealthKitAuthorization = true
-        awaitingToastAfterRequest = true
-        healthKitError = nil
-        defer { isRequestingHealthKitAuthorization = false }
-
-        let requestOverride = ProcessInfo.processInfo.environment["PULSUM_HEALTHKIT_REQUEST_BEHAVIOR"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let overrideIsGrantAll = requestOverride == "grantall" || requestOverride == "grant_all"
-        let shouldForceGrant = AppRuntimeConfig.isUITesting || overrideIsGrantAll
-
-        if shouldForceGrant {
-            let status = await orchestrator.currentHealthAccessStatus()
-            let patched = HealthAccessStatus(required: status.required,
-                                             granted: Set(status.required),
-                                             denied: [],
-                                             notDetermined: [],
-                                             availability: .available)
-            applyHealthStatus(patched)
-            healthKitDebugSummary = Self.debugSummary(from: patched)
-            if overrideIsGrantAll {
-                Task { [weak self] in
-                    guard let self, let orchestrator = self.orchestrator else { return }
-                    _ = try? await orchestrator.requestHealthAccess()
-                }
-            }
-            return
-        }
-
-        do {
-            let status = try await orchestrator.requestHealthAccess()
-            if AppRuntimeConfig.isUITesting, !status.isFullyGranted {
-                let patched = HealthAccessStatus(required: status.required,
-                                                 granted: Set(status.required),
-                                                 denied: [],
-                                                 notDetermined: [],
-                                                 availability: .available)
-                applyHealthStatus(patched)
-                healthKitDebugSummary = Self.debugSummary(from: patched)
-                return
-            }
-            applyHealthStatus(status)
-            healthKitDebugSummary = Self.debugSummary(from: status)
-        } catch let serviceError as HealthKitServiceError {
-            healthKitError = serviceError.localizedDescription
-            let status = await orchestrator.currentHealthAccessStatus()
-            applyHealthStatus(status)
-            healthKitDebugSummary = Self.debugSummary(from: status)
-        } catch {
-            healthKitError = error.localizedDescription
-            let status = await orchestrator.currentHealthAccessStatus()
-            applyHealthStatus(status)
-            healthKitDebugSummary = Self.debugSummary(from: status)
-        }
-    }
-
-    func forceGrantHealthAccessForUITest() {
-        awaitingToastAfterRequest = true
-        let required = lastHealthAccessStatus?.required ?? HealthKitService.orderedReadSampleTypes
-        let patched = HealthAccessStatus(required: required,
-                                         granted: Set(required),
-                                         denied: [],
-                                         notDetermined: [],
-                                         availability: .available)
-        applyHealthStatus(patched)
-        healthKitDebugSummary = Self.debugSummary(from: patched)
-    }
-
-    func refreshDebugLog() async {
-        guard let orchestrator else {
-            debugLogSnapshot = "Debug log unavailable (orchestrator not ready)"
-            return
-        }
-        let snapshot = await orchestrator.debugLogSnapshot()
-        await MainActor.run {
-            debugLogSnapshot = snapshot.isEmpty ? "No events captured yet." : snapshot
-        }
-    }
-
     func toggleConsent(_ newValue: Bool) {
         guard consentGranted != newValue else { return }
         consentGranted = newValue
@@ -231,430 +142,12 @@ final class SettingsViewModel {
         lastConsentUpdated = Date()
     }
 
-    func refreshDiagnosticsConfig() {
-        diagnosticsConfig = Diagnostics.currentConfig()
-        diagnosticsSessionId = Diagnostics.sessionId
-    }
-
-    func updateDiagnosticsEnabled(_ enabled: Bool) {
-        diagnosticsConfig.enabled = enabled
-        Diagnostics.updateConfig(diagnosticsConfig)
-    }
-
-    func updateDiagnosticsPersistence(_ persist: Bool) {
-        diagnosticsConfig.persistToDisk = persist
-        Diagnostics.updateConfig(diagnosticsConfig)
-    }
-
-    func updateDiagnosticsOSLog(_ mirror: Bool) {
-        diagnosticsConfig.mirrorToOSLog = mirror
-        Diagnostics.updateConfig(diagnosticsConfig)
-    }
-
-    func updateDiagnosticsSignposts(_ enable: Bool) {
-        diagnosticsConfig.enableSignposts = enable
-        Diagnostics.updateConfig(diagnosticsConfig)
-    }
-
-    func exportDiagnosticsReport() async {
-        guard !isExportingDiagnostics else { return }
-        isExportingDiagnostics = true
-        diagnosticsExportURL = nil
-        defer { isExportingDiagnostics = false }
-
-        let config = diagnosticsConfig
-        let sessionId = diagnosticsSessionId
-        let locale = Locale.current.identifier
-        let appVersion = Self.appVersion()
-        let buildNumber = Self.buildNumber()
-        let deviceModel = Self.deviceModel()
-        let osVersion = Self.osVersion()
-        let snapshot: DiagnosticsSnapshot
-        if let orchestrator {
-            do {
-                let snapshotResult = try await withHardTimeout(seconds: 2) {
-                    await orchestrator.diagnosticsSnapshot()
-                }
-                switch snapshotResult {
-                case .value(let value):
-                    snapshot = value
-                case .timedOut:
-                    snapshot = DiagnosticsSnapshot()
-                    debugLogSnapshot = "Diagnostics snapshot timed out; exporting partial report."
-                }
-            } catch {
-                snapshot = DiagnosticsSnapshot()
-                debugLogSnapshot = "Diagnostics snapshot failed: \(error.localizedDescription)"
-            }
-        } else {
-            snapshot = DiagnosticsSnapshot()
-        }
-
-        let exportTask = Task.detached(priority: .utility) { () async -> URL? in
-            if config.persistToDisk {
-                await Diagnostics.flushPersistence()
-            }
-            let logTail: [String]
-            if config.persistToDisk {
-                logTail = await Diagnostics.persistedLogTail(maxLines: config.logTailLinesForExport)
-            } else {
-                logTail = await DebugLogBuffer.shared.tail(maxLines: config.logTailLinesForExport)
-            }
-
-            let sessionsIncluded = Self.extractSessionIds(from: logTail)
-
-            let context = DiagnosticsReportContext(appVersion: appVersion,
-                                                   buildNumber: buildNumber,
-                                                   deviceModel: deviceModel,
-                                                   osVersion: osVersion,
-                                                   locale: locale,
-                                                   sessionId: sessionId,
-                                                   diagnosticsEnabled: config.enabled,
-                                                   persistenceEnabled: config.persistToDisk,
-                                                   sessionsIncluded: sessionsIncluded.isEmpty ? nil : sessionsIncluded)
-
-            do {
-                return try DiagnosticsReportBuilder.buildReport(context: context,
-                                                                snapshot: snapshot,
-                                                                logTail: logTail)
-            } catch {
-                Diagnostics.log(level: .error,
-                                category: .ui,
-                                name: "ui.diagnostics.report.build.failed",
-                                fields: [
-                                    "session_id": .uuid(sessionId),
-                                    "persist_enabled": .bool(config.persistToDisk)
-                                ],
-                                error: error)
-                return nil
-            }
-        }
-
-        diagnosticsExportURL = await exportTask.value
-    }
-
-    func clearDiagnostics() async {
-        await Diagnostics.clearDiagnostics()
-        debugLogSnapshot = ""
-        diagnosticsExportURL = nil
-    }
-
-    // MARK: - Data Deletion (GDPR/CCPA)
-
-    func deleteAllData() async {
-        guard !isDeletingAllData else { return }
-        isDeletingAllData = true
-        deleteAllDataMessage = nil
-        defer { isDeletingAllData = false }
-
-        do {
-            // 1. Delete all Core Data entities
-            let context = PulsumData.newBackgroundContext(name: "Pulsum.DeleteAll")
-            let entityNames = [
-                "JournalEntry", "DailyMetrics", "Baseline", "FeatureVector",
-                "MicroMoment", "RecommendationEvent", "LibraryIngest",
-                "UserPrefs", "ConsentState"
-            ]
-            try await context.perform {
-                for entityName in entityNames {
-                    let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
-                    let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-                    deleteRequest.resultType = .resultTypeObjectIDs
-                    let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
-                    if let objectIDs = result?.result as? [NSManagedObjectID] {
-                        let changes = [NSDeletedObjectsKey: objectIDs]
-                        NSManagedObjectContext.mergeChanges(
-                            fromRemoteContextSave: changes,
-                            into: [PulsumData.viewContext]
-                        )
-                    }
-                }
-            }
-
-            // 2. Clear vector index directory
-            let vectorDir = PulsumData.vectorIndexDirectory
-            let fileManager = FileManager.default
-            if fileManager.fileExists(atPath: vectorDir.path) {
-                let contents = try fileManager.contentsOfDirectory(at: vectorDir, includingPropertiesForKeys: nil)
-                for file in contents {
-                    try fileManager.removeItem(at: file)
-                }
-            }
-
-            // 3. Remove Keychain entries (API key)
-            try KeychainService.shared.removeSecret(for: "openai.api.key")
-
-            // 4. Clear UserDefaults
-            let defaults = UserDefaults.standard
-            if let bundleId = Bundle.main.bundleIdentifier {
-                defaults.removePersistentDomain(forName: bundleId)
-            }
-            defaults.removeObject(forKey: "ai.pulsum.hasLaunched")
-            defaults.removeObject(forKey: "ai.pulsum.cloudConsent")
-            defaults.removeObject(forKey: "ai.pulsum.hasCompletedOnboarding")
-
-            // 5. Clear diagnostics
-            await Diagnostics.clearDiagnostics()
-
-            // Reset local state
-            gptAPIKeyDraft = ""
-            gptAPIStatus = "Missing API key"
-            isGPTAPIWorking = false
-            consentGranted = false
-            debugLogSnapshot = ""
-            diagnosticsExportURL = nil
-
-            deleteAllDataMessage = "All data has been deleted."
-
-            Diagnostics.log(level: .info,
-                            category: .app,
-                            name: "app.data.deleteAll.success")
-
-            // Notify parent to reset to onboarding
-            onDataDeleted?()
-        } catch {
-            deleteAllDataMessage = "Failed to delete data: \(error.localizedDescription)"
-            Diagnostics.log(level: .error,
-                            category: .app,
-                            name: "app.data.deleteAll.failed",
-                            error: error)
-        }
-    }
-
-    @MainActor
-    func saveAPIKey(_ key: String) async {
-        guard let orchestrator else {
-            gptAPIStatus = "Agent unavailable"
-            isGPTAPIWorking = false
-            return
-        }
-        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedKey.isEmpty else {
-            gptAPIStatus = "Missing API key"
-            isGPTAPIWorking = false
-            return
-        }
-        gptAPIStatus = "Saving..."
-        do {
-            try orchestrator.setLLMAPIKey(trimmedKey)
-            gptAPIKeyDraft = trimmedKey
-            isGPTAPIWorking = false
-            gptAPIStatus = "API key saved"
-        } catch {
-            isGPTAPIWorking = false
-            gptAPIStatus = "Missing or invalid API key"
-        }
-    }
-
-    @MainActor
-    func testCurrentAPIKey() async {
-        if AppRuntimeConfig.isUITesting {
-            let trimmed = gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-            isTestingAPIKey = false
-            if trimmed.isEmpty {
-                isGPTAPIWorking = false
-                gptAPIStatus = "Missing API key"
-            } else {
-                let ok = AppRuntimeConfig.useStubLLM
-                isGPTAPIWorking = ok
-                gptAPIStatus = ok ? "OpenAI reachable" : "OpenAI ping failed"
-            }
-            return
-        }
-        guard let orchestrator else {
-            gptAPIStatus = "Agent unavailable"
-            isGPTAPIWorking = false
-            return
-        }
-        isTestingAPIKey = true
-        defer { isTestingAPIKey = false }
-        gptAPIStatus = "Testing..."
-        isGPTAPIWorking = false
-        do {
-            let ok = try await orchestrator.testLLMAPIConnection()
-            isGPTAPIWorking = ok
-            gptAPIStatus = ok ? "OpenAI reachable" : "OpenAI ping failed"
-        } catch {
-            isGPTAPIWorking = false
-            gptAPIStatus = "Missing or invalid API key"
-        }
-    }
-
     func makeScoreBreakdownViewModel() -> ScoreBreakdownViewModel? {
         guard let orchestrator else { return nil }
         return ScoreBreakdownViewModel(orchestrator: orchestrator)
     }
 
-    private func applyHealthStatus(_ status: HealthAccessStatus) {
-        let wasFullyGrantedOptional = lastHealthAccessStatus?.isFullyGranted
-        lastHealthAccessStatus = status
-
-        switch status.availability {
-        case .available:
-            if status.totalRequired > 0 {
-                healthKitSummary = "\(status.grantedCount)/\(status.totalRequired) granted"
-            } else {
-                healthKitSummary = "Ready"
-            }
-            showHealthKitUnavailableBanner = false
-            canRequestHealthKitAccess = true
-            let missingTitles = status.missingTypes.compactMap { HealthAccessRequirement.descriptor(for: $0)?.title }
-            if missingTitles.isEmpty {
-                missingHealthKitDetail = nil
-            } else {
-                missingHealthKitDetail = "Missing: \(missingTitles.joined(separator: ", "))"
-            }
-        case .unavailable(let reason):
-            healthKitSummary = "Health data unavailable"
-            showHealthKitUnavailableBanner = true
-            missingHealthKitDetail = reason
-            canRequestHealthKitAccess = false
-        }
-
-        healthAccessRows = HealthAccessRequirement.ordered.map { descriptor in
-            HealthAccessRow(id: descriptor.id,
-                            title: descriptor.title,
-                            detail: descriptor.detail,
-                            iconName: descriptor.iconName,
-                            status: rowStatus(for: descriptor.id, status: status))
-        }
-
-        let transitionedToFull = (wasFullyGrantedOptional == false) && status.isFullyGranted
-        let shouldToast = status.isFullyGranted && (transitionedToFull || awaitingToastAfterRequest)
-        if shouldToast && (didApplyInitialStatus || awaitingToastAfterRequest) {
-            awaitingToastAfterRequest = false
-            emitHealthKitSuccessToast()
-        } else if !status.isFullyGranted {
-            cancelHealthKitSuccessToast()
-        }
-
-        if !didApplyInitialStatus {
-            didApplyInitialStatus = true
-        }
-    }
-
-    private func rowStatus(for identifier: String, status: HealthAccessStatus) -> HealthAccessGrantState {
-        if status.granted.contains(where: { $0.identifier == identifier }) {
-            return .granted
-        }
-        if status.denied.contains(where: { $0.identifier == identifier }) {
-            return .denied
-        }
-        if status.notDetermined.contains(where: { $0.identifier == identifier }) {
-            return .pending
-        }
-        return .pending
-    }
-
-    private func emitHealthKitSuccessToast() {
-        healthKitSuccessMessage = "Health data connected"
-        healthKitSuccessTask?.cancel()
-        healthKitSuccessTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            await MainActor.run {
-                self?.healthKitSuccessMessage = nil
-            }
-        }
-    }
-
-    private func cancelHealthKitSuccessToast() {
-        healthKitSuccessTask?.cancel()
-        healthKitSuccessTask = nil
-        healthKitSuccessMessage = nil
-    }
-
-    func debugHealthStatusSnapshot() -> String {
-        healthKitDebugSummary
-    }
-
-    private static func debugSummary(from status: HealthAccessStatus) -> String {
-        let granted = status.granted.map(\.identifier).sorted().joined(separator: ", ")
-        let denied = status.denied.map(\.identifier).sorted().joined(separator: ", ")
-        let pending = status.notDetermined.map(\.identifier).sorted().joined(separator: ", ")
-        return "Granted: [\(granted)] | Denied: [\(denied)] | Pending: [\(pending)] | Availability: \(status.availability)"
-    }
-
-    private static func appVersion() -> String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-    }
-
-    private static func buildNumber() -> String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
-    }
-
-    private static func deviceModel() -> String {
-        #if canImport(UIKit)
-        return UIDevice.current.model
-        #else
-        return "mac"
-        #endif
-    }
-
-    private static func osVersion() -> String {
-        #if canImport(UIKit)
-        return UIDevice.current.systemVersion
-        #else
-        return ProcessInfo.processInfo.operatingSystemVersionString
-        #endif
-    }
-
-    private nonisolated static func extractSessionIds(from logTail: [String]) -> [String] {
-        var sessions: [String] = []
-        for line in logTail {
-            guard let range = line.range(of: "app.session.start session=") else { continue }
-            let after = line[range.upperBound...]
-            if let id = after.split(separator: " ").first {
-                let value = String(id)
-                if !sessions.contains(value) {
-                    sessions.append(value)
-                }
-            }
-        }
-        return sessions
-    }
-
     #if DEBUG
-    func toggleDiagnosticsVisibility() {
-        diagnosticsVisible.toggle()
-    }
-
-    private func setupDiagnosticsObservers() {
-        let center = NotificationCenter.default
-
-        routeTask = Task { [weak self] in
-            for await note in center.notifications(named: .pulsumChatRouteDiagnostics) {
-                guard let self else { continue }
-                await MainActor.run {
-                    if let route = note.userInfo?["route"] as? String {
-                        routeHistory.insert(route, at: 0)
-                        if routeHistory.count > diagnosticsHistoryLimit {
-                            routeHistory.removeLast(routeHistory.count - diagnosticsHistoryLimit)
-                        }
-                    }
-
-                    if let top = note.userInfo?["top"] as? Double,
-                       let median = note.userInfo?["median"] as? Double,
-                       let count = note.userInfo?["count"] as? Int {
-                        lastCoverageSummary = "matches=\(count) top=\(String(format: "%.2f", top)) median=\(String(format: "%.2f", median))"
-                    } else {
-                        lastCoverageSummary = "–"
-                    }
-                }
-            }
-        }
-
-        errorTask = Task { [weak self] in
-            for await note in center.notifications(named: .pulsumChatCloudError) {
-                guard let self else { continue }
-                await MainActor.run {
-                    if let message = note.userInfo?["message"] as? String {
-                        lastCloudError = message
-                    }
-                }
-            }
-        }
-    }
-
     deinit {
         routeTask?.cancel()
         errorTask?.cancel()

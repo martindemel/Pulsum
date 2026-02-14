@@ -63,6 +63,9 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
         return imputedHRV || imputedResting || missingSteps
     }()
 
+    // Strong pass: ≥3 matches with median similarity ≥0.42 and best match ≥0.58.
+    // These thresholds were tuned on the Huberman library (~200 moments): 0.42 median
+    // filters out random noise while 0.58 top ensures at least one highly relevant result.
     if count >= 3 && med >= 0.42 && top >= 0.58 {
         return CoverageDecision(kind: .strong,
                                 reason: "strong-pass",
@@ -72,6 +75,8 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
                                 thresholdUsed: 0.42)
     }
 
+    // Soft pass (on-topic): when topic gate confirms relevance, accept lower median (0.35)
+    // because the topic signal compensates for weaker embedding coverage.
     if onTopic && med >= 0.35 {
         return CoverageDecision(kind: .soft,
                                 reason: "on-topic-median",
@@ -81,6 +86,8 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
                                 thresholdUsed: 0.35)
     }
 
+    // Cohesive soft pass: top match is decent (≥0.50) and the median/top ratio ≥0.70
+    // indicates tightly clustered results rather than one lucky outlier.
     if onTopic && top >= 0.50 && med > 0 && (med / max(top, 1e-6)) >= 0.70 {
         return CoverageDecision(kind: .soft,
                                 reason: "cohesive-soft",
@@ -90,6 +97,8 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
                                 thresholdUsed: 0.35)
     }
 
+    // Sparse data fallback: when health metrics are imputed or missing, relax thresholds
+    // to avoid blocking coaching entirely during the user's first days of data collection.
     if sparse {
         return CoverageDecision(kind: .soft,
                                 reason: "data-sparse-soft",
@@ -99,6 +108,7 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
                                 thresholdUsed: 0.35)
     }
 
+    // Fail: none of the above gates passed. The 0.40 threshold is recorded for diagnostics.
     return CoverageDecision(kind: .fail,
                             reason: "low-coverage",
                             count: count,

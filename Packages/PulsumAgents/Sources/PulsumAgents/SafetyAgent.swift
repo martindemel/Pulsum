@@ -45,7 +45,9 @@ public final class SafetyAgent {
         if #available(iOS 26.0, *),
            let provider = foundationModelsProvider as? FoundationModelsSafetyProvider {
             do {
-                let result = try await provider.classify(text: text)
+                let result = try await withThrowingTimeout(seconds: 5) {
+                    try await provider.classify(text: text)
+                }
                 let lowered = text.lowercased()
                 let adjusted: SafetyClassification
                 if case .crisis = result,
@@ -135,5 +137,23 @@ public final class SafetyAgent {
         }
         // Fallback: recommend 112 (international emergency) and a web resource
         return "If you are in immediate danger, call your local emergency number (112 in many countries). Visit findahelpline.com for crisis support in your region."
+    }
+}
+
+private func withThrowingTimeout<T: Sendable>(
+    seconds: TimeInterval,
+    operation: @Sendable @escaping () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw CancellationError()
+        }
+        guard let result = try await group.next() else {
+            throw CancellationError()
+        }
+        group.cancelAll()
+        return result
     }
 }

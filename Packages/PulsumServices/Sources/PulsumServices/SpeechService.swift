@@ -208,6 +208,7 @@ private final class LegacySpeechBackend: SpeechBackending {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var streamContinuation: AsyncThrowingStream<SpeechSegment, Error>.Continuation?
     private var levelContinuation: AsyncStream<Float>.Continuation?
+    private var timeoutTask: Task<Void, Never>?
     let backendName = "legacy"
 
     init(locale: Locale, authorizationProvider _: SpeechAuthorizationProviding) {
@@ -353,13 +354,15 @@ private final class LegacySpeechBackend: SpeechBackending {
 
         speechLogger.info("Recognition task listening.")
 
-        // Set up max duration timeout
+        // Set up max duration timeout (stored for cancellation in stopRecording)
         if maxDuration > 0 {
-            Task { [weak self] in
+            let task = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(maxDuration * 1_000_000_000))
+                guard !Task.isCancelled else { return }
                 speechLogger.info("Max recording duration reached; stopping.")
                 self?.stopRecording()
             }
+            stateQueue.sync { self.timeoutTask = task }
         }
 
         return SpeechService.Session(
@@ -396,15 +399,19 @@ private final class LegacySpeechBackend: SpeechBackending {
 
         // Take all mutable state under lock, then perform cleanup outside to avoid deadlock
         // (recognitionTask?.finish() could synchronously fire recognition callback)
-        let (stream, level, request, task, engine) = stateQueue.sync {
-            let snapshot = (streamContinuation, levelContinuation, recognitionRequest, recognitionTask, audioEngine)
+        let (stream, level, request, task, engine, timeout) = stateQueue.sync {
+            let snapshot = (streamContinuation, levelContinuation, recognitionRequest, recognitionTask, audioEngine, timeoutTask)
             streamContinuation = nil
             levelContinuation = nil
             recognitionRequest = nil
             recognitionTask = nil
             audioEngine = nil
+            timeoutTask = nil
             return snapshot
         }
+
+        // Cancel timeout task to prevent re-entrant stop
+        timeout?.cancel()
 
         // Finish streams
         stream?.finish()

@@ -9,11 +9,13 @@ public struct OnTopic: Codable, Sendable {
     public let isOnTopic: Bool
     public let confidence: Double // 0...1
     public let reason: String
+    public let topic: String? // Canonical: "sleep", "stress", "energy", "hrv", "mood", "movement", "mindfulness", "goals", or nil
 
-    public init(isOnTopic: Bool, confidence: Double, reason: String) {
+    public init(isOnTopic: Bool, confidence: Double, reason: String, topic: String? = nil) {
         self.isOnTopic = isOnTopic
         self.confidence = confidence
         self.reason = reason
+        self.topic = topic
     }
 }
 
@@ -29,6 +31,7 @@ public final class FoundationModelsTopicGateProvider: TopicGateProviding {
             Off-topic examples: general knowledge questions, weather, news, entertainment, unrelated chitchat.
             On-topic examples: questions about stress management, sleep advice, energy levels, health metrics, emotional support.
             Return your classification with confidence (0.0 to 1.0) and a brief reason.
+            Also return the canonical topic if on-topic: one of "sleep", "stress", "energy", "hrv", "mood", "movement", "mindfulness", "goals", or nil for greetings.
             Be generous with greetings—"hi", "hello", "how are you" should be considered on-topic with moderate confidence (0.7).
             """)
         )
@@ -48,7 +51,8 @@ public final class FoundationModelsTopicGateProvider: TopicGateProviding {
         return GateDecision(
             isOnTopic: result.content.isOnTopic,
             reason: result.content.reason,
-            confidence: result.content.confidence
+            confidence: result.content.confidence,
+            topic: result.content.topic
         )
     }
 }
