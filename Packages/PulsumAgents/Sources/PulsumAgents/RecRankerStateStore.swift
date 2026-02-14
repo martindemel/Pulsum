@@ -62,7 +62,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
         if !fileManager.fileExists(atPath: url.path) {
             do {
                 #if os(iOS)
-                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
+                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUnlessOpen])
                 #else
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
                 #endif
@@ -72,7 +72,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
         } else {
             #if os(iOS)
             do {
-                try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+                try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
             } catch {
                 logError("Failed to update RecRanker state directory protection.", error: error)
             }
@@ -83,7 +83,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
     private func applyFileProtection() {
         #if os(iOS)
         do {
-            try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
+            try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: fileURL.path)
         } catch {
             logError("Failed to set file protection on RecRanker state.", error: error)
         }

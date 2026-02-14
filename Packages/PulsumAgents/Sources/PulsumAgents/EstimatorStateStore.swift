@@ -62,7 +62,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
         if !fileManager.fileExists(atPath: url.path) {
             do {
                 #if os(iOS)
-                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
+                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUnlessOpen])
                 #else
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
                 #endif
@@ -72,7 +72,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
         } else {
             #if os(iOS)
             do {
-                try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+                try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
             } catch {
                 logError("Failed to update estimator state directory protection.", error: error)
             }
@@ -83,7 +83,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
     private func applyFileProtection() {
         #if os(iOS)
         do {
-            try fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
+            try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: fileURL.path)
         } catch {
             logError("Failed to set file protection on estimator state.", error: error)
         }

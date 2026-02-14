@@ -322,7 +322,7 @@ public final class SentimentAgent {
         #if os(iOS)
         try FileManager.default.createDirectory(at: directory,
                                                 withIntermediateDirectories: true,
-                                                attributes: [.protectionKey: FileProtectionType.complete])
+                                                attributes: [.protectionKey: FileProtectionType.completeUnlessOpen])
         #else
         try FileManager.default.createDirectory(at: directory,
                                                 withIntermediateDirectories: true,
@@ -339,7 +339,7 @@ public final class SentimentAgent {
         try data.write(to: url, options: .atomic)
         #if os(iOS)
         do {
-            try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+            try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
         } catch {
             Diagnostics.log(level: .warn,
                             category: .persistence,

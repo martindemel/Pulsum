@@ -315,7 +315,9 @@ public final class HealthKitService: @unchecked Sendable {
             throw HealthKitServiceError.healthDataUnavailable
         }
 
-        let quantityType = HKObjectType.quantityType(forIdentifier: .stepCount)!
+        guard let quantityType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
+            throw HealthKitServiceError.healthDataUnavailable
+        }
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
 
         var interval = DateComponents()
@@ -370,7 +372,9 @@ public final class HealthKitService: @unchecked Sendable {
             throw HealthKitServiceError.healthDataUnavailable
         }
 
-        let quantityType = HKObjectType.quantityType(forIdentifier: .heartRate)!
+        guard let quantityType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
+            throw HealthKitServiceError.healthDataUnavailable
+        }
         var results: [Date: (avgBPM: Double, minBPM: Double?)] = [:]
 
         var day = calendar.startOfDay(for: startDate)

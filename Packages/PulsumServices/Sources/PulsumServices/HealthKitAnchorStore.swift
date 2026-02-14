@@ -24,7 +24,7 @@ public final class HealthKitAnchorStore {
     }
 
     public func store(anchor: HKQueryAnchor, for sampleTypeIdentifier: String) {
-        queue.async {
+        queue.sync {
             let fileURL = self.url(for: sampleTypeIdentifier)
             do {
                 let data = try NSKeyedArchiver.archivedData(withRootObject: anchor, requiringSecureCoding: true)
@@ -41,7 +41,7 @@ public final class HealthKitAnchorStore {
     }
 
     public func removeAnchor(for sampleTypeIdentifier: String) {
-        queue.async {
+        queue.sync {
             let fileURL = self.url(for: sampleTypeIdentifier)
             guard self.fileManager.fileExists(atPath: fileURL.path) else { return }
             do {
@@ -62,7 +62,7 @@ public final class HealthKitAnchorStore {
 
     private func applyFileProtectionIfAvailable(to url: URL) {
         #if os(iOS)
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
         #endif
     }
 }

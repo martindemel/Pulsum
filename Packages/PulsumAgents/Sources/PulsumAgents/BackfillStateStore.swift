@@ -109,7 +109,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
         if !fm.fileExists(atPath: url.path) {
             do {
                 #if os(iOS)
-                try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
+                try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUnlessOpen])
                 #else
                 try fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
                 #endif
@@ -119,7 +119,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
         } else {
             #if os(iOS)
             do {
-                try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+                try fm.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
             } catch {
                 logError("Failed to update backfill state directory protection.", error: error)
             }
@@ -130,7 +130,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
     private func applyFileProtection() {
         #if os(iOS)
         do {
-            try fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
+            try fm.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: fileURL.path)
         } catch {
             logError("Failed to set file protection on backfill state.", error: error)
         }

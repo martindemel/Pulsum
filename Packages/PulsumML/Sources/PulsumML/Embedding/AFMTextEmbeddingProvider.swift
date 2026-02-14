@@ -16,12 +16,8 @@ final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
     }
 
     func embedding(for text: String) throws -> [Float] {
-        #if canImport(FoundationModels) && os(iOS)
-        guard #available(iOS 26.0, *), availability() == .ready else {
-            throw EmbeddingError.generatorUnavailable
-        }
-
-        // Use the most capable contextual embedding available on the platform.
+        // NLEmbedding works on iOS 17+ regardless of Foundation Models availability.
+        // No AFM availability gate needed.
         let embedding = NLEmbedding.sentenceEmbedding(for: .english) ?? NLEmbedding.wordEmbedding(for: .english)
         guard let embedding, let vector = embedding.vector(for: text), !vector.isEmpty else {
             throw EmbeddingError.generatorUnavailable
@@ -33,9 +29,6 @@ final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
             throw EmbeddingError.emptyResult
         }
         return adjusted
-        #else
-        throw EmbeddingError.generatorUnavailable
-        #endif
     }
 
     private func adjustDimension(_ vector: [Float]) -> [Float] {

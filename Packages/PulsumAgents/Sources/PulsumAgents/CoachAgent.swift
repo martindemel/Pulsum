@@ -698,26 +698,16 @@ private struct MicroMomentSnapshot: Sendable {
 private extension CoachAgent {
     func contextPerformAndWait<T>(_ work: (NSManagedObjectContext) -> T) -> T {
         let context = self.context
-        var value: T?
-        context.performAndWait {
-            value = work(context)
+        return context.performAndWait {
+            work(context)
         }
-        guard let value else {
-            preconditionFailure("NSManagedObjectContext.performAndWait did not execute")
-        }
-        return value
     }
 
     func contextPerformAndWait<T>(_ work: (NSManagedObjectContext) throws -> T) throws -> T {
         let context = self.context
-        var result: Result<T, Error>?
-        context.performAndWait {
-            result = Result { try work(context) }
+        return try context.performAndWait {
+            try work(context)
         }
-        guard let result else {
-            preconditionFailure("NSManagedObjectContext.performAndWait did not execute")
-        }
-        return try result.get()
     }
 
     func persistRankerState() {

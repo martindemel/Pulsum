@@ -291,7 +291,12 @@ public final class LLMGateway {
     private let session: URLSession
     private let usesUITestStub: Bool
 
-    private var inMemoryAPIKey: String?
+    private let apiKeyLock = NSLock()
+    private var _inMemoryAPIKey: String?
+    private var inMemoryAPIKey: String? {
+        get { apiKeyLock.withLock { _inMemoryAPIKey } }
+        set { apiKeyLock.withLock { _inMemoryAPIKey = newValue } }
+    }
 
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
 
@@ -348,7 +353,11 @@ public final class LLMGateway {
             return false
         }
 
-        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
+        guard let pingURL = URL(string: "https://api.openai.com/v1/responses") else {
+            logger.error("Invalid endpoint URL for ping request.")
+            return false
+        }
+        var request = URLRequest(url: pingURL)
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -615,11 +624,14 @@ extension LLMGateway {
 // MARK: - Cloud Client
 
 public final class GPT5Client: CloudLLMClient {
-    private let endpoint = URL(string: "https://api.openai.com/v1/responses")!
+    private let endpoint: URL
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.Cloud")
     private let session: URLSession
 
     public init(session: URLSession = .shared) {
+        // This URL is a compile-time constant; guard is defensive only.
+        self.endpoint = URL(string: "https://api.openai.com/v1/responses")
+            ?? URL(fileURLWithPath: "/invalid")
         self.session = session
     }
 
@@ -859,7 +871,7 @@ extension LLMGateway {
             - isOnTopic: true if the message touches sleep, stress, energy, mood, movement, or nutrition; false otherwise.
             - refusalReason: "" when isOnTopic is true; otherwise a short code like "off_topic_smalltalk".
             - groundingScore: number 0.0–1.0; estimate confidence from provided z-scores (higher confidence → closer to 1.0). Round to two decimals.
-            - intentTopic: one of ["sleep","stress","energy","mood","movement","nutrition","goals"] based on the input.
+            - intentTopic: one of ["sleep","stress","energy","hrv","mood","movement","mindfulness","nutrition","goals","none"] based on the input.
             - nextAction: one concrete step the user can do in < 8 words, e.g., "Dim lights 30 min before bed".
 
             Keep JSON compact. Do not echo the schema or input.

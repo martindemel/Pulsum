@@ -14,7 +14,22 @@ public final class SafetyAgent {
         "kill myself",
         "end my life",
         "not worth living",
-        "better off dead"
+        "better off dead",
+        "want to die",
+        "self-harm",
+        "cut myself",
+        "cutting myself",
+        "overdose",
+        "no reason to live",
+        "jump off",
+        "hang myself",
+        "hurt myself",
+        "don't want to be here",
+        "can't go on",
+        "take all the pills",
+        "ending my life",
+        "not want to live",
+        "ending it"
     ]
 
     public init() {

@@ -27,7 +27,7 @@ public enum CoachPhrasingSchema {
                 "type": "string",
                 "minLength": 0,
                 "maxLength": 32,
-                "enum": ["sleep", "stress", "energy", "hrv", "mood", "movement", "mindfulness", "goals", "none"],
+                "enum": ["sleep", "stress", "energy", "hrv", "mood", "movement", "mindfulness", "nutrition", "goals", "none"],
                 "description": "Echo of deterministic routing topic (or 'none')."
             ],
             "refusalReason": [

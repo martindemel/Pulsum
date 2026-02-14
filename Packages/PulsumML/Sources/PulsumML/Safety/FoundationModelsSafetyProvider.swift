@@ -57,11 +57,9 @@ public final class FoundationModelsSafetyProvider {
                 return .crisis(reason: result.content.reason)
             }
         } catch LanguageModelSession.GenerationError.guardrailViolation {
-            // Guardrails triggered - treat as safe to avoid false positives
-            return .safe
+            return .caution(reason: "Content flagged by on-device safety system")
         } catch LanguageModelSession.GenerationError.refusal {
-            // Model refused to analyze - treat as safe and let fallback handle it
-            return .safe
+            return .caution(reason: "Content refused by on-device safety system")
         } catch {
             throw SafetyError.classificationFailed
         }

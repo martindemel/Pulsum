@@ -418,6 +418,7 @@ public final class AgentOrchestrator {
     public func submitTranscript(_ text: String) async throws -> JournalCaptureResponse {
         let result = try await sentimentAgent.importTranscript(text)
         let safety = await safetyAgent.evaluate(text: result.transcript)
+        try await dataAgent.reprocessDay(date: result.date)
         return JournalCaptureResponse(result: result, safety: safety)
     }
 
@@ -858,7 +859,7 @@ public final class AgentOrchestrator {
                                  median: decision.median,
                                  count: decision.count,
                                  context: diagnosticsContext)
-            let context = coachAgent.minimalCoachContext(from: snapshot, topic: intentTopic!)
+            let context = coachAgent.minimalCoachContext(from: snapshot, topic: intentTopic ?? "wellbeing")
             let payload = await coachAgent.generateResponse(context: context,
                                                             intentTopic: intentTopic,
                                                             consentGranted: false,

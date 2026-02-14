@@ -15,7 +15,13 @@ public struct SafetyLocalConfig {
     public let resolutionMargin: Float
 
     public init(
-        crisisKeywords: [String] = ["suicide", "kill myself", "ending it", "overdose", "hurt myself"],
+        crisisKeywords: [String] = [
+            "suicide", "kill myself", "ending it", "overdose", "hurt myself",
+            "want to die", "self-harm", "cut myself", "cutting myself",
+            "no reason to live", "jump off", "hang myself",
+            "don't want to be here", "can't go on", "take all the pills",
+            "ending my life", "not want to live"
+        ],
         cautionKeywords: [String] = ["depressed", "hopeless", "panic", "anxious", "self-harm"],
         crisisSimilarityThreshold: Float = 0.65, // Raised from 0.48 - less aggressive for bench testing
         cautionSimilarityThreshold: Float = 0.35, // Raised from 0.22 - less aggressive for bench testing
@@ -101,14 +107,21 @@ public final class SafetyLocal {
         if let crisis = scores[.crisis],
            crisis.similarity >= config.crisisSimilarityThreshold,
            crisis.similarity - safeSimilarity >= config.resolutionMargin {
+            // High-confidence embedding match alone is sufficient for crisis classification
+            if crisis.similarity > 0.85 {
+                #if DEBUG
+                logger.debug("SafetyLocal → crisis (high-confidence embedding)")
+                #endif
+                return .crisis(reason: "High-confidence crisis embedding match")
+            }
             if containsKeyword(from: config.crisisKeywords, in: normalized) {
                 #if DEBUG
-                logger.debug("SafetyLocal → crisis (keyword + similarity)")
+                logger.debug("SafetyLocal → crisis (keyword + embedding)")
                 #endif
                 return .crisis(reason: crisis.prototype.text)
             }
             #if DEBUG
-            logger.debug("SafetyLocal → caution (similarity only)")
+            logger.debug("SafetyLocal → caution (embedding similarity only)")
             #endif
             return .caution(reason: crisis.prototype.text)
         }

@@ -139,8 +139,11 @@ final class PulseViewModel {
         // The transcript captured so far will be processed
         orchestrator?.stopVoiceJournalRecording()
 
-        // isAnalyzing remains true - will be set to false when processing completes
-        // recordingTask continues running to save the transcript
+        // If no recording task is running, reset isAnalyzing to prevent permanent stuck state
+        if recordingTask == nil {
+            isAnalyzing = false
+        }
+        // Otherwise isAnalyzing remains true — will be set to false when recordingTask completes
     }
 
     func submitInputs(for date: Date = Date()) {
