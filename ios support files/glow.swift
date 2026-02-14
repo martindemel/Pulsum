@@ -5,11 +5,13 @@ struct GlowEffect: View {
     @State private var timers: [Timer] = []
 
     var body: some View {
-        ZStack {
-            EffectNoBlur(gradientStops: gradientStops, width: 6)
-            Effect(gradientStops: gradientStops, width: 9, blur: 4)
-            Effect(gradientStops: gradientStops, width: 11, blur: 12)
-            Effect(gradientStops: gradientStops, width: 15, blur: 15)
+        GeometryReader { geometry in
+            ZStack {
+                EffectNoBlur(gradientStops: gradientStops, width: 6, size: geometry.size)
+                Effect(gradientStops: gradientStops, width: 9, blur: 4, size: geometry.size)
+                Effect(gradientStops: gradientStops, width: 11, blur: 12, size: geometry.size)
+                Effect(gradientStops: gradientStops, width: 15, blur: 15, size: geometry.size)
+            }
         }
         .onAppear {
             let intervals: [(TimeInterval, Double)] = [
@@ -47,6 +49,7 @@ struct Effect: View {
     var gradientStops: [Gradient.Stop]
     var width: CGFloat
     var blur: CGFloat
+    var size: CGSize
 
     var body: some View {
         ZStack {
@@ -59,8 +62,8 @@ struct Effect: View {
                     lineWidth: width
                 )
                 .frame(
-                    width: UIScreen.main.bounds.width,
-                    height: UIScreen.main.bounds.height
+                    width: size.width,
+                    height: size.height
                 )
                 .padding(.top, -17)
                 .blur(radius: blur)
@@ -71,6 +74,7 @@ struct Effect: View {
 struct EffectNoBlur: View {
     var gradientStops: [Gradient.Stop]
     var width: CGFloat
+    var size: CGSize
 
     var body: some View {
         ZStack {
@@ -83,8 +87,8 @@ struct EffectNoBlur: View {
                     lineWidth: width
                 )
                 .frame(
-                    width: UIScreen.main.bounds.width,
-                    height: UIScreen.main.bounds.height
+                    width: size.width,
+                    height: size.height
                 )
                 .padding(.top, -26)
         }

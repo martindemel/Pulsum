@@ -250,7 +250,7 @@ public final class CoachAgent {
     }
 
     public func logEvent(momentId: String, accepted: Bool) async throws {
-        try contextPerformAndWait { context in
+        try await contextPerform { context in
             let event = RecommendationEvent(context: context)
             event.momentId = momentId
             event.date = Date()
@@ -271,7 +271,7 @@ public final class CoachAgent {
     }
 
     public func momentTitle(for id: String) async -> String? {
-        contextPerformAndWait { context in
+        await contextPerform { context in
             let request = MicroMoment.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", id)
             request.fetchLimit = 1
@@ -345,7 +345,7 @@ public final class CoachAgent {
     }
 
     private func fetchMicroMoments(ids: [String]) async throws -> [MicroMomentSnapshot] {
-        try contextPerformAndWait { context in
+        try await contextPerform { context in
             let request = MicroMoment.fetchRequest()
             request.predicate = NSPredicate(format: "id IN %@", ids)
             let moments = try context.fetch(request)
@@ -391,7 +391,7 @@ public final class CoachAgent {
 
     private func keywordBackfillMoments(for topic: String,
                                         limit: Int) async throws -> [MicroMomentSnapshot] {
-        try contextPerformAndWait { context in
+        try await contextPerform { context in
             let request = NSFetchRequest<MicroMoment>(entityName: "MicroMoment")
             let candidateLimit = max(limit * 20, 200)
             request.fetchLimit = candidateLimit
@@ -581,7 +581,7 @@ public final class CoachAgent {
     private func cooldownScore(for moment: MicroMomentSnapshot) async -> Double {
         guard let cooldown = moment.cooldownSec, cooldown > 0 else { return 0 }
         let momentId = moment.id
-        let elapsed: TimeInterval? = contextPerformAndWait { context in
+        let elapsed: TimeInterval? = await contextPerform { context in
             let request = RecommendationEvent.fetchRequest()
             request.predicate = NSPredicate(format: "momentId == %@ AND accepted == YES", momentId)
             request.sortDescriptors = [NSSortDescriptor(key: #keyPath(RecommendationEvent.completedAt), ascending: false)]
@@ -625,7 +625,7 @@ public final class CoachAgent {
     }
 
     private func acceptanceHistory(for momentId: String) async -> AcceptanceHistory {
-        contextPerformAndWait { context in
+        await contextPerform { context in
             let request = RecommendationEvent.fetchRequest()
             request.predicate = NSPredicate(format: "momentId == %@", momentId)
             guard let events = try? context.fetch(request), !events.isEmpty else {
@@ -638,7 +638,7 @@ public final class CoachAgent {
     }
 
     private func acceptanceRate(for momentId: String) async -> Double {
-        contextPerformAndWait { context in
+        await contextPerform { context in
             let request = RecommendationEvent.fetchRequest()
             request.predicate = NSPredicate(format: "momentId == %@", momentId)
             guard let events = try? context.fetch(request), !events.isEmpty else { return 0.1 }
@@ -696,17 +696,17 @@ private struct MicroMomentSnapshot: Sendable {
 }
 
 private extension CoachAgent {
-    func contextPerformAndWait<T>(_ work: (NSManagedObjectContext) -> T) -> T {
-        let context = self.context
-        return context.performAndWait {
-            work(context)
+    func contextPerform<T: Sendable>(_ work: @escaping @Sendable (NSManagedObjectContext) -> T) async -> T {
+        let ctx = self.context
+        return await ctx.perform {
+            work(ctx)
         }
     }
 
-    func contextPerformAndWait<T>(_ work: (NSManagedObjectContext) throws -> T) throws -> T {
-        let context = self.context
-        return try context.performAndWait {
-            try work(context)
+    func contextPerform<T: Sendable>(_ work: @escaping @Sendable (NSManagedObjectContext) throws -> T) async throws -> T {
+        let ctx = self.context
+        return try await ctx.perform {
+            try work(ctx)
         }
     }
 

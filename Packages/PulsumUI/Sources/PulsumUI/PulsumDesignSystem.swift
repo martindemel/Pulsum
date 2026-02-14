@@ -69,29 +69,29 @@ enum PulsumRadius {
 // MARK: - Typography Extensions
 
 extension Font {
-    // MARK: - Display Fonts
+    // MARK: - Display Fonts (Dynamic Type)
 
-    static let pulsumLargeTitle = Font.system(size: 34, weight: .bold, design: .default)
-    static let pulsumTitle = Font.system(size: 28, weight: .bold, design: .default)
-    static let pulsumTitle2 = Font.system(size: 22, weight: .semibold, design: .default)
-    static let pulsumTitle3 = Font.system(size: 20, weight: .semibold, design: .default)
+    static let pulsumLargeTitle = Font.system(.largeTitle, design: .default, weight: .bold)
+    static let pulsumTitle = Font.system(.title, design: .default, weight: .bold)
+    static let pulsumTitle2 = Font.system(.title2, design: .default, weight: .semibold)
+    static let pulsumTitle3 = Font.system(.title3, design: .default, weight: .semibold)
 
-    // MARK: - Body Fonts
+    // MARK: - Body Fonts (Dynamic Type)
 
-    static let pulsumHeadline = Font.system(size: 17, weight: .semibold, design: .default)
-    static let pulsumBody = Font.system(size: 17, weight: .regular, design: .default)
-    static let pulsumCallout = Font.system(size: 16, weight: .regular, design: .default)
-    static let pulsumSubheadline = Font.system(size: 15, weight: .regular, design: .default)
-    static let pulsumFootnote = Font.system(size: 13, weight: .regular, design: .default)
-    static let pulsumCaption = Font.system(size: 12, weight: .regular, design: .default)
-    static let pulsumCaption2 = Font.system(size: 11, weight: .regular, design: .default)
+    static let pulsumHeadline = Font.system(.headline, design: .default, weight: .semibold)
+    static let pulsumBody = Font.system(.body)
+    static let pulsumCallout = Font.system(.callout)
+    static let pulsumSubheadline = Font.system(.subheadline)
+    static let pulsumFootnote = Font.system(.footnote)
+    static let pulsumCaption = Font.system(.caption)
+    static let pulsumCaption2 = Font.system(.caption2)
 
-    // MARK: - Data Display (Rounded for Metrics)
+    // MARK: - Data Display (Rounded, Dynamic Type)
 
-    static let pulsumDataXLarge = Font.system(size: 58, weight: .bold, design: .rounded)
-    static let pulsumDataLarge = Font.system(size: 48, weight: .bold, design: .rounded)
-    static let pulsumDataMedium = Font.system(size: 32, weight: .bold, design: .rounded)
-    static let pulsumDataSmall = Font.system(size: 24, weight: .semibold, design: .rounded)
+    static let pulsumDataXLarge = Font.system(.largeTitle, design: .rounded, weight: .bold)
+    static let pulsumDataLarge = Font.system(.largeTitle, design: .rounded, weight: .bold)
+    static let pulsumDataMedium = Font.system(.title, design: .rounded, weight: .bold)
+    static let pulsumDataSmall = Font.system(.title2, design: .rounded, weight: .semibold)
 }
 
 // MARK: - Animation Presets
