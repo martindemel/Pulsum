@@ -5,7 +5,7 @@ let package = Package(
     name: "PulsumTypes",
     platforms: [
         .iOS("26.0"),
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .library(

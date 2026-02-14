@@ -5,7 +5,7 @@ let package = Package(
     name: "PulsumAgents",
     platforms: [
         .iOS("26.0"),
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .library(

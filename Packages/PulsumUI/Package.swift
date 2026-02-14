@@ -5,7 +5,7 @@ let package = Package(
     name: "PulsumUI",
     platforms: [
         .iOS("26.0"),
-        .macOS("14.0")
+        .macOS(.v15)
     ],
     products: [
         .library(
