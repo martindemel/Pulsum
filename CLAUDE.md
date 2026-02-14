@@ -10,10 +10,10 @@ PulsumTypes -> PulsumML + PulsumData -> PulsumServices -> PulsumAgents -> Pulsum
 ```
 
 ## Key Files
-- `master_fix_plan.md` — **Active remediation plan.** 99 findings (12 CRIT, 18 HIGH, 24 MED, 20 LOW) with exact code fixes, organized into 8 implementation batches. Read this before any fix work.
+- `master_fix_plan.md` — **Active remediation plan (USE THIS).** 99 deduplicated actionable fixes (12 CRIT, 18 HIGH, 24 MED, 20 LOW) with exact code changes, organized into 8 implementation batches.
 - `batch_execution_prompts.md` — Self-contained prompts for each batch. Copy-paste into a fresh Claude Code window.
+- `master_report.md` — Original audit with 112 raw findings (includes stubs, test gaps, architecture notes). Reference only — superseded by `master_fix_plan.md` for implementation.
 - `master_plan_FINAL.md` — Original architecture plan. 79 items across 4 phases (SwiftData migration, safety, concurrency, production).
-- `master_report.md` — 112 findings with full detail. Look up finding IDs (CRIT-XXX, HIGH-XXX, etc.) here.
 - `guidelines_report.md` — App Store compliance checks.
 
 ## Git Workflow
