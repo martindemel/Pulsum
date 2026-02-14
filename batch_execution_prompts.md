@@ -129,16 +129,14 @@ Commit with message "Phase 0B: Replace DataStack with SwiftData ModelContainer, 
 
 ---
 
-## Phase 0C — DataAgent Migration + Composition Root + Decomposition
+## Phase 0C-1 — Composition Root + DataAgent @ModelActor Conversion
 
 ```
-Read `master_plan_FINAL.md` items P0-06, P0-10, P0-11, P0-12, P0-18, P0-19, P0-20, P0-21, P0-22 in full detail. Also re-read "Critical Execution Warnings" #1 and #2.
-
-THIS IS THE LARGEST AND MOST CRITICAL BATCH. Read all target files before making any changes.
+Read `master_plan_FINAL.md` items P0-06, P0-10, P0-11, P0-12 in full detail. Also re-read "Critical Execution Warnings" #1 and #2.
 
 IMPORTANT: Search Apple docs for `@ModelActor`, `ModelActor` protocol, `FetchDescriptor`, `#Predicate` before starting.
 
-BEFORE making any changes: create a safe-point commit with message "Safe point: before Phase 0C — DataAgent migration + composition root".
+BEFORE making any changes: create a safe-point commit with message "Safe point: before Phase 0C-1 — composition root + DataAgent conversion".
 
 These items MUST be done together (per plan Warning #1 and #2). Order within this batch:
 
@@ -159,9 +157,7 @@ STEP 1 — Composition root (P0-11, P0-10, P0-12):
     - Files: PulsumAgentsTests/TestCoreDataStack.swift, PulsumUITests/TestCoreDataStack.swift
     - Replace NSPersistentContainer with ModelContainer(isStoredInMemoryOnly: true)
 
-STEP 2 — DataAgent SwiftData migration + decomposition (P0-06, P0-18-P0-22):
-Do the migration AND decomposition in one pass — the decomposed files use SwiftData from the start.
-
+STEP 2 — DataAgent @ModelActor conversion (P0-06):
 2a. P0-06: Convert DataAgent to @ModelActor
     - File: Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift
     - Change to: @ModelActor actor DataAgent
@@ -170,36 +166,58 @@ Do the migration AND decomposition in one pass — the decomposed files use Swif
     - Replace context.save() → try modelContext.save()
     - Remove performAndWait entirely — @ModelActor context is actor-isolated
     - Public APIs MUST return Sendable snapshots (from P0-01b), NOT @Model objects
+    - Do NOT decompose DataAgent yet — that happens in Phase 0C-2
 
-2b. P0-18: Extract HealthKitIngestionCoordinator
-    - Create: Packages/PulsumAgents/Sources/PulsumAgents/HealthKitIngestionCoordinator.swift
-    - Move: HealthKit authorization, observer queries, background delivery, anchored queries
-    - CRITICAL: Always call observer query completionHandler in ALL code paths
+VERIFY after implementation:
+- Full build passes: xcodebuild -scheme Pulsum -sdk iphonesimulator -derivedDataPath /tmp/PulsumDerivedData
+- All package tests pass
+- No @Model objects cross actor boundaries (grep for "-> [DailyMetrics]" etc. in public APIs)
 
-2c. P0-19: Extract SampleProcessors
-    - Create: Packages/PulsumAgents/Sources/PulsumAgents/SampleProcessing/ directory
-    - Create protocol SampleProcessor + 5 processors: HRV, HeartRate, Sleep, Step, RespiratoryRate
+Run swiftformat, then commit with message "Phase 0C-1: Composition root + DataAgent @ModelActor conversion (P0-06, P0-10-P0-12)" and push.
+```
 
-2d. P0-20: Extract BaselineCalculator
-    - Create: Packages/PulsumAgents/Sources/PulsumAgents/BaselineCalculator.swift
-    - Move: Baseline CRUD, z-score computation, feature vector materialization
+---
 
-2e. P0-21: Extract BackfillCoordinator
-    - Create: Packages/PulsumAgents/Sources/PulsumAgents/BackfillCoordinator.swift
-    - Move: Two-phase bootstrap, retry/timeout/watchdog, BackfillProgress
+## Phase 0C-2 — DataAgent Decomposition
 
-2f. P0-22: Verify DataAgent is thin coordinator
-    - Target: DataAgent.swift < 500 lines
-    - Should only contain: public API surface, delegation to extracted types, StateEstimator coordination
+```
+Read `master_plan_FINAL.md` items P0-18, P0-19, P0-20, P0-21, P0-22 in full detail.
+
+IMPORTANT: Read DataAgent.swift first to understand what was converted in Phase 0C-1. The file should already be a @ModelActor actor using SwiftData. This step extracts 5 focused types out of it.
+
+BEFORE making any changes: create a safe-point commit with message "Safe point: before Phase 0C-2 — DataAgent decomposition".
+
+Extract these 5 types from DataAgent.swift:
+
+1. P0-18: Extract HealthKitIngestionCoordinator
+   - Create: Packages/PulsumAgents/Sources/PulsumAgents/HealthKitIngestionCoordinator.swift
+   - Move: HealthKit authorization, observer queries, background delivery, anchored queries
+   - CRITICAL: Always call observer query completionHandler in ALL code paths
+
+2. P0-19: Extract SampleProcessors
+   - Create: Packages/PulsumAgents/Sources/PulsumAgents/SampleProcessing/ directory
+   - Create protocol SampleProcessor + 5 processors: HRV, HeartRate, Sleep, Step, RespiratoryRate
+
+3. P0-20: Extract BaselineCalculator
+   - Create: Packages/PulsumAgents/Sources/PulsumAgents/BaselineCalculator.swift
+   - Move: Baseline CRUD, z-score computation, feature vector materialization
+
+4. P0-21: Extract BackfillCoordinator
+   - Create: Packages/PulsumAgents/Sources/PulsumAgents/BackfillCoordinator.swift
+   - Move: Two-phase bootstrap, retry/timeout/watchdog, BackfillProgress
+
+5. P0-22: Verify DataAgent is thin coordinator
+   - Target: DataAgent.swift < 500 lines
+   - Should only contain: public API surface, delegation to extracted types, StateEstimator coordination
 
 VERIFY after implementation:
 - Full build passes: xcodebuild -scheme Pulsum -sdk iphonesimulator -derivedDataPath /tmp/PulsumDerivedData
 - All package tests pass
 - DataAgent.swift < 500 lines (check with: wc -l Packages/PulsumAgents/Sources/PulsumAgents/DataAgent.swift)
-- No @Model objects cross actor boundaries (grep for "-> [DailyMetrics]" etc. in public APIs)
+- No @Model objects cross actor boundaries
 - App launches end-to-end (if possible to verify)
 
-Run swiftformat, then commit with message "Phase 0C: DataAgent migration + composition root + decomposition (P0-06, P0-10-P0-12, P0-18-P0-22)" and push.
+Run swiftformat, then commit with message "Phase 0C-2: DataAgent decomposition into 5 extracted types (P0-18-P0-22)" and push.
 ```
 
 ---
