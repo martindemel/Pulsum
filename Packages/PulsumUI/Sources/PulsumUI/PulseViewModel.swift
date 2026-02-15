@@ -5,6 +5,19 @@ import SwiftUI
 import PulsumTypes
 
 @MainActor
+protocol PulseOrchestrating: AnyObject {
+    func beginVoiceJournalRecording(maxDuration: TimeInterval) async throws
+    func finishVoiceJournalRecording(transcript: String?) async throws -> JournalCaptureResponse
+    var voiceJournalSpeechStream: AsyncThrowingStream<SpeechSegment, Error>? { get }
+    var voiceJournalAudioLevels: AsyncStream<Float>? { get }
+    func updateVoiceJournalTranscript(_ transcript: String)
+    func stopVoiceJournalRecording()
+    nonisolated func updateSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws
+}
+
+extension AgentOrchestrator: PulseOrchestrating {}
+
+@MainActor
 @Observable
 final class PulseViewModel {
     private enum RecordingError: LocalizedError {
@@ -18,7 +31,7 @@ final class PulseViewModel {
         }
     }
 
-    @ObservationIgnored private var orchestrator: AgentOrchestrator?
+    @ObservationIgnored private var orchestrator: (any PulseOrchestrating)?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var recordingTask: Task<Void, Never>?
     @ObservationIgnored private var audioLevelTask: Task<Void, Never>?
@@ -47,7 +60,7 @@ final class PulseViewModel {
     var lastSafetyDecision: SafetyDecision?
     var savedToastMessage: String?
 
-    func bind(orchestrator: AgentOrchestrator) {
+    func bind(orchestrator: some PulseOrchestrating) {
         self.orchestrator = orchestrator
     }
 
@@ -221,7 +234,7 @@ final class PulseViewModel {
     }
 
     private func handleRecordingFailure(_ error: Error,
-                                        orchestrator: AgentOrchestrator,
+                                        orchestrator: some PulseOrchestrating,
                                         latestTranscript: String) async {
         analysisError = mapRecordingError(error)
         let fallback = latestTranscript.isEmpty ? (transcript ?? "") : latestTranscript
