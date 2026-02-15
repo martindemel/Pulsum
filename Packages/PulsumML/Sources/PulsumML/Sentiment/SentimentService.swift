@@ -1,4 +1,5 @@
 import Foundation
+import PulsumTypes
 
 public final class SentimentService {
     private let providers: [SentimentProviding]
@@ -32,9 +33,28 @@ public final class SentimentService {
             } catch SentimentProviderError.insufficientInput {
                 continue
             } catch {
+                Diagnostics.log(
+                    level: .warn,
+                    category: .sentiment,
+                    name: "ProviderFailed",
+                    fields: [
+                        "provider": .safeString(.metadata(String(describing: type(of: provider)))),
+                    ],
+                    error: error
+                )
                 continue
             }
         }
+
+        Diagnostics.log(
+            level: .error,
+            category: .sentiment,
+            name: "AllProvidersFailed",
+            fields: [
+                "providerCount": .int(providers.count),
+                "textLength": .int(trimmed.count),
+            ]
+        )
         return nil
     }
 }

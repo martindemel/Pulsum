@@ -46,23 +46,8 @@ final class AFMSentimentProvider: SentimentProviding {
         guard !anchors.isEmpty else { return 0 }
         var total: Double = 0
         for anchor in anchors {
-            total += Double(cosineSimilarity(vector, anchor))
+            total += Double(CosineSimilarity.compute(vector, anchor))
         }
         return total / Double(anchors.count)
-    }
-
-    private func cosineSimilarity(_ lhs: [Float], _ rhs: [Float]) -> Float {
-        guard lhs.count == rhs.count else { return 0 }
-        var dot: Float = 0
-        var lhsNorm: Float = 0
-        var rhsNorm: Float = 0
-        for idx in 0 ..< lhs.count {
-            dot += lhs[idx] * rhs[idx]
-            lhsNorm += lhs[idx] * lhs[idx]
-            rhsNorm += rhs[idx] * rhs[idx]
-        }
-        let denominator = sqrt(lhsNorm) * sqrt(rhsNorm)
-        guard denominator > 0 else { return 0 }
-        return dot / denominator
     }
 }

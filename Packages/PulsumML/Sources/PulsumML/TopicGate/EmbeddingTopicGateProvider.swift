@@ -82,21 +82,6 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
     }
     #endif
 
-    private func cosineSimilarity(_ lhs: [Float], _ rhs: [Float]) -> Float {
-        guard lhs.count == rhs.count else { return 0 }
-        var dot: Float = 0
-        var lhsNorm: Float = 0
-        var rhsNorm: Float = 0
-        for index in 0 ..< lhs.count {
-            dot += lhs[index] * rhs[index]
-            lhsNorm += lhs[index] * lhs[index]
-            rhsNorm += rhs[index] * rhs[index]
-        }
-        let denominator = sqrt(lhsNorm) * sqrt(rhsNorm)
-        guard denominator > 0 else { return 0 }
-        return dot / denominator
-    }
-
     private func computeDecision(for text: String) -> (decision: GateDecision, domainScore: Float, oodScore: Float, topic: String?) {
         guard
             let inputEmbedding = try? embeddingService.embedding(for: text),
@@ -117,7 +102,7 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
         }
 
         let similaritiesWithPrototypes = wellbeingPrototypes.map { prototype in
-            (similarity: cosineSimilarity(inputEmbedding, prototype.embedding), prototype: prototype)
+            (similarity: CosineSimilarity.compute(inputEmbedding, prototype.embedding), prototype: prototype)
         }
 
         guard let bestMatch = similaritiesWithPrototypes.max(by: { $0.similarity < $1.similarity }) else {
@@ -168,7 +153,7 @@ public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Se
     private func computeOODScore(for embedding: [Float]) -> Float {
         var maxSimilarity: Float = 0
         for prototype in oodPrototypes {
-            let similarity = cosineSimilarity(embedding, prototype)
+            let similarity = CosineSimilarity.compute(embedding, prototype)
             if similarity > maxSimilarity {
                 maxSimilarity = similarity
             }

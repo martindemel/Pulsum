@@ -99,7 +99,7 @@ public final class SafetyLocal: @unchecked Sendable {
 
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
         for prototype in localPrototypes {
-            let similarity = cosineSimilarity(embedding, prototype.embedding)
+            let similarity = CosineSimilarity.compute(embedding, prototype.embedding)
             if similarity.isNaN {
                 return .caution(reason: "Classification unavailable — embedding error")
             }
@@ -215,21 +215,6 @@ public final class SafetyLocal: @unchecked Sendable {
             return .caution(reason: "Sensitive language detected")
         }
         return .safe
-    }
-
-    private func cosineSimilarity(_ lhs: [Float], _ rhs: [Float]) -> Float {
-        guard lhs.count == rhs.count else { return 0 }
-        var dot: Float = 0
-        var lhsNorm: Float = 0
-        var rhsNorm: Float = 0
-        for index in 0 ..< lhs.count {
-            dot += lhs[index] * rhs[index]
-            lhsNorm += lhs[index] * lhs[index]
-            rhsNorm += rhs[index] * rhs[index]
-        }
-        let denominator = sqrt(lhsNorm) * sqrt(rhsNorm)
-        guard denominator > 0 else { return 0 }
-        return dot / denominator
     }
 
     private func lengthBucket(for text: String) -> String {
