@@ -1,13 +1,63 @@
 import Foundation
+import Observation
 import PulsumAgents
 import PulsumTypes
 #if canImport(UIKit)
 import UIKit
 #endif
 
-// MARK: - Diagnostics & Logging
+/// View model for diagnostics configuration, export, and debug panels in Settings.
+///
+/// Extracted from SettingsViewModel (Phase 0G, P0-24).
+@MainActor
+@Observable
+final class DiagnosticsViewModel {
+    // MARK: - Diagnostics State
 
-extension SettingsViewModel {
+    @ObservationIgnored var orchestrator: AgentOrchestrator?
+
+    var diagnosticsConfig: DiagnosticsConfig = Diagnostics.currentConfig()
+    var diagnosticsSessionId: UUID = Diagnostics.sessionId
+    var diagnosticsExportURL: URL?
+    var isExportingDiagnostics = false
+    var foundationModelsStatus: String = ""
+
+    // MARK: - Debug (DEBUG only)
+
+    #if DEBUG
+    var diagnosticsVisible: Bool = false
+    var routeHistory: [String] = []
+    var lastCoverageSummary: String = "---"
+    var lastCloudError: String = "None"
+    @ObservationIgnored var routeTask: Task<Void, Never>?
+    @ObservationIgnored var errorTask: Task<Void, Never>?
+    let diagnosticsHistoryLimit = 5
+    #endif
+
+    // MARK: - Init
+
+    init() {
+        #if DEBUG
+        setupDiagnosticsObservers()
+        #endif
+        refreshDiagnosticsConfig()
+    }
+
+    // MARK: - Orchestrator Binding
+
+    func bind(orchestrator: AgentOrchestrator) {
+        self.orchestrator = orchestrator
+        foundationModelsStatus = orchestrator.foundationModelsStatus
+        refreshDiagnosticsConfig()
+    }
+
+    func refreshFoundationStatus() {
+        guard let orchestrator else { return }
+        foundationModelsStatus = orchestrator.foundationModelsStatus
+    }
+
+    // MARK: - Diagnostics & Logging
+
     func refreshDiagnosticsConfig() {
         diagnosticsConfig = Diagnostics.currentConfig()
         diagnosticsSessionId = Diagnostics.sessionId
@@ -53,15 +103,13 @@ extension SettingsViewModel {
                     await orchestrator.diagnosticsSnapshot()
                 }
                 switch snapshotResult {
-                case .value(let value):
+                case let .value(value):
                     snapshot = value
                 case .timedOut:
                     snapshot = DiagnosticsSnapshot()
-                    debugLogSnapshot = "Diagnostics snapshot timed out; exporting partial report."
                 }
             } catch {
                 snapshot = DiagnosticsSnapshot()
-                debugLogSnapshot = "Diagnostics snapshot failed: \(error.localizedDescription)"
             }
         } else {
             snapshot = DiagnosticsSnapshot()
@@ -100,7 +148,7 @@ extension SettingsViewModel {
                                 name: "ui.diagnostics.report.build.failed",
                                 fields: [
                                     "session_id": .uuid(sessionId),
-                                    "persist_enabled": .bool(config.persistToDisk)
+                                    "persist_enabled": .bool(config.persistToDisk),
                                 ],
                                 error: error)
                 return nil
@@ -112,19 +160,7 @@ extension SettingsViewModel {
 
     func clearDiagnostics() async {
         await Diagnostics.clearDiagnostics()
-        debugLogSnapshot = ""
         diagnosticsExportURL = nil
-    }
-
-    func refreshDebugLog() async {
-        guard let orchestrator else {
-            debugLogSnapshot = "Debug log unavailable (orchestrator not ready)"
-            return
-        }
-        let snapshot = await orchestrator.debugLogSnapshot()
-        await MainActor.run {
-            debugLogSnapshot = snapshot.isEmpty ? "No events captured yet." : snapshot
-        }
     }
 
     static func appVersion() -> String {
@@ -190,7 +226,7 @@ extension SettingsViewModel {
                        let count = note.userInfo?["count"] as? Int {
                         lastCoverageSummary = "matches=\(count) top=\(String(format: "%.2f", top)) median=\(String(format: "%.2f", median))"
                     } else {
-                        lastCoverageSummary = "–"
+                        lastCoverageSummary = "---"
                     }
                 }
             }
@@ -206,6 +242,11 @@ extension SettingsViewModel {
                 }
             }
         }
+    }
+
+    deinit {
+        routeTask?.cancel()
+        errorTask?.cancel()
     }
     #endif
 }

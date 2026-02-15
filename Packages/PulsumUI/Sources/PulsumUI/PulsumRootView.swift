@@ -182,6 +182,8 @@ struct MainContainerView: View {
         .sheet(isPresented: settingsSheetBinding) {
             SettingsScreen(
                 viewModel: viewModel.settingsViewModel,
+                healthViewModel: viewModel.healthSettingsViewModel,
+                diagnosticsViewModel: viewModel.diagnosticsViewModel,
                 wellbeingState: viewModel.coachViewModel.wellbeingState,
                 snapshotKind: viewModel.coachViewModel.snapshotKind
             )
@@ -273,7 +275,7 @@ struct MainContainerView: View {
                 WellbeingPlaceholderCard()
             } else {
                 WellbeingNoDataCard(reason: reason) {
-                    Task { await viewModel.settingsViewModel.requestHealthKitAuthorization() }
+                    Task { await viewModel.healthSettingsViewModel.requestHealthKitAuthorization() }
                 }
             }
         case let .error(message):

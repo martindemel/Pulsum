@@ -43,7 +43,8 @@ final class PulseViewModel {
     var sliderErrorMessage: String?
 
     var isAnalyzing = false
-    var onSafetyDecision: ((SafetyDecision) -> Void)?
+    /// Observable safety decision property (P0-26: replaces onSafetyDecision closure).
+    var lastSafetyDecision: SafetyDecision?
     var savedToastMessage: String?
 
     func bind(orchestrator: AgentOrchestrator) {
@@ -195,7 +196,7 @@ final class PulseViewModel {
         transcript = response.result.transcript
         sentimentScore = response.result.sentimentScore
         lastCapturedAt = Date()
-        onSafetyDecision?(response.safety)
+        lastSafetyDecision = response.safety
         analysisError = nil
         if response.result.embeddingPending {
             savedToastMessage = "Saved. We'll finish analyzing this entry soon."

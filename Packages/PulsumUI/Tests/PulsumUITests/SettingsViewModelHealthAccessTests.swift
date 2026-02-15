@@ -28,7 +28,7 @@ final class SettingsViewModelHealthAccessTests: XCTestCase {
 
         let dataAgent = HealthStatusDataAgentStub(statuses: [pending, granted])
         let orchestrator = try makeOrchestrator(dataAgent: dataAgent)
-        let viewModel = SettingsViewModel(initialConsent: false)
+        let viewModel = HealthSettingsViewModel()
 
         viewModel.bind(orchestrator: orchestrator)
         viewModel.refreshHealthAccessStatus()

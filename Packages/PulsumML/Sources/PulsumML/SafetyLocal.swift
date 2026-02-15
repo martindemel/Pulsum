@@ -35,7 +35,9 @@ public struct SafetyLocalConfig {
     }
 }
 
-public final class SafetyLocal {
+// SAFETY: All mutable state is protected by `prototypeQueue` (serialized DispatchQueue).
+// Immutable properties (`config`, `embeddingService`) are set once in init.
+public final class SafetyLocal: @unchecked Sendable {
     private enum Label: String { case safe, caution, crisis }
 
     private struct Prototype {

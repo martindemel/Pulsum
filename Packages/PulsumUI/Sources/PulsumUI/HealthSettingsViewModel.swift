@@ -1,11 +1,59 @@
 import Foundation
+import Observation
 import PulsumAgents
 import PulsumServices
 import PulsumTypes
 
-// MARK: - HealthKit Authorization & Status
+/// View model for HealthKit authorization & status display in Settings.
+///
+/// Extracted from SettingsViewModel (Phase 0G, P0-23).
+@MainActor
+@Observable
+final class HealthSettingsViewModel {
+    // MARK: - HealthKit State
 
-extension SettingsViewModel {
+    struct HealthAccessRow: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let detail: String
+        let iconName: String
+        let status: HealthAccessGrantState
+    }
+
+    @ObservationIgnored var orchestrator: AgentOrchestrator?
+
+    var healthKitDebugSummary: String = ""
+    var healthKitSummary: String = "Checking..."
+    var missingHealthKitDetail: String?
+    var healthAccessRows: [HealthAccessRow] = HealthAccessRequirement.ordered.map {
+        HealthAccessRow(id: $0.id,
+                        title: $0.title,
+                        detail: $0.detail,
+                        iconName: $0.iconName,
+                        status: .pending)
+    }
+
+    var showHealthKitUnavailableBanner: Bool = false
+    var isRequestingHealthKitAuthorization: Bool = false
+    var canRequestHealthKitAccess: Bool = true
+    var healthKitError: String?
+    var healthKitSuccessMessage: String?
+    @ObservationIgnored var healthKitSuccessTask: Task<Void, Never>?
+    var lastHealthAccessStatus: HealthAccessStatus?
+    var awaitingToastAfterRequest: Bool = false
+    var didApplyInitialStatus: Bool = false
+
+    var debugLogSnapshot: String = ""
+
+    // MARK: - Orchestrator Binding
+
+    func bind(orchestrator: AgentOrchestrator) {
+        self.orchestrator = orchestrator
+        refreshHealthAccessStatus()
+    }
+
+    // MARK: - HealthKit Authorization & Status
+
     func refreshHealthAccessStatus() {
         guard let orchestrator else {
             healthKitSummary = "Agent unavailable"
@@ -127,7 +175,7 @@ extension SettingsViewModel {
             } else {
                 missingHealthKitDetail = "Missing: \(missingTitles.joined(separator: ", "))"
             }
-        case .unavailable(let reason):
+        case let .unavailable(reason):
             healthKitSummary = "Health data unavailable"
             showHealthKitUnavailableBanner = true
             missingHealthKitDetail = reason
@@ -191,5 +239,16 @@ extension SettingsViewModel {
         let denied = status.denied.map(\.identifier).sorted().joined(separator: ", ")
         let pending = status.notDetermined.map(\.identifier).sorted().joined(separator: ", ")
         return "Granted: [\(granted)] | Denied: [\(denied)] | Pending: [\(pending)] | Availability: \(status.availability)"
+    }
+
+    func refreshDebugLog() async {
+        guard let orchestrator else {
+            debugLogSnapshot = "Debug log unavailable (orchestrator not ready)"
+            return
+        }
+        let snapshot = await orchestrator.debugLogSnapshot()
+        await MainActor.run {
+            debugLogSnapshot = snapshot.isEmpty ? "No events captured yet." : snapshot
+        }
     }
 }

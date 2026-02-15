@@ -62,8 +62,6 @@ extension SettingsViewModel {
             gptAPIStatus = "Missing API key"
             isGPTAPIWorking = false
             consentGranted = false
-            debugLogSnapshot = ""
-            diagnosticsExportURL = nil
 
             deleteAllDataMessage = "All data has been deleted."
 
@@ -71,8 +69,8 @@ extension SettingsViewModel {
                             category: .app,
                             name: "app.data.deleteAll.success")
 
-            // Notify parent to reset to onboarding
-            onDataDeleted?()
+            // Signal data deletion via observable property (P0-26)
+            dataDidDelete.toggle()
         } catch {
             deleteAllDataMessage = "Failed to delete data: \(error.localizedDescription)"
             Diagnostics.log(level: .error,

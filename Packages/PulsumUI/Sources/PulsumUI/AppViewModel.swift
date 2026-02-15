@@ -70,6 +70,8 @@ final class AppViewModel {
     let coachViewModel: CoachViewModel
     let pulseViewModel: PulseViewModel
     let settingsViewModel: SettingsViewModel
+    let healthSettingsViewModel: HealthSettingsViewModel
+    let diagnosticsViewModel: DiagnosticsViewModel
     private let startupTraceId = UUID()
     private var didEmitFirstRunStart = false
     private var didEmitFirstRunEnd = false
@@ -102,6 +104,8 @@ final class AppViewModel {
         let coachVM = CoachViewModel()
         let pulseVM = PulseViewModel()
         let settingsVM = SettingsViewModel(initialConsent: consent)
+        let healthVM = HealthSettingsViewModel()
+        let diagVM = DiagnosticsViewModel()
 
         self.consentStore = consentStore
         self.consentGranted = consent
@@ -111,6 +115,8 @@ final class AppViewModel {
         self.coachViewModel = coachVM
         self.pulseViewModel = pulseVM
         self.settingsViewModel = settingsVM
+        self.healthSettingsViewModel = healthVM
+        self.diagnosticsViewModel = diagVM
         if AppRuntimeConfig.hideConsentBanner {
             self.shouldHideConsentBanner = true
         }
@@ -120,24 +126,14 @@ final class AppViewModel {
         }
         #endif
 
-        settingsVM.onConsentChanged = { [weak self] newValue in
-            guard let self else { return }
-            self.updateConsent(to: newValue)
-        }
+        // P0-26: Observe settingsViewModel.consentDidChange instead of closure
+        observeConsentChanges()
 
-        settingsVM.onDataDeleted = { [weak self] in
-            guard let self else { return }
-            self.showOnboarding = true
-            self.isPresentingSettings = false
-        }
+        // P0-26: Observe settingsViewModel.dataDidDelete instead of closure
+        observeDataDeletion()
 
-        pulseVM.onSafetyDecision = { [weak self] decision in
-            guard let self else { return }
-            if !decision.allowCloud, case .crisis = decision.classification {
-                self.safetyMessage = decision.crisisMessage ?? "If in danger, call 911"
-                self.isShowingSafetyCard = true
-            }
-        }
+        // P0-26: Observe pulseViewModel.lastSafetyDecision instead of closure
+        observeSafetyDecisions()
 
         let scoreRefreshObserver = NotificationCenter.default.addObserver(forName: .pulsumScoresUpdated,
                                                                           object: nil,
@@ -242,7 +238,8 @@ final class AppViewModel {
                 self.settingsViewModel.modelContainer = stack.container
                 self.settingsViewModel.vectorIndexDirectory = stack.storagePaths.vectorIndexDirectory
                 self.settingsViewModel.bind(orchestrator: orchestrator)
-                self.settingsViewModel.refreshFoundationStatus()
+                self.healthSettingsViewModel.bind(orchestrator: orchestrator)
+                self.diagnosticsViewModel.bind(orchestrator: orchestrator)
                 Diagnostics.log(level: .info,
                                 category: .ui,
                                 name: "timeline.firstRun.checkpoint",
@@ -260,7 +257,7 @@ final class AppViewModel {
                     do {
                         try await orchestrator.start(traceId: startupTraceId)
                         startSpan.end(error: nil)
-                        self.settingsViewModel.refreshHealthAccessStatus()
+                        self.healthSettingsViewModel.refreshHealthAccessStatus()
                         await self.coachViewModel.refreshRecommendations()
                         if let deferred = analysisDeferredFields(from: await orchestrator.diagnosticsSnapshot()) {
                             var fields = deferred.fields
@@ -374,6 +371,50 @@ final class AppViewModel {
         guard startupState == .ready, let orchestrator else { return }
         Task {
             await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: startupTraceId)
+        }
+    }
+
+    // MARK: - P0-26: Observable property observation (replaces closure callbacks)
+
+    private func observeConsentChanges() {
+        withObservationTracking {
+            _ = settingsViewModel.consentDidChange
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateConsent(to: self.settingsViewModel.consentGranted)
+                self.observeConsentChanges()
+            }
+        }
+    }
+
+    private func observeDataDeletion() {
+        withObservationTracking {
+            _ = settingsViewModel.dataDidDelete
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.showOnboarding = true
+                self.isPresentingSettings = false
+                self.observeDataDeletion()
+            }
+        }
+    }
+
+    private func observeSafetyDecisions() {
+        withObservationTracking {
+            _ = pulseViewModel.lastSafetyDecision
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if let decision = self.pulseViewModel.lastSafetyDecision {
+                    if !decision.allowCloud, case .crisis = decision.classification {
+                        self.safetyMessage = decision.crisisMessage ?? "If in danger, call 911"
+                        self.isShowingSafetyCard = true
+                    }
+                }
+                self.observeSafetyDecisions()
+            }
         }
     }
 }
