@@ -125,7 +125,8 @@ public actor VectorStore {
             data.append(Data(bytes: &idLen, count: MemoryLayout<UInt16>.size))
             data.append(idData)
             vector.withUnsafeBufferPointer { buffer in
-                data.append(UnsafeBufferPointer(start: UnsafeRawPointer(buffer.baseAddress!)
+                guard let baseAddress = buffer.baseAddress else { return }
+                data.append(UnsafeBufferPointer(start: UnsafeRawPointer(baseAddress)
                         .assumingMemoryBound(to: UInt8.self), count: vectorByteSize))
             }
         }

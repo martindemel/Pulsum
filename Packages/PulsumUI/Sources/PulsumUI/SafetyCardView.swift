@@ -10,9 +10,9 @@ struct SafetyCardView: View {
         crisisResources?.emergencyNumber ?? "911"
     }
 
-    private var emergencyTelURL: URL {
+    private var emergencyTelURL: URL? {
         let digits = emergencyNumber.filter(\.isNumber)
-        return URL(string: "tel://\(digits)") ?? URL(string: "tel://911")!
+        return URL(string: "tel://\(digits)") ?? URL(string: "tel://911")
     }
 
     var body: some View {
@@ -44,52 +44,14 @@ struct SafetyCardView: View {
 
                 VStack(spacing: PulsumSpacing.md) {
                     // Emergency Call Button
-                    Link(destination: emergencyTelURL) {
-                        HStack {
-                            Image(systemName: "phone.fill")
-                                .font(.pulsumHeadline)
-                            Text(String(localized: "Call \(emergencyNumber)"))
-                                .font(.pulsumHeadline)
+                    if let url = emergencyTelURL {
+                        Link(destination: url) {
+                            emergencyCallLabel
                         }
-                        .foregroundStyle(Color.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, PulsumSpacing.md)
-                        .background(Color.pulsumError)
-                        .cornerRadius(PulsumRadius.md)
                     }
 
                     // Crisis Line Button (locale-aware) or findahelpline.com fallback
-                    if let name = crisisResources?.crisisLineName,
-                       let number = crisisResources?.crisisLineNumber {
-                        let crisisDigits = number.filter(\.isNumber)
-                        Link(destination: URL(string: "tel://\(crisisDigits)") ?? URL(string: "tel://988")!) {
-                            HStack {
-                                Image(systemName: "phone.fill")
-                                    .font(.pulsumHeadline)
-                                Text("\(name) (\(number))")
-                                    .font(.pulsumHeadline)
-                            }
-                            .foregroundStyle(Color.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, PulsumSpacing.md)
-                            .background(Color.pulsumWarning)
-                            .cornerRadius(PulsumRadius.md)
-                        }
-                    } else {
-                        Link(destination: URL(string: "https://findahelpline.com")!) {
-                            HStack {
-                                Image(systemName: "globe")
-                                    .font(.pulsumHeadline)
-                                Text(String(localized: "Find a Helpline"))
-                                    .font(.pulsumHeadline)
-                            }
-                            .foregroundStyle(Color.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, PulsumSpacing.md)
-                            .background(Color.pulsumWarning)
-                            .cornerRadius(PulsumRadius.md)
-                        }
-                    }
+                    crisisLineButton
 
                     // I'm Safe Button
                     Button(action: dismiss) {
@@ -119,5 +81,67 @@ struct SafetyCardView: View {
             )
             .padding(PulsumSpacing.lg)
         }
+    }
+
+    private var emergencyCallLabel: some View {
+        HStack {
+            Image(systemName: "phone.fill")
+                .font(.pulsumHeadline)
+            Text(String(localized: "Call \(emergencyNumber)"))
+                .font(.pulsumHeadline)
+        }
+        .foregroundStyle(Color.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, PulsumSpacing.md)
+        .background(Color.pulsumError)
+        .cornerRadius(PulsumRadius.md)
+    }
+
+    @ViewBuilder
+    private var crisisLineButton: some View {
+        if let name = crisisResources?.crisisLineName,
+           let number = crisisResources?.crisisLineNumber,
+           let url = crisisLineTelURL(for: number) {
+            Link(destination: url) {
+                crisisLineLinkLabel(name: name, number: number)
+            }
+        } else if let url = URL(string: "https://findahelpline.com") {
+            Link(destination: url) {
+                findHelplineLinkLabel
+            }
+        }
+    }
+
+    private func crisisLineTelURL(for number: String) -> URL? {
+        let crisisDigits = number.filter(\.isNumber)
+        return URL(string: "tel://\(crisisDigits)") ?? URL(string: "tel://988")
+    }
+
+    private func crisisLineLinkLabel(name: String, number: String) -> some View {
+        HStack {
+            Image(systemName: "phone.fill")
+                .font(.pulsumHeadline)
+            Text("\(name) (\(number))")
+                .font(.pulsumHeadline)
+        }
+        .foregroundStyle(Color.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, PulsumSpacing.md)
+        .background(Color.pulsumWarning)
+        .cornerRadius(PulsumRadius.md)
+    }
+
+    private var findHelplineLinkLabel: some View {
+        HStack {
+            Image(systemName: "globe")
+                .font(.pulsumHeadline)
+            Text(String(localized: "Find a Helpline"))
+                .font(.pulsumHeadline)
+        }
+        .foregroundStyle(Color.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, PulsumSpacing.md)
+        .background(Color.pulsumWarning)
+        .cornerRadius(PulsumRadius.md)
     }
 }

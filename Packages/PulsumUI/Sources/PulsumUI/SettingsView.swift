@@ -396,8 +396,10 @@ struct SettingsScreen: View {
 
                                     if needsEnableLink(status: diagnosticsViewModel.foundationModelsStatus) {
                                         #if os(macOS)
-                                        Link(destination: URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings")!) {
-                                            appleIntelligenceLinkContent()
+                                        if let url = URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings") {
+                                            Link(destination: url) {
+                                                appleIntelligenceLinkContent()
+                                            }
                                         }
                                         #else
                                         Button {
@@ -429,27 +431,31 @@ struct SettingsScreen: View {
                                     .padding(.horizontal, PulsumSpacing.lg)
 
                                 VStack(spacing: PulsumSpacing.sm) {
-                                    Link(destination: URL(string: "tel://911")!) {
-                                        HStack {
-                                            Text("If you're in crisis, dial 911")
-                                                .font(.pulsumBody)
-                                                .foregroundStyle(Color.pulsumError)
-                                            Spacer()
-                                            Image(systemName: "phone.fill")
-                                                .foregroundStyle(Color.pulsumError)
+                                    if let url = URL(string: "tel://911") {
+                                        Link(destination: url) {
+                                            HStack {
+                                                Text("If you're in crisis, dial 911")
+                                                    .font(.pulsumBody)
+                                                    .foregroundStyle(Color.pulsumError)
+                                                Spacer()
+                                                Image(systemName: "phone.fill")
+                                                    .foregroundStyle(Color.pulsumError)
+                                            }
                                         }
                                     }
 
                                     Divider()
 
-                                    Link(destination: URL(string: "tel://988")!) {
-                                        HStack {
-                                            Text("988 Suicide & Crisis Lifeline")
-                                                .font(.pulsumBody)
-                                                .foregroundStyle(Color.pulsumTextPrimary)
-                                            Spacer()
-                                            Image(systemName: "phone.fill")
-                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                    if let url = URL(string: "tel://988") {
+                                        Link(destination: url) {
+                                            HStack {
+                                                Text("988 Suicide & Crisis Lifeline")
+                                                    .font(.pulsumBody)
+                                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                                Spacer()
+                                                Image(systemName: "phone.fill")
+                                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                            }
                                         }
                                     }
                                 }
@@ -472,15 +478,17 @@ struct SettingsScreen: View {
                                     .padding(.horizontal, PulsumSpacing.lg)
 
                                 VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                                    Link(destination: URL(string: "https://pulsum.ai/privacy")!) {
-                                        HStack {
-                                            Text("Privacy policy")
-                                                .font(.pulsumBody)
-                                                .foregroundStyle(Color.pulsumBlueSoft)
-                                            Spacer()
-                                            Image(systemName: "arrow.up.right")
-                                                .font(.pulsumCaption)
-                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                    if let url = URL(string: "https://pulsum.ai/privacy") {
+                                        Link(destination: url) {
+                                            HStack {
+                                                Text("Privacy policy")
+                                                    .font(.pulsumBody)
+                                                    .foregroundStyle(Color.pulsumBlueSoft)
+                                                Spacer()
+                                                Image(systemName: "arrow.up.right")
+                                                    .font(.pulsumCaption)
+                                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                            }
                                         }
                                     }
 

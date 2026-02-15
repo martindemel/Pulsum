@@ -576,11 +576,6 @@ private func validateChatPayload(body: [String: Any],
 
     if !(128 ... 1024).contains(maxTokens) { return false }
 
-    guard let input = body["input"] as? [[String: Any]], input.count == 2,
-          (input.first? ["role"] as? String) == "system",
-          (input.last? ["role"] as? String) == "user"
-    else { return false }
-
     guard let input = body["input"] as? [[String: Any]],
           input.count == 2,
           (input.first?["role"] as? String) == "system",
@@ -943,12 +938,12 @@ extension LLMGateway {
 
 extension LLMGateway: @unchecked Sendable {}
 
-// MARK: - Certificate Pinning
+// MARK: - TLS Trust Evaluation
 
-/// Validates that connections to api.openai.com use certificates from expected CAs.
-/// Uses SPKI (Subject Public Key Info) pinning against the Let's Encrypt and DigiCert root CAs
-/// commonly used by OpenAI's Cloudflare-fronted API. Falls back to default validation for
-/// non-OpenAI hosts or if pinning setup fails.
+/// Standard TLS trust evaluation for api.openai.com connections.
+/// Does NOT perform SPKI pinning — uses the OS trust store to validate the certificate chain.
+/// Falls back to default handling for non-OpenAI hosts.
+// TODO: Actual SPKI pinning with hardcoded key hashes deferred to v1.1
 private final class OpenAICertificatePinningDelegate: NSObject, URLSessionDelegate {
     private let pinnedHost = "api.openai.com"
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.CertPin")
