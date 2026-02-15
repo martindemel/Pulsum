@@ -1,3 +1,4 @@
+import Testing
 import XCTest
 @testable import PulsumData
 
@@ -47,5 +48,43 @@ final class VectorIndexTests: XCTestCase {
         try await store.bulkUpsert(items)
         let stats = await store.stats()
         XCTAssertEqual(stats.items, 50)
+    }
+}
+
+// MARK: - B7-11 | TC-18: VectorStore unaligned access test
+
+struct VectorStoreUnalignedTests {
+    @Test("Odd-length IDs persist and reload correctly (unaligned float offsets)")
+    func test_oddLengthIds_persistAndReload() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VectorStoreUnaligned-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("unaligned.vecstore")
+        // IDs of lengths 1, 3, 5, 7, 11 bytes — odd lengths cause float data
+        // to start at non-4-byte-aligned offsets in the binary format.
+        let oddIds = ["a", "abc", "abcde", "abcdefg", "abcdefghijk"]
+        let dimension = 384
+
+        let store1 = VectorStore(fileURL: fileURL)
+        for (i, id) in oddIds.enumerated() {
+            let vector = (0 ..< dimension).map { Float($0) * 0.001 + Float(i) * 0.1 }
+            try await store1.upsert(id: id, vector: vector)
+        }
+        try await store1.persist()
+
+        // Reload from same file
+        let store2 = VectorStore(fileURL: fileURL)
+        let stats = await store2.stats()
+        #expect(stats.items == oddIds.count)
+
+        // Verify all entries survive round-trip with correct vectors
+        for (i, id) in oddIds.enumerated() {
+            let expectedVector = (0 ..< dimension).map { Float($0) * 0.001 + Float(i) * 0.1 }
+            let results = try await store2.search(query: expectedVector, topK: 1)
+            #expect(results.first?.id == id, "Expected \(id) to be nearest neighbor for its own vector")
+            #expect(results.first?.score == 0, "Expected exact match (distance 0) for \(id)")
+        }
     }
 }

@@ -149,7 +149,7 @@ public actor VectorStore {
         }
 
         var cursor = 0
-        let entryCount = data.withUnsafeBytes { $0.load(fromByteOffset: cursor, as: UInt32.self) }.littleEndian
+        let entryCount = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: cursor, as: UInt32.self) }.littleEndian
         cursor += MemoryLayout<UInt32>.size
 
         let vectorByteSize = dimension * MemoryLayout<Float>.size
@@ -160,7 +160,7 @@ public actor VectorStore {
             guard cursor + MemoryLayout<UInt16>.size <= data.count else {
                 throw VectorStoreError.corruptFile("Unexpected end of file reading id length")
             }
-            let idLen = Int(data.withUnsafeBytes { $0.load(fromByteOffset: cursor, as: UInt16.self) }.littleEndian)
+            let idLen = Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: cursor, as: UInt16.self) }.littleEndian)
             cursor += MemoryLayout<UInt16>.size
 
             guard cursor + idLen + vectorByteSize <= data.count else {
