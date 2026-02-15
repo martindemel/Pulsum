@@ -14,37 +14,40 @@ public extension VectorIndexProviding {
 }
 
 public actor VectorIndexManager: VectorIndexProviding {
-    private let microMomentsIndex: VectorIndex
+    private let store: VectorStore
     private let embeddingService: EmbeddingService
 
     public init(directory: URL, embeddingService: EmbeddingService = .shared) {
+        let fileURL = directory.appendingPathComponent("micro_moments.vecstore")
         self.embeddingService = embeddingService
-        self.microMomentsIndex = VectorIndex(name: "micro_moments", directory: directory)
+        self.store = VectorStore(fileURL: fileURL)
     }
 
-    init(embeddingService: EmbeddingService = .shared, microMomentsIndex: VectorIndex) {
+    init(embeddingService: EmbeddingService = .shared, store: VectorStore) {
         self.embeddingService = embeddingService
-        self.microMomentsIndex = microMomentsIndex
+        self.store = store
     }
 
     @discardableResult
     public func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] {
         let segments = [title, detail ?? "", tags?.joined(separator: " ") ?? ""].filter { !$0.isEmpty }
         let embedding = try embeddingService.embedding(forSegments: segments)
-        try await microMomentsIndex.upsert(id: id, vector: embedding)
+        try await store.upsert(id: id, vector: embedding)
+        try await store.persist()
         return embedding
     }
 
     public func removeMicroMoment(id: String) async throws {
-        try await microMomentsIndex.remove(id: id)
+        await store.remove(id: id)
+        try await store.persist()
     }
 
     public func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
         let embedding = try embeddingService.embedding(for: query)
-        return try await microMomentsIndex.search(vector: embedding, topK: topK)
+        return try await store.search(query: embedding, topK: topK)
     }
 
     public func stats() async -> (shards: Int, items: Int) {
-        await microMomentsIndex.stats()
+        await store.stats()
     }
 }
