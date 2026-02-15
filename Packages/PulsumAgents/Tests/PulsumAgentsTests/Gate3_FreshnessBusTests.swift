@@ -7,8 +7,10 @@ final class Gate3_FreshnessBusTests: XCTestCase {
     func testReprocessDayPostsSingleNotification() async throws {
         let stub = HealthKitServiceStub()
         let center = RecordingNotificationCenter()
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               notificationCenter: center)
 
         let today = Date()
@@ -25,7 +27,10 @@ final class Gate3_FreshnessBusTests: XCTestCase {
 
     func testDebouncedNotificationsCoalesceBursts() async throws {
         let center = RecordingNotificationCenter()
-        let agent = DataAgent(notificationCenter: center)
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              notificationCenter: center)
         let day = Date()
         await agent._testPublishSnapshotUpdate(for: day)
         await agent._testPublishSnapshotUpdate(for: day)

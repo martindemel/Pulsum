@@ -1,5 +1,6 @@
 import XCTest
 @testable import PulsumAgents
+@testable import PulsumData
 @testable import PulsumML
 
 // swiftlint:disable:next type_name
@@ -11,9 +12,11 @@ final class Gate6_StateEstimatorPersistenceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let estimatorStore = EstimatorStateStore(baseDirectory: tempDirectory)
-        let container = TestCoreDataStack.makeContainer()
-        let agent = DataAgent(healthKit: HealthKitServiceStub(),
-                              container: container,
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let container = try TestCoreDataStack.makeContainer()
+        let agent = DataAgent(modelContainer: container,
+                              storagePaths: storagePaths,
+                              healthKit: HealthKitServiceStub(),
                               estimatorStore: estimatorStore)
 
         let featureInput: [String: Double] = [
@@ -35,8 +38,9 @@ final class Gate6_StateEstimatorPersistenceTests: XCTestCase {
         XCTAssertNotEqual(persisted.weights, StateEstimator.defaultWeights)
         XCTAssertEqual(persisted.bias, snapshot.bias)
 
-        let restarted = DataAgent(healthKit: HealthKitServiceStub(),
-                                  container: container,
+        let restarted = DataAgent(modelContainer: container,
+                                  storagePaths: storagePaths,
+                                  healthKit: HealthKitServiceStub(),
                                   estimatorStore: estimatorStore)
         let restartedState = await restarted._testEstimatorState()
         XCTAssertEqual(restartedState.weights, persisted.weights)

@@ -1,5 +1,6 @@
+import Foundation
 import Testing
-import CoreData
+import SwiftData
 @testable import PulsumAgents
 @testable import PulsumData
 
@@ -42,27 +43,25 @@ struct Gate4_RoutingTests {
         #expect(fallback == "z_hrv")
     }
 
-    @Test("candidateMoments omit detail when source is nil")
+    @MainActor @Test("candidateMoments omit detail when source is nil")
     func candidateMomentsHandleNilDetail() async throws {
-        let container = TestCoreDataStack.makeContainer()
-        let context = container.newBackgroundContext()
-        try context.performAndWait {
-            let moment = MicroMoment(context: context)
-            moment.id = "moment-1"
-            moment.title = "Breathing reset"
-            moment.shortDescription = "Take three calm breaths."
-            moment.detail = nil
-            moment.evidenceBadge = "Strong"
-            try context.save()
-        }
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let context = ModelContext(container)
+
+        let moment = MicroMoment(id: "moment-1",
+                                 title: "Breathing reset",
+                                 shortDescription: "Take three calm breaths.",
+                                 detail: nil,
+                                 evidenceBadge: "Strong")
+        context.insert(moment)
+        try context.save()
 
         let stubIndex = RoutingVectorIndexStub(matches: [VectorMatch(id: "moment-1", score: 0.1)])
-        let agent = try await MainActor.run {
-            try CoachAgent(container: container,
-                           vectorIndex: stubIndex,
-                           libraryImporter: LibraryImporter(),
-                           shouldIngestLibrary: false)
-        }
+        let agent = try CoachAgent(container: container,
+                                   storagePaths: storagePaths,
+                                   vectorIndex: stubIndex,
+                                   shouldIngestLibrary: false)
         let candidates = await agent.candidateMoments(for: "stress", limit: 1)
         #expect(candidates.count == 1)
         #expect(candidates.first?.detail == nil)
@@ -70,29 +69,18 @@ struct Gate4_RoutingTests {
 }
 
 private func makeSnapshot(features: [String: Double]) throws -> FeatureVectorSnapshot {
-    let container = TestCoreDataStack.makeContainer()
-    let context = container.newBackgroundContext()
+    let container = try TestCoreDataStack.makeContainer()
+    let context = ModelContext(container)
 
-    return try context.performAndWaitThrowing {
-        let vector = FeatureVector(context: context)
-        try context.obtainPermanentIDs(for: [vector])
-        return FeatureVectorSnapshot(date: Date(),
-                                     wellbeingScore: 0,
-                                     contributions: [:],
-                                     imputedFlags: [:],
-                                     featureVectorObjectID: vector.objectID,
-                                     features: features)
-    }
-}
-
-private extension NSManagedObjectContext {
-    func performAndWaitThrowing<T>(_ block: () throws -> T) throws -> T {
-        var result: Result<T, Error>!
-        performAndWait {
-            result = Result { try block() }
-        }
-        return try result.get()
-    }
+    let vector = FeatureVector(date: Date())
+    context.insert(vector)
+    try context.save()
+    return FeatureVectorSnapshot(date: Date(),
+                                               wellbeingScore: 0,
+                                               contributions: [:],
+                                               imputedFlags: [:],
+                                               featureVectorObjectID: vector.persistentModelID,
+                                               features: features)
 }
 
 private actor RoutingVectorIndexStub: VectorIndexProviding {

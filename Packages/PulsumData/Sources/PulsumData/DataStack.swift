@@ -27,6 +27,17 @@ public struct StoragePaths: Sendable {
     public let vectorIndexDirectory: URL
     public let healthAnchorsDirectory: URL
 
+    /// Memberwise init for testing or custom paths.
+    public init(applicationSupport: URL,
+                sqliteStoreURL: URL,
+                vectorIndexDirectory: URL,
+                healthAnchorsDirectory: URL) {
+        self.applicationSupport = applicationSupport
+        self.sqliteStoreURL = sqliteStoreURL
+        self.vectorIndexDirectory = vectorIndexDirectory
+        self.healthAnchorsDirectory = healthAnchorsDirectory
+    }
+
     public init(appGroup: String? = nil) throws {
         let fileManager = FileManager.default
         #if os(iOS)
@@ -100,7 +111,18 @@ public final class DataStack: Sendable {
         do {
             self.container = try ModelContainer(for: schema, configurations: [config])
         } catch {
-            throw DataStackError.storeInitializationFailed(underlying: error)
+            // If the store is from a previous Core Data schema, delete and retry once.
+            Self.logger.warning("Initial store open failed, attempting fresh store: \(error.localizedDescription, privacy: .public)")
+            let fileManager = FileManager.default
+            for suffix in ["", "-wal", "-shm"] {
+                let path = paths.sqliteStoreURL.path + suffix
+                try? fileManager.removeItem(atPath: path)
+            }
+            do {
+                self.container = try ModelContainer(for: schema, configurations: [config])
+            } catch {
+                throw DataStackError.storeInitializationFailed(underlying: error)
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-import CoreData
+import SwiftData
 import XCTest
 import PulsumData
 import PulsumML
@@ -8,16 +8,19 @@ import PulsumML
 final class LibraryImportRetryTests: XCTestCase {
     func testRetryDeferredLibraryImportSkipsWhenNotDeferred() async throws {
         let sourceName = "library_retry_test.json"
-        try await purgeLibraryIngestRecords(source: sourceName)
+        try purgeLibraryIngestRecords(source: sourceName)
 
         let vectorIndex = CountingVectorIndex()
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
         let config = LibraryImporterConfiguration(bundle: Bundle.module,
                                                   subdirectory: nil,
                                                   fileExtension: "json")
         let importer = LibraryImporter(configuration: config,
-                                       vectorIndex: vectorIndex)
-        let container = TestCoreDataStack.makeContainer()
+                                       vectorIndex: vectorIndex,
+                                       modelContainer: container)
         let coachAgent = try CoachAgent(container: container,
+                                        storagePaths: storagePaths,
                                         vectorIndex: vectorIndex,
                                         libraryImporter: importer,
                                         shouldIngestLibrary: true)
@@ -26,6 +29,19 @@ final class LibraryImportRetryTests: XCTestCase {
 
         let count = await vectorIndex.upsertCount
         XCTAssertEqual(count, 0)
+    }
+
+    private func purgeLibraryIngestRecords(source: String) throws {
+        let container = try TestCoreDataStack.makeContainer()
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<LibraryIngest>(predicate: #Predicate { $0.source == source })
+        let results = try context.fetch(descriptor)
+        for ingest in results {
+            context.delete(ingest)
+        }
+        if context.hasChanges {
+            try context.save()
+        }
     }
 }
 
@@ -42,20 +58,5 @@ private actor CountingVectorIndex: VectorIndexProviding {
 
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] {
         []
-    }
-}
-
-private func purgeLibraryIngestRecords(source: String) async throws {
-    let context = PulsumData.newBackgroundContext(name: "Pulsum.Tests.LibraryImportRetry")
-    try await context.perform {
-        let request: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
-        request.predicate = NSPredicate(format: "source == %@", source)
-        let results = try context.fetch(request)
-        for ingest in results {
-            context.delete(ingest)
-        }
-        if context.hasChanges {
-            try context.save()
-        }
     }
 }

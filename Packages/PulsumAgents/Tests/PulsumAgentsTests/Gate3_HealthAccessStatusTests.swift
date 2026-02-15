@@ -11,7 +11,7 @@ final class Gate3_HealthAccessStatusTests: XCTestCase {
         for type in HealthKitService.orderedReadSampleTypes {
             stub.readProbeResults[type.identifier] = type.identifier == sleepIdentifier ? .denied : .authorized
         }
-        let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(), storagePaths: TestCoreDataStack.makeTestStoragePaths(), healthKit: stub)
 
         let status = await agent.currentHealthAccessStatus()
 
@@ -48,7 +48,7 @@ final class Gate3_HealthAccessStatusTests: XCTestCase {
             stub.authorizationStatuses[type.identifier] = .sharingDenied
             stub.readProbeResults[type.identifier] = .authorized
         }
-        let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(), storagePaths: TestCoreDataStack.makeTestStoragePaths(), healthKit: stub)
 
         let status = await agent.currentHealthAccessStatus()
         XCTAssertEqual(status.granted.count, types.count)
@@ -79,7 +79,7 @@ final class Gate3_HealthAccessStatusTests: XCTestCase {
             }
         }
 
-        let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(), storagePaths: TestCoreDataStack.makeTestStoragePaths(), healthKit: stub)
 
         let status = await agent.currentHealthAccessStatus()
         XCTAssertTrue(status.denied.contains { $0.identifier == deniedType.identifier })

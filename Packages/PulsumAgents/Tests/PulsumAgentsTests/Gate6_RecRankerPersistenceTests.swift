@@ -2,6 +2,7 @@
 @testable import PulsumData
 import PulsumML
 import PulsumServices
+import SwiftData
 import XCTest
 
 @MainActor
@@ -11,9 +12,10 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let rankerStore = RecRankerStateStore(baseDirectory: tempDirectory)
-        let container = TestCoreDataStack.makeContainer()
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
 
-        let agent = try makeCoachAgent(container: container, rankerStore: rankerStore)
+        let agent = try makeCoachAgent(container: container, storagePaths: storagePaths, rankerStore: rankerStore)
 
         let initialMetrics = await agent._testRankerMetrics()
 
@@ -42,7 +44,7 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
         let updatedMetrics = await agent._testRankerMetrics()
         XCTAssertNotEqual(updatedMetrics.weights, initialMetrics.weights, "Weights should update after feedback.")
 
-        let restarted = try makeCoachAgent(container: container, rankerStore: rankerStore)
+        let restarted = try makeCoachAgent(container: container, storagePaths: storagePaths, rankerStore: rankerStore)
         let restoredMetrics = await restarted._testRankerMetrics()
 
         XCTAssertEqual(restoredMetrics.weights, updatedMetrics.weights)
@@ -50,13 +52,13 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
     }
 
     @MainActor
-    private func makeCoachAgent(container: NSPersistentContainer,
+    private func makeCoachAgent(container: ModelContainer,
+                                storagePaths: StoragePaths,
                                 rankerStore: RecRankerStateStoring) throws -> CoachAgent {
         let vectorIndex = VectorIndexStub()
         return try CoachAgent(container: container,
+                              storagePaths: storagePaths,
                               vectorIndex: vectorIndex,
-                              libraryImporter: LibraryImporter(),
-                              llmGateway: LLMGateway(),
                               shouldIngestLibrary: false,
                               rankerStore: rankerStore)
     }

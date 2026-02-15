@@ -1,7 +1,9 @@
 #if DEBUG
 import Foundation
+import SwiftData
 import XCTest
 @testable import PulsumAgents
+@testable import PulsumData
 @testable import PulsumServices
 import PulsumML
 import PulsumTypes
@@ -48,11 +50,16 @@ final class Gate2_OrchestratorLLMKeyAPITests: XCTestCase {
     }
 
     private func makeCoachAgent() throws -> CoachAgent {
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let gateway = LLMGateway(keychain: InMemoryKeychain(), session: session)
-        return try CoachAgent(llmGateway: gateway, shouldIngestLibrary: false)
+        return try CoachAgent(container: container,
+                              storagePaths: storagePaths,
+                              llmGateway: gateway,
+                              shouldIngestLibrary: false)
     }
 }
 
@@ -61,7 +68,7 @@ final class Gate2_OrchestratorLLMKeyAPITests: XCTestCase {
 private actor DataAgentStub: DataAgentProviding {
     func setDiagnosticsTraceId(_ traceId: UUID?) async {}
     func start() async throws {}
-    func latestFeatureVector() async throws -> FeatureVectorSnapshot? { nil }
+    func latestFeatureVector() async throws -> AgentSnapshot? { nil }
     func recordSubjectiveInputs(date: Date,
                                 stress: Double,
                                 energy: Double,

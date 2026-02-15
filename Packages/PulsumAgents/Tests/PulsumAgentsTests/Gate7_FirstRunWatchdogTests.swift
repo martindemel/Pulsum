@@ -20,6 +20,7 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
         stub.fetchDelayNanoseconds = 400_000_000
 
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
         let policy = DataAgentBootstrapPolicy(bootstrapTimeoutSeconds: 0.25,
                                               heartRateTimeoutSeconds: 0.25,
                                               backfillTimeoutSeconds: 0.25,
@@ -28,11 +29,12 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
                                               retryTimeoutSeconds: 0.6,
                                               retryMaxAttempts: 1,
                                               retryMaxElapsedSeconds: 2)
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
-                              backfillStore: BackfillStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
+                              backfillStore: BackfillStateStore(baseDirectory: storagePaths.applicationSupport),
                               bootstrapPolicy: policy)
 
         let startTask = Task { try await agent.start() }
@@ -65,6 +67,7 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
                                                   timeZone: timeZone)
         stub.fetchDelayNanoseconds = 300_000_000
 
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
         let policy = DataAgentBootstrapPolicy(bootstrapTimeoutSeconds: 0.2,
                                               heartRateTimeoutSeconds: 0.2,
                                               backfillTimeoutSeconds: 0.2,
@@ -73,11 +76,12 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
                                               retryTimeoutSeconds: 1.2,
                                               retryMaxAttempts: 1,
                                               retryMaxElapsedSeconds: 5)
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
-                              backfillStore: BackfillStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
+                              backfillStore: BackfillStateStore(baseDirectory: storagePaths.applicationSupport),
                               bootstrapPolicy: policy)
 
         let startTask = Task { try await agent.start() }
@@ -108,7 +112,7 @@ final class Gate7_FirstRunWatchdogTests: XCTestCase {
 
     private func waitForSnapshot(agent: DataAgent,
                                  timeout: TimeInterval,
-                                 predicate: @escaping (FeatureVectorSnapshot) -> Bool) async -> FeatureVectorSnapshot? {
+                                 predicate: @escaping (AgentSnapshot) -> Bool) async -> AgentSnapshot? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let snapshot = try? await agent.latestFeatureVector(), predicate(snapshot) {

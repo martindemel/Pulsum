@@ -1,5 +1,5 @@
 import XCTest
-import CoreData
+import SwiftData
 @testable import PulsumAgents
 @testable import PulsumData
 @testable import PulsumServices
@@ -8,7 +8,7 @@ import CoreData
 
 @MainActor
 final class AgentSystemTests: XCTestCase {
-    
+
     func testFoundationModelsAvailability() async throws {
         guard #available(iOS 26.0, *) else {
             throw XCTSkip("Foundation Models require iOS 26")
@@ -17,7 +17,7 @@ final class AgentSystemTests: XCTestCase {
         let message = FoundationModelsAvailability.availabilityMessage(for: status)
         XCTAssertFalse(message.isEmpty)
     }
-    
+
     func testSafetyAgentFlagsCrisis() async throws {
 #if !os(iOS)
         throw XCTSkip("Safety agent FM classification validated on iOS 26+ only")
@@ -40,12 +40,14 @@ final class AgentSystemTests: XCTestCase {
 #if !os(iOS)
         throw XCTSkip("HealthKit orchestration only available on iOS")
 #else
-        let orchestrator = try AgentOrchestrator()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let container = try TestCoreDataStack.makeContainer()
+        let orchestrator = try AgentOrchestrator(container: container, storagePaths: storagePaths)
         try await orchestrator.start()
-        
+
         // Test that orchestrator initializes without throwing
         XCTAssertNotNil(orchestrator)
-        
+
         // Test Foundation Models status reporting
         let status = orchestrator.foundationModelsStatus
         XCTAssertFalse(status.isEmpty)
@@ -56,31 +58,13 @@ final class AgentSystemTests: XCTestCase {
 #if !os(iOS)
         throw XCTSkip("Sentiment journal pipeline only validated on iOS")
 #else
-        let container = makeInMemoryContainer()
-        let agent = SentimentAgent(container: container)
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let container = try TestCoreDataStack.makeContainer()
+        let agent = SentimentAgent(container: container,
+                                   vectorIndexDirectory: storagePaths.vectorIndexDirectory)
         let result = try await agent.importTranscript("Contact me at sample@example.com about the plan.")
         XCTAssertFalse(result.transcript.contains("example.com"))
         XCTAssertTrue(result.transcript.contains("[redacted]"))
 #endif
     }
-
-    private func makeInMemoryContainer() -> NSPersistentContainer {
-        let container = NSPersistentContainer(name: "Pulsum")
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        description.shouldAddStoreAsynchronously = false
-        container.persistentStoreDescriptions = [description]
-        container.loadPersistentStores { _, error in
-            if let error { fatalError("In-memory store error: \(error)") }
-        }
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        return container
-    }
 }
-
-
-
-
-
-
-

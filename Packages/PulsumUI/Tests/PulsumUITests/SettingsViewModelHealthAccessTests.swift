@@ -4,7 +4,9 @@
 import PulsumData
 import PulsumML
 import PulsumTypes
+import SwiftData
 import XCTest
+
 
 @MainActor
 final class SettingsViewModelHealthAccessTests: XCTestCase {
@@ -57,9 +59,13 @@ final class SettingsViewModelHealthAccessTests: XCTestCase {
     }
 
     private func makeOrchestrator(dataAgent: any DataAgentProviding) throws -> AgentOrchestrator {
-        let coachAgent = try CoachAgent(container: TestCoreDataStack.makeContainer(),
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let coachAgent = try CoachAgent(container: container,
+                                        storagePaths: storagePaths,
                                         vectorIndex: VectorIndexStub(),
-                                        libraryImporter: LibraryImporter(),
+                                        libraryImporter: LibraryImporter(vectorIndex: VectorIndexStub(),
+                                                                         modelContainer: container),
                                         llmGateway: LLMGateway(),
                                         shouldIngestLibrary: false)
         return AgentOrchestrator(
@@ -83,7 +89,7 @@ private actor HealthStatusDataAgentStub: DataAgentProviding {
 
     func start() async throws {}
     func setDiagnosticsTraceId(_ traceId: UUID?) async {}
-    func latestFeatureVector() async throws -> FeatureVectorSnapshot? { nil }
+    func latestFeatureVector() async throws -> AgentSnapshot? { nil }
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {}
     func scoreBreakdown() async throws -> ScoreBreakdown? { nil }
     func reprocessDay(date: Date) async throws {}

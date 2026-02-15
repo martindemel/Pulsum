@@ -1,5 +1,6 @@
+import Foundation
 import Testing
-import CoreData
+import SwiftData
 @testable import PulsumAgents
 @testable import PulsumServices
 @testable import PulsumData
@@ -71,8 +72,9 @@ final class ChatHarness {
     private let dataAgent: StubDataAgent
 
     init() async throws {
-        let container = TestCoreDataStack.makeContainer()
-        snapshot = try ChatHarness.makeSnapshot(in: container)
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        snapshot = ChatHarness.makeSnapshot(container: container)
         dataAgent = StubDataAgent(snapshot: snapshot)
         embeddingService = EmbeddingService.debugInstance(primary: DeterministicEmbeddingProvider(),
                                                           fallback: nil,
@@ -85,14 +87,17 @@ final class ChatHarness {
         let gateway = LLMGateway(cloudClient: cloudClient,
                                  localGenerator: localGenerator)
         try? gateway.setAPIKey("stub-acceptance-key")
-        let coachAgent: CoachAgent = try CoachAgent(container: container,
-                                                    vectorIndex: StubVectorIndex(),
-                                                    libraryImporter: LibraryImporter(configuration: LibraryImporterConfiguration(),
-                                                                                    vectorIndex: VectorIndexManager.shared),
-                                                    llmGateway: gateway,
-                                                    shouldIngestLibrary: false)
+        let coachAgent: CoachAgent = try CoachAgent(
+            container: container,
+            storagePaths: storagePaths,
+            vectorIndex: StubVectorIndex(),
+            libraryImporter: LibraryImporter(vectorIndex: VectorIndexManager(directory: storagePaths.vectorIndexDirectory),
+                                             modelContainer: container),
+            llmGateway: gateway,
+            shouldIngestLibrary: false)
 
-        let sentimentAgent = SentimentAgent()
+        let sentimentAgent = SentimentAgent(container: container,
+                                            vectorIndexDirectory: storagePaths.vectorIndexDirectory)
         let safetyAgent = SafetyAgent()
         let cheerAgent = CheerAgent()
         let topicGate = AcceptanceTopicGate()
@@ -116,18 +121,17 @@ final class ChatHarness {
         await orchestrator.chat(userInput: text, consentGranted: consentGranted, snapshotOverride: snapshot)
     }
 
-    nonisolated private static func makeSnapshot(in container: NSPersistentContainer) throws -> FeatureVectorSnapshot {
-        let context = container.newBackgroundContext()
-        return try context.performAndWait {
-            let feature = FeatureVector(context: context)
-            try context.obtainPermanentIDs(for: [feature])
-            return FeatureVectorSnapshot(date: Date(),
-                                         wellbeingScore: 0.6,
-                                         contributions: ["z_sleepDebt": -0.4, "z_hrv": 0.3, "subj_energy": 0.2],
-                                         imputedFlags: ["hrv": false, "restingHR": false, "steps_missing": false],
-                                         featureVectorObjectID: feature.objectID,
-                                         features: ["z_sleepDebt": -0.4, "z_hrv": 0.3, "subj_energy": 0.2])
-        }
+    nonisolated private static func makeSnapshot(container: ModelContainer) -> FeatureVectorSnapshot {
+        let context = ModelContext(container)
+        let feature = FeatureVector(date: Date())
+        context.insert(feature)
+        try? context.save()
+        return FeatureVectorSnapshot(date: Date(),
+                                                   wellbeingScore: 0.6,
+                                                   contributions: ["z_sleepDebt": -0.4, "z_hrv": 0.3, "subj_energy": 0.2],
+                                                   imputedFlags: ["hrv": false, "restingHR": false, "steps_missing": false],
+                                                   featureVectorObjectID: feature.persistentModelID,
+                                                   features: ["z_sleepDebt": -0.4, "z_hrv": 0.3, "subj_energy": 0.2])
     }
 }
 
