@@ -10,11 +10,11 @@ private let partialHealthAccessOverride = [
 ].joined(separator: ",")
 
 final class Gate3_HealthAccessUITests: PulsumUITestCase {
-    func testPartialHealthAccessStatusVisibleInSettings() {
+    func testPartialHealthAccessStatusVisibleInSettings() throws {
         launchPulsum(additionalEnvironment: [
             "PULSUM_HEALTHKIT_STATUS_OVERRIDE": partialHealthAccessOverride
         ])
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         let summary = app.staticTexts["HealthAccessSummaryLabel"]
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
@@ -27,12 +27,12 @@ final class Gate3_HealthAccessUITests: PulsumUITestCase {
         dismissSettingsSheet()
     }
 
-    func testRequestHealthAccessButtonGrantsAllTypes() {
+    func testRequestHealthAccessButtonGrantsAllTypes() throws {
         launchPulsum(additionalEnvironment: [
             "PULSUM_HEALTHKIT_STATUS_OVERRIDE": partialHealthAccessOverride,
             "PULSUM_HEALTHKIT_REQUEST_BEHAVIOR": "grantAll"
         ])
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         let button = app.buttons["HealthAccessRequestButton"]
         XCTAssertTrue(button.exists)
@@ -66,7 +66,7 @@ final class Gate3_HealthAccessUITests: PulsumUITestCase {
         dismissSettingsSheet()
     }
 
-    func testNoToastOnInitialFullyGranted() {
+    func testNoToastOnInitialFullyGranted() throws {
         let allGranted = [
             "HKQuantityTypeIdentifierHeartRateVariabilitySDNN=authorized",
             "HKQuantityTypeIdentifierHeartRate=authorized",
@@ -80,7 +80,7 @@ final class Gate3_HealthAccessUITests: PulsumUITestCase {
             "PULSUM_HEALTHKIT_STATUS_OVERRIDE": allGranted
         ])
 
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         let successToast = app.staticTexts["Health data connected"]
         XCTAssertFalse(successToast.exists, "Toast must not appear on initial fully granted state.")

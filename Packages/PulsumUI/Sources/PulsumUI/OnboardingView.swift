@@ -68,12 +68,12 @@ struct OnboardingView: View {
                 .symbolRenderingMode(.hierarchical)
 
             VStack(spacing: PulsumSpacing.lg) {
-                Text("Welcome to Pulsum")
+                Text(String(localized: "onboarding.welcome.title", defaultValue: "Welcome to Pulsum"))
                     .font(.pulsumLargeTitle)
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .multilineTextAlignment(.center)
 
-                Text("Your personal recovery companion that helps you optimize your wellbeing using science-backed insights.")
+                Text(String(localized: "onboarding.welcome.subtitle", defaultValue: "Your personal recovery companion that helps you optimize your wellbeing using science-backed insights."))
                     .font(.pulsumBody)
                     .foregroundStyle(Color.pulsumTextSecondary)
                     .multilineTextAlignment(.center)
@@ -83,7 +83,7 @@ struct OnboardingView: View {
 
             // Health disclaimer
             VStack(spacing: PulsumSpacing.md) {
-                Text("This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment.")
+                Text(String(localized: "disclaimer.medical", defaultValue: "This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment."))
                     .font(.pulsumCallout)
                     .foregroundStyle(Color.pulsumTextSecondary)
                     .multilineTextAlignment(.center)
@@ -98,7 +98,7 @@ struct OnboardingView: View {
                     HStack(spacing: PulsumSpacing.sm) {
                         Image(systemName: disclaimerAcknowledged ? "checkmark.square.fill" : "square")
                             .foregroundStyle(disclaimerAcknowledged ? Color.pulsumGreenSoft : Color.pulsumTextSecondary)
-                        Text("I understand and acknowledge this disclaimer")
+                        Text(String(localized: "onboarding.disclaimer.acknowledge", defaultValue: "I understand and acknowledge this disclaimer"))
                             .font(.pulsumCallout)
                             .foregroundStyle(Color.pulsumTextPrimary)
                     }
@@ -113,7 +113,7 @@ struct OnboardingView: View {
                     currentPage = 1
                 }
             } label: {
-                Text("Get Started")
+                Text(String(localized: "onboarding.getStarted", defaultValue: "Get Started"))
                     .font(.pulsumHeadline)
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .frame(maxWidth: .infinity)
@@ -138,7 +138,7 @@ struct OnboardingView: View {
                 .symbolRenderingMode(.hierarchical)
 
             VStack(spacing: PulsumSpacing.lg) {
-                Text("Connect Your Health Data")
+                Text(String(localized: "onboarding.healthKit.title", defaultValue: "Connect Your Health Data"))
                     .font(.pulsumTitle)
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .multilineTextAlignment(.center)
@@ -207,7 +207,7 @@ struct OnboardingView: View {
                                 .font(.pulsumHeadline)
                                 .foregroundStyle(Color.pulsumTextPrimary)
                         } else {
-                            Text("Allow Health Data Access")
+                            Text(String(localized: "onboarding.healthKit.allow", defaultValue: "Allow Health Data Access"))
                                 .font(.pulsumHeadline)
                                 .foregroundStyle(Color.pulsumTextPrimary)
                         }
@@ -223,7 +223,7 @@ struct OnboardingView: View {
                         currentPage = 2
                     }
                 } label: {
-                    Text("Skip for Now")
+                    Text(String(localized: "onboarding.healthKit.skip", defaultValue: "Skip for Now"))
                         .font(.pulsumCallout)
                         .foregroundStyle(Color.pulsumTextSecondary)
                 }
@@ -244,12 +244,12 @@ struct OnboardingView: View {
                 .symbolRenderingMode(.hierarchical)
 
             VStack(spacing: PulsumSpacing.lg) {
-                Text("You're All Set!")
+                Text(String(localized: "onboarding.ready.title", defaultValue: "You're All Set!"))
                     .font(.pulsumTitle)
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .multilineTextAlignment(.center)
 
-                Text("Start your recovery journey with Pulsum. Record your daily Pulse, get personalized recommendations, and optimize your wellbeing.")
+                Text(String(localized: "onboarding.ready.subtitle", defaultValue: "Start your recovery journey with Pulsum. Record your daily Pulse, get personalized recommendations, and optimize your wellbeing."))
                     .font(.pulsumBody)
                     .foregroundStyle(Color.pulsumTextSecondary)
                     .multilineTextAlignment(.center)
@@ -265,7 +265,7 @@ struct OnboardingView: View {
                     isPresented = false
                 }
             } label: {
-                Text("Start Using Pulsum")
+                Text(String(localized: "onboarding.ready.start", defaultValue: "Start Using Pulsum"))
                     .font(.pulsumHeadline)
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .frame(maxWidth: .infinity)

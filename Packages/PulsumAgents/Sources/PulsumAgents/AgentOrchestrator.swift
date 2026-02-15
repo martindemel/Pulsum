@@ -281,6 +281,13 @@ public final class AgentOrchestrator: @unchecked Sendable {
         }
     }
 
+    public var isFoundationModelsReady: Bool {
+        if #available(iOS 26.0, *) {
+            return FoundationModelsAvailability.checkAvailability() == .ready
+        }
+        return false
+    }
+
     public func debugLogSnapshot() async -> String {
         await DebugLogBuffer.shared.snapshot()
     }

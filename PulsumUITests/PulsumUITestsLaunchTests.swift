@@ -19,6 +19,8 @@ final class PulsumUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() {
         let app = XCUIApplication()
+        app.launchEnvironment["UITEST"] = "1"
+        app.launchEnvironment["UITEST_USE_STUB_LLM"] = "1"
         app.launch()
 
         // Insert steps here to perform after app launch but before taking a screenshot,

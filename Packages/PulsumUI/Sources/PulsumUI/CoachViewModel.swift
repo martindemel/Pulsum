@@ -72,11 +72,11 @@ final class CoachViewModel {
     @ObservationIgnored private let logger = Logger(subsystem: "com.pulsum", category: "CoachViewModel")
     private var lastWellbeingState: WellbeingScoreState = .loading
     private var refreshSequence = 0
-    private var recommendationsTask: Task<Void, Never>?
-    private var recommendationsDebounceTask: Task<Void, Never>?
+    @ObservationIgnored private var recommendationsTask: Task<Void, Never>?
+    @ObservationIgnored private var recommendationsDebounceTask: Task<Void, Never>?
     private var recommendationsPending = false
     private var recommendationsCoalesced = false
-    private var recommendationsSoftTimeoutTask: Task<Void, Never>?
+    @ObservationIgnored private var recommendationsSoftTimeoutTask: Task<Void, Never>?
     private var recommendationsSoftTimedOut = false
     private var activeRecommendationsRefreshID: Int?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
@@ -475,5 +475,8 @@ final class CoachViewModel {
     deinit {
         reloadTask?.cancel()
         cheerResetTask?.cancel()
+        recommendationsTask?.cancel()
+        recommendationsDebounceTask?.cancel()
+        recommendationsSoftTimeoutTask?.cancel()
     }
 }

@@ -803,35 +803,18 @@ struct SettingsScreen: View {
         )
     }
 
-    @ViewBuilder
     private var wellbeingScoreSection: some View {
-        switch wellbeingState {
-        case let .ready(score, _):
-            if let detailViewModel = viewModel.makeScoreBreakdownViewModel() {
-                NavigationLink {
-                    ScoreBreakdownScreen(viewModel: detailViewModel)
-                } label: {
-                    WellbeingScoreCard(score: score)
-                }
-                .buttonStyle(.plain)
-            } else {
-                WellbeingScoreCard(score: score)
-            }
-        case .loading:
-            WellbeingScoreLoadingCard()
-        case let .noData(reason):
-            if snapshotKind == .placeholder, reason == .insufficientSamples {
-                WellbeingPlaceholderCard()
-            } else {
-                WellbeingNoDataCard(reason: reason) {
-                    Task { await healthViewModel.requestHealthKitAuthorization() }
-                }
-            }
-        case let .error(message):
-            WellbeingErrorCard(message: message) {
+        WellbeingStateCardView(
+            wellbeingState: wellbeingState,
+            snapshotKind: snapshotKind,
+            makeDetailViewModel: { viewModel.makeScoreBreakdownViewModel() },
+            requestHealthAccess: {
+                Task { await healthViewModel.requestHealthKitAuthorization() }
+            },
+            retryAction: {
                 Task { await healthViewModel.requestHealthKitAuthorization() }
             }
-        }
+        )
     }
 
     private static let relativeDateFormatter: RelativeDateTimeFormatter = {

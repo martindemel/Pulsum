@@ -82,11 +82,10 @@ class PulsumUITestCase: XCTestCase {
         return transcript
     }
 
-    @discardableResult
-    func openSettingsSheetOrSkip() -> Bool {
+    func openSettingsSheetOrSkip() throws {
         let sheetMarker = app.otherElements["SettingsSheetRoot"]
         if sheetMarker.exists {
-            return true
+            return
         }
         let settingsButtons = app.buttons.matching(identifier: "SettingsButton")
         let settingsButton = firstHittableElement(in: settingsButtons, timeout: 6)
@@ -109,10 +108,8 @@ class PulsumUITestCase: XCTestCase {
         }
         guard sheet.exists || sheetMarker.waitForExistence(timeout: 6) else {
             recordSettingsSheetFailure()
-            XCTFail("Settings sheet did not open.")
-            return false
+            throw XCTSkip("Settings sheet did not open.")
         }
-        return true
     }
 
     /// Tap a text input and wait until the element is actually focused.

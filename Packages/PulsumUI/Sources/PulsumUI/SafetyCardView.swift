@@ -30,7 +30,7 @@ struct SafetyCardView: View {
                     .symbolRenderingMode(.hierarchical)
 
                 VStack(spacing: PulsumSpacing.sm) {
-                    Text("We noticed something important")
+                    Text(String(localized: "safety.card.title", defaultValue: "We noticed something important"))
                         .font(.pulsumTitle2)
                         .foregroundStyle(Color.pulsumTextPrimary)
                         .multilineTextAlignment(.center)
@@ -55,7 +55,7 @@ struct SafetyCardView: View {
 
                     // I'm Safe Button
                     Button(action: dismiss) {
-                        Text("I'm safe")
+                        Text(String(localized: "safety.card.dismiss", defaultValue: "I'm safe"))
                             .font(.pulsumBody)
                             .foregroundStyle(Color.pulsumTextPrimary)
                             .frame(maxWidth: .infinity)

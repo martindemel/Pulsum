@@ -34,7 +34,7 @@ public struct ChatInputView: View {
                 Task { await viewModel.sendChat() }
             } label: {
                 Image(systemName: "paperplane.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(
                         viewModel.chatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? Color.pulsumTextSecondary
@@ -59,7 +59,7 @@ public struct ChatInputView: View {
                     chatFieldInFocus = false
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.pulsumTextSecondary)
                         .frame(width: 44, height: 44)
                 }
@@ -102,7 +102,7 @@ struct CoachScreen: View {
 
             if showChatInput {
                 VStack(spacing: PulsumSpacing.xs) {
-                    Text("Responses are AI-generated and not medical advice.")
+                    Text(String(localized: "coach.disclaimer", defaultValue: "Responses are AI-generated and not medical advice."))
                         .font(.pulsumCaption2)
                         .foregroundStyle(Color.pulsumTextTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -190,7 +190,7 @@ struct CoachScreen: View {
 
 struct InsightsScreen: View {
     @Bindable var viewModel: CoachViewModel
-    let foundationStatus: String
+    let isFoundationModelsReady: Bool
     let consentGranted: Bool
     let triggerSettings: () -> Void
 
@@ -245,7 +245,7 @@ struct InsightsScreen: View {
                 ConsentPrompt(triggerSettings: triggerSettings)
             }
 
-            if foundationStatus != "Apple Intelligence is ready." {
+            if !isFoundationModelsReady {
                 MessageBubble(
                     icon: "sparkles.slash",
                     text: "Enhanced AI features require Apple Intelligence. Using on-device intelligence until it's ready.",
@@ -362,7 +362,7 @@ private struct ChatBubble: View {
                     .foregroundStyle(Color.pulsumTextTertiary)
 
                 if message.role == .assistant {
-                    Text("AI-generated")
+                    Text(String(localized: "coach.chat.aiGenerated", defaultValue: "AI-generated"))
                         .font(.pulsumCaption2)
                         .foregroundStyle(Color.pulsumTextTertiary)
                         .padding(.horizontal, PulsumSpacing.xxs)
