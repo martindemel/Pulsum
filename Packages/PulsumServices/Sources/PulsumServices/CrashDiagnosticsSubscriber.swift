@@ -63,5 +63,7 @@ public final class CrashDiagnosticsSubscriber: NSObject, MXMetricManagerSubscrib
     }
 }
 
+// @unchecked Sendable: NSObject subclasses cannot conform to Sendable without @unchecked.
+// This is safe because the class has zero mutable stored properties after init.
 extension CrashDiagnosticsSubscriber: @unchecked Sendable {}
 #endif

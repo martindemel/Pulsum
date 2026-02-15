@@ -132,7 +132,7 @@ public struct RecommendationCard: Equatable, Sendable {
     public let sourceBadge: String
 }
 
-public struct SafetyDecision {
+public struct SafetyDecision: Sendable {
     public let classification: SafetyClassification
     public let allowCloud: Bool
     public let crisisMessage: String?

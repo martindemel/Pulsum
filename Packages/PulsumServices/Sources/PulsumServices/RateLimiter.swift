@@ -1,10 +1,9 @@
 import Foundation
-import os
+import PulsumTypes
 
 public actor RateLimiter {
     private let minimumInterval: TimeInterval
     private var lastRequestTime: Date = .distantPast
-    private let logger = Logger(subsystem: "ai.pulsum", category: "RateLimiter")
 
     public init(minimumInterval: TimeInterval = 3.0) {
         self.minimumInterval = minimumInterval
@@ -15,7 +14,10 @@ public actor RateLimiter {
         let elapsed = now.timeIntervalSince(lastRequestTime)
         let delay = minimumInterval - elapsed
         if delay > 0 {
-            logger.debug("Rate limiting: waiting \(String(format: "%.1f", delay), privacy: .public)s before next API call.")
+            Diagnostics.log(level: .debug,
+                            category: .llm,
+                            name: "rateLimiter.waiting",
+                            fields: ["delay": .safeString(.metadata(String(format: "%.1fs", delay)))])
             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
         lastRequestTime = Date()

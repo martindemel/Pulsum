@@ -2,11 +2,6 @@ import Accelerate
 import Foundation
 import os.log
 
-public struct VectorMatch: Equatable, Sendable {
-    public let id: String
-    public let score: Float
-}
-
 /// In-memory vector store with file-backed binary persistence.
 ///
 /// Binary format:
@@ -173,9 +168,14 @@ public actor VectorStore {
             let id = String(decoding: data[cursor ..< cursor + idLen], as: UTF8.self)
             cursor += idLen
 
-            let vector: [Float] = data.withUnsafeBytes { raw in
-                let floatPtr = raw.baseAddress!.advanced(by: cursor).assumingMemoryBound(to: Float.self)
-                return Array(UnsafeBufferPointer(start: floatPtr, count: dimension))
+            let vector: [Float] = [Float](unsafeUninitializedCapacity: dimension) { buffer, count in
+                data.withUnsafeBytes { raw in
+                    let src = UnsafeRawBufferPointer(start: raw.baseAddress!.advanced(by: cursor), count: vectorByteSize)
+                    buffer.withMemoryRebound(to: UInt8.self) { dest in
+                        _ = src.copyBytes(to: dest)
+                    }
+                }
+                count = dimension
             }
             cursor += vectorByteSize
             result[id] = vector

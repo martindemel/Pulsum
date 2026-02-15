@@ -110,9 +110,9 @@ public final class DataStack: Sendable {
 
         do {
             self.container = try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            // If the store is from a previous Core Data schema, delete and retry once.
-            Self.logger.warning("Initial store open failed, attempting fresh store: \(error.localizedDescription, privacy: .public)")
+        } catch let storeError where Self.isStoreIncompatibleError(storeError) {
+            // Schema mismatch (e.g. Core Data → SwiftData migration): delete and retry once.
+            Self.logger.warning("Store schema incompatible, creating fresh store: \(storeError.localizedDescription, privacy: .public)")
             let fileManager = FileManager.default
             for suffix in ["", "-wal", "-shm"] {
                 let path = paths.sqliteStoreURL.path + suffix
@@ -123,7 +123,26 @@ public final class DataStack: Sendable {
             } catch {
                 throw DataStackError.storeInitializationFailed(underlying: error)
             }
+        } catch {
+            throw DataStackError.storeInitializationFailed(underlying: error)
         }
+    }
+
+    // MARK: - Error Classification
+
+    private static func isStoreIncompatibleError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSCocoaErrorDomain else { return false }
+        // Core Data / SwiftData store incompatibility codes
+        let incompatibleCodes: Set<Int> = [
+            134_100, // NSPersistentStoreIncompatibleVersionHashError
+            134_110, // NSMigrationError
+            134_130, // NSMigrationMissingSourceModelError
+            134_140, // NSMigrationMissingMappingModelError
+            134_150, // NSMigrationManagerSourceStoreError
+            134_160, // NSMigrationManagerDestinationStoreError
+        ]
+        return incompatibleCodes.contains(nsError.code)
     }
 
     // MARK: - Directory Preparation
