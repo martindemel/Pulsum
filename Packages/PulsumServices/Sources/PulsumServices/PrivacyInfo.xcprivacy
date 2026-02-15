@@ -52,7 +52,12 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSPrivacyTracking</key>
+	<false/>
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
+	<!-- Note: PulsumServices uses Keychain (Security/SecItem*) for API key storage
+	     and NWPathMonitor (Network) for connectivity checks. As of iOS 18/26,
+	     neither requires a privacy manifest API category declaration. -->
 </dict>
 </plist>

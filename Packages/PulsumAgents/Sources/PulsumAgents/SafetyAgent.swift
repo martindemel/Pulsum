@@ -81,18 +81,40 @@ public struct SafetyAgent: SafetyClassifying, Sendable {
     private func makeDecision(from classification: SafetyClassification) -> SafetyDecision {
         let allowCloud: Bool
         let crisisMessage: String?
+        let crisisResources: CrisisResourceInfo?
         switch classification {
         case .safe:
             allowCloud = true
             crisisMessage = nil
+            crisisResources = nil
         case .caution:
             allowCloud = false
             crisisMessage = nil
+            crisisResources = nil
         case .crisis:
             allowCloud = false
+            let resources = Self.localizedCrisisResources()
+            crisisResources = resources
             crisisMessage = Self.localizedCrisisMessage()
         }
-        return SafetyDecision(classification: classification, allowCloud: allowCloud, crisisMessage: crisisMessage)
+        return SafetyDecision(classification: classification, allowCloud: allowCloud, crisisMessage: crisisMessage, crisisResources: crisisResources)
+    }
+
+    static func localizedCrisisResources() -> CrisisResourceInfo {
+        let regionCode = Locale.current.region?.identifier ?? ""
+        if let resource = crisisResourcesByRegion[regionCode] {
+            return CrisisResourceInfo(
+                emergencyNumber: resource.emergencyNumber,
+                crisisLineName: resource.crisisLineName,
+                crisisLineNumber: resource.crisisLine
+            )
+        }
+        // Fallback for unsupported locales — 112 is the international emergency number
+        return CrisisResourceInfo(
+            emergencyNumber: "112",
+            crisisLineName: nil,
+            crisisLineNumber: nil
+        )
     }
 
     // MARK: - Crisis Keywords

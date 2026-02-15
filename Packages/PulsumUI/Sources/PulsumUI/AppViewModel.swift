@@ -59,6 +59,7 @@ final class AppViewModel {
     var isPresentingSettings = false
     var isShowingSafetyCard = false
     var safetyMessage: String?
+    var safetyCrisisResources: CrisisResourceInfo?
     var showOnboarding = false
 
     var consentGranted: Bool
@@ -363,6 +364,7 @@ final class AppViewModel {
     func dismissSafetyCard() {
         isShowingSafetyCard = false
         safetyMessage = nil
+        safetyCrisisResources = nil
     }
 
     private func refreshOnForeground() {
@@ -407,7 +409,8 @@ final class AppViewModel {
                 guard let self else { return }
                 if let decision = self.pulseViewModel.lastSafetyDecision {
                     if !decision.allowCloud, case .crisis = decision.classification {
-                        self.safetyMessage = decision.crisisMessage ?? "If in danger, call 911"
+                        self.safetyMessage = decision.crisisMessage ?? "If in danger, call your local emergency number."
+                        self.safetyCrisisResources = decision.crisisResources
                         self.isShowingSafetyCard = true
                     }
                 }

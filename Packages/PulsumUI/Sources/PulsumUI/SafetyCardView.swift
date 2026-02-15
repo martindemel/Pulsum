@@ -1,8 +1,19 @@
+import PulsumAgents
 import SwiftUI
 
 struct SafetyCardView: View {
     let message: String
+    let crisisResources: CrisisResourceInfo?
     let dismiss: () -> Void
+
+    private var emergencyNumber: String {
+        crisisResources?.emergencyNumber ?? "911"
+    }
+
+    private var emergencyTelURL: URL {
+        let digits = emergencyNumber.filter(\.isNumber)
+        return URL(string: "tel://\(digits)") ?? URL(string: "tel://911")!
+    }
 
     var body: some View {
         ZStack {
@@ -33,11 +44,11 @@ struct SafetyCardView: View {
 
                 VStack(spacing: PulsumSpacing.md) {
                     // Emergency Call Button
-                    Link(destination: URL(string: "tel://911")!) {
+                    Link(destination: emergencyTelURL) {
                         HStack {
                             Image(systemName: "phone.fill")
                                 .font(.pulsumHeadline)
-                            Text("Call 911")
+                            Text(String(localized: "Call \(emergencyNumber)"))
                                 .font(.pulsumHeadline)
                         }
                         .foregroundStyle(Color.white)
@@ -47,19 +58,37 @@ struct SafetyCardView: View {
                         .cornerRadius(PulsumRadius.md)
                     }
 
-                    // 988 Suicide & Crisis Lifeline Button
-                    Link(destination: URL(string: "tel://988")!) {
-                        HStack {
-                            Image(systemName: "phone.fill")
-                                .font(.pulsumHeadline)
-                            Text("988 Suicide & Crisis Lifeline")
-                                .font(.pulsumHeadline)
+                    // Crisis Line Button (locale-aware) or findahelpline.com fallback
+                    if let name = crisisResources?.crisisLineName,
+                       let number = crisisResources?.crisisLineNumber {
+                        let crisisDigits = number.filter(\.isNumber)
+                        Link(destination: URL(string: "tel://\(crisisDigits)") ?? URL(string: "tel://988")!) {
+                            HStack {
+                                Image(systemName: "phone.fill")
+                                    .font(.pulsumHeadline)
+                                Text("\(name) (\(number))")
+                                    .font(.pulsumHeadline)
+                            }
+                            .foregroundStyle(Color.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, PulsumSpacing.md)
+                            .background(Color.pulsumWarning)
+                            .cornerRadius(PulsumRadius.md)
                         }
-                        .foregroundStyle(Color.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, PulsumSpacing.md)
-                        .background(Color.pulsumWarning)
-                        .cornerRadius(PulsumRadius.md)
+                    } else {
+                        Link(destination: URL(string: "https://findahelpline.com")!) {
+                            HStack {
+                                Image(systemName: "globe")
+                                    .font(.pulsumHeadline)
+                                Text(String(localized: "Find a Helpline"))
+                                    .font(.pulsumHeadline)
+                            }
+                            .foregroundStyle(Color.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, PulsumSpacing.md)
+                            .background(Color.pulsumWarning)
+                            .cornerRadius(PulsumRadius.md)
+                        }
                     }
 
                     // I'm Safe Button

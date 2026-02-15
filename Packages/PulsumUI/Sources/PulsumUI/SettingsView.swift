@@ -484,7 +484,7 @@ struct SettingsScreen: View {
                                         }
                                     }
 
-                                    Text("Pulsum stores all health data on-device with NSFileProtectionComplete and never uploads your journals.")
+                                    Text("Pulsum stores all health data on-device with NSFileProtectionCompleteUnlessOpen. Data is encrypted at rest and accessible only while the device is unlocked or during authorized background health syncs. Journals are never uploaded.")
                                         .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(3)

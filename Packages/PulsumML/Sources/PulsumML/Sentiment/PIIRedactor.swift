@@ -27,8 +27,16 @@ public enum PIIRedactor {
         pattern: #"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"#,
         options: [.caseInsensitive]
     )
+    private static let dateOfBirthRegex = try? NSRegularExpression(
+        pattern: #"\b\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b"#,
+        options: [.caseInsensitive]
+    )
+    private static let parenthesizedPhoneRegex = try? NSRegularExpression(
+        pattern: #"\(\d{3}\)\s*\d{3}[-.]?\d{4}"#,
+        options: [.caseInsensitive]
+    )
 
-    private static let cachedPatterns: [NSRegularExpression] = [emailRegex, phoneRegex, ssnRegex, creditCardRegex, streetAddressRegex, ipAddressRegex]
+    private static let cachedPatterns: [NSRegularExpression] = [emailRegex, phoneRegex, ssnRegex, creditCardRegex, streetAddressRegex, ipAddressRegex, dateOfBirthRegex, parenthesizedPhoneRegex]
         .compactMap { $0 }
 
     public static func redact(_ transcript: String) -> String {

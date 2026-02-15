@@ -190,7 +190,8 @@ struct MainContainerView: View {
         }
         .overlay {
             if viewModel.isShowingSafetyCard {
-                SafetyCardView(message: viewModel.safetyMessage ?? "If in danger, call 911") {
+                SafetyCardView(message: viewModel.safetyMessage ?? "If in danger, call your local emergency number.",
+                               crisisResources: viewModel.safetyCrisisResources) {
                     viewModel.dismissSafetyCard()
                 }
             }

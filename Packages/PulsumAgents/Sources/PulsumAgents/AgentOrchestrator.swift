@@ -132,10 +132,23 @@ public struct RecommendationCard: Equatable, Sendable {
     public let sourceBadge: String
 }
 
+public struct CrisisResourceInfo: Sendable {
+    public let emergencyNumber: String
+    public let crisisLineName: String?
+    public let crisisLineNumber: String?
+
+    public init(emergencyNumber: String, crisisLineName: String?, crisisLineNumber: String?) {
+        self.emergencyNumber = emergencyNumber
+        self.crisisLineName = crisisLineName
+        self.crisisLineNumber = crisisLineNumber
+    }
+}
+
 public struct SafetyDecision: Sendable {
     public let classification: SafetyClassification
     public let allowCloud: Bool
     public let crisisMessage: String?
+    public let crisisResources: CrisisResourceInfo?
 }
 
 public struct JournalResult: Sendable {
@@ -727,7 +740,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
             switch safety.classification {
             case .crisis:
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → safety", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-                return safety.crisisMessage ?? "If you're in immediate danger, please contact 911."
+                return safety.crisisMessage ?? "If you're in immediate danger, please contact your local emergency number."
             case .caution:
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → safety", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
                 return "Let's stay with grounding actions for a moment."
