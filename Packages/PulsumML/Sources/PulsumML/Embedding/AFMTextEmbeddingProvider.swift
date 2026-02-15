@@ -9,9 +9,9 @@ import NaturalLanguage
 @available(iOS 17.0, macOS 13.0, *)
 final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
     private let targetDimension = 384
-    private let availability: () -> AFMStatus
+    private let availability: @Sendable () -> AFMStatus
 
-    init(availability: @escaping () -> AFMStatus = FoundationModelsAvailability.checkAvailability) {
+    init(availability: @escaping @Sendable () -> AFMStatus = FoundationModelsAvailability.checkAvailability) {
         self.availability = availability
     }
 

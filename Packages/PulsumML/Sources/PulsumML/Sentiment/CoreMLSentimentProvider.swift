@@ -2,7 +2,8 @@ import Foundation
 import NaturalLanguage
 import CoreML
 
-final class CoreMLSentimentProvider: SentimentProviding {
+// SAFETY: NLModel is set once in init and never mutated — safe for concurrent reads.
+final class CoreMLSentimentProvider: SentimentProviding, @unchecked Sendable {
     private let model: NLModel
 
     init?() {

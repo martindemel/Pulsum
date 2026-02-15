@@ -85,6 +85,7 @@ public final class LibraryImporter {
         await monitor.start()
 
         do {
+            // Phase 1: Async — load resources from disk
             let resources = try await Self.loadResourcesAsync(from: urls)
             decodedCount = resources.count
             await monitor.heartbeat(progressFields: ["decoded_count": .int(decodedCount)])
@@ -98,21 +99,30 @@ public final class LibraryImporter {
                 return
             }
 
-            let context = ModelContext(modelContainer)
-
-            var payloads: [MicroMomentIndexPayload] = []
-            var updates: [LibraryIngestUpdate] = []
-            for resource in resources {
-                let outcome = try self.process(resource: resource, context: context)
-                payloads.append(contentsOf: outcome.payloads)
-                if let update = outcome.ingestUpdate {
-                    updates.append(update)
+            // Phase 2: Sync — process resources with ModelContext, save MicroMoments.
+            // Context is scoped here so it never crosses an await boundary.
+            let payloads: [MicroMomentIndexPayload]
+            let updates: [LibraryIngestUpdate]
+            do {
+                let context = ModelContext(modelContainer)
+                var collectedPayloads: [MicroMomentIndexPayload] = []
+                var collectedUpdates: [LibraryIngestUpdate] = []
+                for resource in resources {
+                    let outcome = try self.process(resource: resource, context: context)
+                    collectedPayloads.append(contentsOf: outcome.payloads)
+                    if let update = outcome.ingestUpdate {
+                        collectedUpdates.append(update)
+                    }
                 }
+                if context.hasChanges { try context.save() }
+                payloads = collectedPayloads
+                updates = collectedUpdates
             }
 
             payloadCount = payloads.count
             await monitor.heartbeat(progressFields: ["payload_count": .int(payloadCount)])
 
+            // Phase 3: Async — upsert vector index entries
             if !payloads.isEmpty {
                 do {
                     try await upsertIndexEntries(payloads)
@@ -120,8 +130,8 @@ public final class LibraryImporter {
                 } catch {
                     if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
                         setLastImportHadDeferredEmbeddings(true)
-                        // Save MicroMoments without ingest records so they're re-indexed on next launch
-                        if context.hasChanges { try context.save() }
+                        // MicroMoments already saved in Phase 2; no ingest records
+                        // so they will be re-indexed on next launch
                         Diagnostics.log(level: .warn,
                                         category: .library,
                                         name: "library.import.deferred",
@@ -152,26 +162,27 @@ public final class LibraryImporter {
                 }
             }
 
-            // Atomic save: MicroMoments + LibraryIngest records in a single transaction
+            // Phase 4: Sync — update LibraryIngest records in a fresh context
             if !updates.isEmpty {
+                let ingestContext = ModelContext(modelContainer)
                 for update in updates {
                     let targetSource = update.source
                     var descriptor = FetchDescriptor<LibraryIngest>(predicate: #Predicate { $0.source == targetSource })
                     descriptor.fetchLimit = 1
                     let ingest: LibraryIngest
-                    if let existing = try context.fetch(descriptor).first {
+                    if let existing = try ingestContext.fetch(descriptor).first {
                         ingest = existing
                     } else {
                         ingest = LibraryIngest(source: update.source)
-                        context.insert(ingest)
+                        ingestContext.insert(ingest)
                     }
                     ingest.checksum = update.checksum
                     ingest.version = "1"
                     ingest.ingestedAt = Date()
                 }
-            }
-            if context.hasChanges {
-                try context.save()
+                if ingestContext.hasChanges {
+                    try ingestContext.save()
+                }
             }
 
             let stats = await vectorIndex.stats()

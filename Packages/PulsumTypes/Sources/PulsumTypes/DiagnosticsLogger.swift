@@ -132,7 +132,9 @@ public enum Diagnostics {
     }
 }
 
-public struct DiagnosticsSpanToken {
+// SAFETY: All stored properties are immutable `let` values set in init. OSLog and OSSignpostID
+// are not formally Sendable but are safe for concurrent read-only access after initialization.
+public struct DiagnosticsSpanToken: @unchecked Sendable {
     private let isEnabled: Bool
     private let category: DiagnosticsCategory
     private let name: String

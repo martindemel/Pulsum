@@ -119,7 +119,7 @@ public struct WellbeingSnapshotResponse: Sendable {
     public let dayString: String?
 }
 
-public struct JournalCaptureResponse {
+public struct JournalCaptureResponse: Sendable {
     public let result: JournalResult
     public let safety: SafetyDecision
 }

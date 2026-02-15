@@ -542,7 +542,12 @@ private final class ModernSpeechBackend: SpeechBackending {
     private let fallback: LegacySpeechBackend
     let backendName = "modern"
     #if DEBUG
-    nonisolated(unsafe) static var availabilityOverride: Bool?
+    private static let availabilityOverrideLock = NSLock()
+    private nonisolated(unsafe) static var _availabilityOverride: Bool?
+    static var availabilityOverride: Bool? {
+        get { availabilityOverrideLock.withLock { _availabilityOverride } }
+        set { availabilityOverrideLock.withLock { _availabilityOverride = newValue } }
+    }
     #endif
 
     init?(locale: Locale, authorizationProvider: SpeechAuthorizationProviding) {

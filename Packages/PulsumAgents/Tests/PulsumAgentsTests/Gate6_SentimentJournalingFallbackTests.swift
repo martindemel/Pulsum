@@ -71,7 +71,7 @@ private struct StubSentimentProvider: SentimentProviding {
     }
 }
 
-private final class FailOnceEmbeddingProvider: TextEmbeddingProviding {
+private final class FailOnceEmbeddingProvider: TextEmbeddingProviding, @unchecked Sendable {
     private let vector: [Float]
     private var didFail = false
     private let lock = NSLock()

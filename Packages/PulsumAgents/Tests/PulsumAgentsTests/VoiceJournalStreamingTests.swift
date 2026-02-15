@@ -6,6 +6,7 @@ import SwiftData
 
 // MARK: - Voice Journal Streaming Tests
 
+@MainActor
 struct VoiceJournalStreamingTests {
     @Test("Import transcript returns journal result with sentiment")
     func importTranscriptReturnsSentiment() async throws {

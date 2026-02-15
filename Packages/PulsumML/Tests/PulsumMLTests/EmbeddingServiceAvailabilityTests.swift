@@ -44,7 +44,7 @@ final class EmbeddingServiceAvailabilityTests: XCTestCase {
     }
 }
 
-private final class MutableEmbeddingProvider: TextEmbeddingProviding {
+private final class MutableEmbeddingProvider: TextEmbeddingProviding, @unchecked Sendable {
     var response: Result<[Float], Error>
     private(set) var callCount = 0
 
