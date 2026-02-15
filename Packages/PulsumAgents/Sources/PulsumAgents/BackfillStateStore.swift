@@ -1,6 +1,5 @@
 import Foundation
 import os.log
-import PulsumData
 
 protocol BackfillStateStoring: Sendable {
     func loadState() -> BackfillProgress?
@@ -64,7 +63,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
         logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
     }
 
-    init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
+    init(baseDirectory: URL,
          fileManager: FileManager = .default) {
         self.fileManager = SendableFileManager(value: fileManager)
         let directory = baseDirectory.appendingPathComponent("BackfillState", isDirectory: true)

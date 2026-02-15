@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDUserPrefs {
+public final class UserPrefs {
     @Attribute(.unique) public var id: String
     public var consentCloud: Bool = false
     public var updatedAt: Date

@@ -1,5 +1,5 @@
 import Foundation
-import CoreData
+import SwiftData
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -29,11 +29,12 @@ public enum SentimentAgentError: LocalizedError {
 public final class SentimentAgent {
     private let speechService: SpeechService
     private let embeddingService: EmbeddingService
-    private let context: NSManagedObjectContext
+    private let modelContext: ModelContext
     private let calendar = Calendar(identifier: .gregorian)
     private let sentimentService: SentimentService
     private let sessionState = JournalSessionState()
     private let logger = Logger(subsystem: "com.pulsum", category: "SentimentAgent")
+    private let vectorIndexDirectory: URL
 
     public var audioLevels: AsyncStream<Float>? {
         sessionState.audioLevels
@@ -44,15 +45,15 @@ public final class SentimentAgent {
     }
 
     public init(speechService: SpeechService = SpeechService(),
-                container: NSPersistentContainer = PulsumData.container,
+                container: ModelContainer,
+                vectorIndexDirectory: URL,
                 sentimentService: SentimentService = SentimentService(),
                 embeddingService: EmbeddingService = .shared) {
         self.speechService = speechService
         self.sentimentService = sentimentService
         self.embeddingService = embeddingService
-        self.context = container.newBackgroundContext()
-        self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        self.context.name = "Pulsum.SentimentAgent.FoundationModels"
+        self.vectorIndexDirectory = vectorIndexDirectory
+        self.modelContext = ModelContext(container)
     }
 
     public func requestAuthorization() async throws {
@@ -134,22 +135,22 @@ public final class SentimentAgent {
         try await persistJournal(transcript: transcript)
     }
 
-    public func pendingEmbeddingCount() async -> Int {
-        await context.perform { [context] in
-            let request = JournalEntry.fetchRequest()
-            request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
-            return (try? context.count(for: request)) ?? 0
-        }
+    public func pendingEmbeddingCount() -> Int {
+        let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.embeddedVectorURL == nil })
+        return (try? modelContext.fetchCount(descriptor)) ?? 0
     }
 
     public func reprocessPendingJournals(traceId: UUID? = nil) async {
-        let pending: [(objectID: NSManagedObjectID, entryID: UUID, transcript: String)] = (try? await context.perform { [context] in
-            let request = JournalEntry.fetchRequest()
-            request.predicate = NSPredicate(format: "embeddedVectorURL == nil")
-            return try context.fetch(request).map { entry in
-                (entry.objectID, entry.id, entry.transcript)
+        let pending: [(objectID: PersistentIdentifier, entryID: UUID, transcript: String)]
+        do {
+            let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.embeddedVectorURL == nil })
+            let entries = try modelContext.fetch(descriptor)
+            pending = entries.map { entry in
+                (entry.persistentModelID, entry.id, entry.transcript)
             }
-        }) ?? []
+        } catch {
+            pending = []
+        }
 
         guard !pending.isEmpty else { return }
 
@@ -165,7 +166,7 @@ public final class SentimentAgent {
                         fields: ["pending_count": .int(pending.count)],
                         traceId: traceId)
 
-        var updates: [(objectID: NSManagedObjectID, vectorURL: URL)] = []
+        var updates: [(objectID: PersistentIdentifier, vectorURL: URL)] = []
         var succeeded = 0
         var failed = 0
 
@@ -195,18 +196,15 @@ public final class SentimentAgent {
         }
 
         guard !updates.isEmpty else { return }
-        let updatesToApply = updates
 
         do {
-            try await context.perform { [context] in
-                for update in updatesToApply {
-                    guard let entry = try? context.existingObject(with: update.objectID) as? JournalEntry else { continue }
-                    entry.embeddedVectorURL = update.vectorURL.lastPathComponent
-                    entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: false)
-                }
-                if context.hasChanges {
-                    try context.save()
-                }
+            for update in updates {
+                guard let entry: JournalEntry = modelContext.registeredModel(for: update.objectID) else { continue }
+                entry.embeddedVectorURL = update.vectorURL.lastPathComponent
+                entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: false)
+            }
+            if modelContext.hasChanges {
+                try modelContext.save()
             }
         } catch {
             #if DEBUG
@@ -275,35 +273,39 @@ public final class SentimentAgent {
                             error: error)
         }
 
-        let pendingFlag = embeddingPending
-        let finalVectorURL = vectorURL
+        let now = Date()
+        let entry = JournalEntry(
+            id: entryID,
+            date: now,
+            transcript: sanitized,
+            sentiment: sentiment,
+            embeddedVectorURL: vectorURL?.lastPathComponent,
+            sensitiveFlags: SentimentAgent.encodeSensitiveFlags(embeddingPending: embeddingPending)
+        )
+        modelContext.insert(entry)
 
-        let result = try await context.perform { [context, calendar] () throws -> JournalResult in
-            let entry = JournalEntry(context: context)
-            entry.id = entryID
-            entry.date = Date()
-            entry.transcript = sanitized
-            entry.sentiment = NSNumber(value: sentiment)
-            entry.sensitiveFlags = SentimentAgent.encodeSensitiveFlags(embeddingPending: pendingFlag)
-            entry.embeddedVectorURL = finalVectorURL?.lastPathComponent
-
-            let day = calendar.startOfDay(for: entry.date)
-            let request = FeatureVector.fetchRequest()
-            request.predicate = NSPredicate(format: "date == %@", day as NSDate)
-            request.fetchLimit = 1
-            let featureVector = try context.fetch(request).first ?? FeatureVector(context: context)
-            featureVector.date = day
-            featureVector.sentiment = NSNumber(value: sentiment)
-
-            try context.save()
-
-            return JournalResult(entryID: entryID,
-                                 date: entry.date,
-                                 transcript: sanitized,
-                                 sentimentScore: sentiment,
-                                 vectorURL: finalVectorURL,
-                                 embeddingPending: pendingFlag)
+        let day = calendar.startOfDay(for: now)
+        let targetDay = day
+        var featureDescriptor = FetchDescriptor<FeatureVector>(predicate: #Predicate { $0.date == targetDay })
+        featureDescriptor.fetchLimit = 1
+        let existingVector = try modelContext.fetch(featureDescriptor).first
+        let featureVector: FeatureVector
+        if let existing = existingVector {
+            featureVector = existing
+        } else {
+            featureVector = FeatureVector(date: day)
+            modelContext.insert(featureVector)
         }
+        featureVector.sentiment = sentiment
+
+        try modelContext.save()
+
+        let result = JournalResult(entryID: entryID,
+                                   date: now,
+                                   transcript: sanitized,
+                                   sentimentScore: sentiment,
+                                   vectorURL: vectorURL,
+                                   embeddingPending: embeddingPending)
         span.end(additionalFields: [
             "embedding_pending": .bool(embeddingPending)
         ], error: nil)
@@ -318,7 +320,7 @@ public final class SentimentAgent {
     }
 
     private nonisolated func persistVector(vector: [Float], id: UUID) throws -> URL {
-        let directory = PulsumData.vectorIndexDirectory.appendingPathComponent("JournalEntries", isDirectory: true)
+        let directory = vectorIndexDirectory.appendingPathComponent("JournalEntries", isDirectory: true)
         #if os(iOS)
         try FileManager.default.createDirectory(at: directory,
                                                 withIntermediateDirectories: true,

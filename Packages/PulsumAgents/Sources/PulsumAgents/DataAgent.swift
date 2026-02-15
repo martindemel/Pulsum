@@ -1,7 +1,7 @@
 import Foundation
-@preconcurrency import CoreData
+import SwiftData
 import HealthKit
-@preconcurrency import PulsumData
+import PulsumData
 import PulsumML
 import PulsumServices
 import PulsumTypes
@@ -11,7 +11,7 @@ public struct FeatureVectorSnapshot: Sendable {
     public let wellbeingScore: Double
     public let contributions: [String: Double]
     public let imputedFlags: [String: Bool]
-    public let featureVectorObjectID: NSManagedObjectID
+    public let featureVectorObjectID: PersistentIdentifier
     public let features: [String: Double]
 }
 
@@ -84,12 +84,14 @@ struct DataAgentBootstrapPolicy: Sendable {
     )
 }
 
-actor DataAgent {
+actor DataAgent: ModelActor {
+    nonisolated let modelExecutor: any ModelExecutor
+    nonisolated let modelContainer: ModelContainer
+
     private let healthKit: any HealthKitServicing
     private let calendar: Calendar
     private let estimatorStore: EstimatorStateStoring
     private var stateEstimator: StateEstimator
-    private let context: NSManagedObjectContext
     private var observers: [String: HealthKitObservationToken] = [:]
     private let requiredSampleTypes: [HKSampleType]
     private let sampleTypesByIdentifier: [String: HKSampleType]
@@ -119,22 +121,25 @@ actor DataAgent {
     private let sedentaryThresholdStepsPerHour: Double = 30
     private let sedentaryMinimumDuration: TimeInterval = 30 * 60
 
-    init(healthKit: any HealthKitServicing = PulsumServices.healthKit,
-         container: NSPersistentContainer = PulsumData.container,
+    init(modelContainer: ModelContainer,
+         storagePaths: StoragePaths,
+         healthKit: (any HealthKitServicing)? = nil,
          notificationCenter: NotificationCenter = .default,
          calendar: Calendar = Calendar(identifier: .gregorian),
-         estimatorStore: EstimatorStateStoring = EstimatorStateStore(),
-         backfillStore: BackfillStateStoring = BackfillStateStore(),
+         estimatorStore: EstimatorStateStoring? = nil,
+         backfillStore: BackfillStateStoring? = nil,
          bootstrapPolicy: DataAgentBootstrapPolicy = .default) {
-        self.healthKit = healthKit
+        let modelContext = ModelContext(modelContainer)
+        self.modelExecutor = DefaultSerialModelExecutor(modelContext: modelContext)
+        self.modelContainer = modelContainer
+        self.healthKit = healthKit ?? HealthKitService(
+            anchorStore: HealthKitAnchorStore(directory: storagePaths.healthAnchorsDirectory)
+        )
         self.calendar = calendar
-        self.estimatorStore = estimatorStore
-        self.backfillStore = backfillStore
+        self.estimatorStore = estimatorStore ?? EstimatorStateStore(baseDirectory: storagePaths.applicationSupport)
+        self.backfillStore = backfillStore ?? BackfillStateStore(baseDirectory: storagePaths.applicationSupport)
         self.bootstrapPolicy = bootstrapPolicy
         self.stateEstimator = StateEstimator()
-        self.context = container.newBackgroundContext()
-        self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        self.context.name = "Pulsum.DataAgent"
         self.notificationCenter = notificationCenter
         self.requiredSampleTypes = HealthKitService.orderedReadSampleTypes
         var dictionary: [String: HKSampleType] = [:]
@@ -143,13 +148,13 @@ actor DataAgent {
         }
         self.sampleTypesByIdentifier = dictionary
 
-        if let persistedBackfill = backfillStore.loadState() {
+        if let persistedBackfill = self.backfillStore.loadState() {
             self.backfillProgress = persistedBackfill
         } else {
             self.backfillProgress = BackfillProgress()
         }
 
-        if let persisted = estimatorStore.loadState() {
+        if let persisted = self.estimatorStore.loadState() {
             self.stateEstimator = StateEstimator(state: persisted)
         }
     }
@@ -1059,47 +1064,39 @@ actor DataAgent {
 
         let day = calendar.startOfDay(for: date)
         do {
-            let context = self.context
-            let created = try await context.perform { () throws -> Bool in
-                let request = FeatureVector.fetchRequest()
-                request.predicate = NSPredicate(format: "date == %@", day as NSDate)
-                request.fetchLimit = 1
-                if let existing = try context.fetch(request).first {
-                    let bundle = DataAgent.materializeFeatures(from: existing)
-                    if SnapshotPlaceholder.isPlaceholder(bundle.imputed) {
-                        return false
-                    }
+            let targetDate = day
+            var descriptor = FetchDescriptor<FeatureVector>(predicate: #Predicate { $0.date == targetDate })
+            descriptor.fetchLimit = 1
+            if let existing = try modelContext.fetch(descriptor).first {
+                let bundle = Self.materializeFeatures(from: existing)
+                if SnapshotPlaceholder.isPlaceholder(bundle.imputed) {
                     return false
                 }
-                let vector = FeatureVector(context: context)
-                vector.date = day
-                var zeroFeatures: [String: Double] = [:]
-                for key in FeatureBundle.requiredKeys {
-                    zeroFeatures[key] = 0
-                }
-                DataAgent.apply(features: zeroFeatures, to: vector)
-                let imputed: [String: Bool] = [SnapshotPlaceholder.imputedFlagKey: true]
-                vector.imputedFlags = DataAgent.encodeFeatureMetadata(imputed: imputed,
-                                                                      contributions: [:],
-                                                                      wellbeing: 0)
-                if context.hasChanges {
-                    try context.save()
-                }
-                return true
+                return false
             }
-            if created {
-                notifySnapshotUpdate(for: day, reason: reason)
-                Diagnostics.log(level: .info,
-                                category: .dataAgent,
-                                name: "data.snapshot.placeholder",
-                                fields: [
-                                    "trigger": .safeString(.stage(trigger,
-                                                                  allowed: ["watchdog", "bootstrap_failures", "bootstrap_complete", "bootstrap_timeout", "unknown"])),
-                                    "snapshot_day": .day(day)
-                                ],
-                                traceId: diagnosticsTraceId)
+            let vector = FeatureVector(date: day)
+            modelContext.insert(vector)
+            var zeroFeatures: [String: Double] = [:]
+            for key in FeatureBundle.requiredKeys {
+                zeroFeatures[key] = 0
             }
-            return created
+            self.apply(features: zeroFeatures, to: vector)
+            let imputed: [String: Bool] = [SnapshotPlaceholder.imputedFlagKey: true]
+            vector.imputedFlags = Self.encodeFeatureMetadata(imputed: imputed,
+                                                             contributions: [:],
+                                                             wellbeing: 0)
+            try modelContext.save()
+            notifySnapshotUpdate(for: day, reason: reason)
+            Diagnostics.log(level: .info,
+                            category: .dataAgent,
+                            name: "data.snapshot.placeholder",
+                            fields: [
+                                "trigger": .safeString(.stage(trigger,
+                                                              allowed: ["watchdog", "bootstrap_failures", "bootstrap_complete", "bootstrap_timeout", "unknown"])),
+                                "snapshot_day": .day(day)
+                            ],
+                            traceId: diagnosticsTraceId)
+            return true
         } catch {
             Diagnostics.log(level: .error,
                             category: .dataAgent,
@@ -1881,30 +1878,34 @@ actor DataAgent {
     }
 
     private func latestFeatureVector(includePlaceholder: Bool) async throws -> FeatureVectorSnapshot? {
-        let context = self.context
-        let result = try await context.perform { () throws -> FeatureComputation? in
-            let request = FeatureVector.fetchRequest()
-            request.sortDescriptors = [NSSortDescriptor(key: #keyPath(FeatureVector.date), ascending: false)]
-            request.fetchLimit = 5
-            let vectors = try context.fetch(request)
-            guard !vectors.isEmpty else { return nil }
+        var descriptor = FetchDescriptor<FeatureVector>()
+        descriptor.sortBy = [SortDescriptor(\.date, order: .reverse)]
+        descriptor.fetchLimit = 5
+        let vectors = try modelContext.fetch(descriptor)
+        guard !vectors.isEmpty else {
+            await DebugLogBuffer.shared.append("latestFeatureVector -> none found")
+            return nil
+        }
 
-            var placeholderCandidate: FeatureComputation?
-            for vector in vectors {
-                let bundle = DataAgent.materializeFeatures(from: vector)
-                let computation = FeatureComputation(date: vector.date,
-                                                     featureValues: bundle.values,
-                                                     imputedFlags: bundle.imputed,
-                                                     featureVectorObjectID: vector.objectID)
-                if SnapshotPlaceholder.isPlaceholder(bundle.imputed) {
-                    if includePlaceholder, placeholderCandidate == nil {
-                        placeholderCandidate = computation
-                    }
-                    continue
+        var placeholderCandidate: FeatureComputation?
+        var result: FeatureComputation?
+        for vector in vectors {
+            let bundle = Self.materializeFeatures(from: vector)
+            let computation = FeatureComputation(date: vector.date,
+                                                 featureValues: bundle.values,
+                                                 imputedFlags: bundle.imputed,
+                                                 featureVectorObjectID: vector.persistentModelID)
+            if SnapshotPlaceholder.isPlaceholder(bundle.imputed) {
+                if includePlaceholder, placeholderCandidate == nil {
+                    placeholderCandidate = computation
                 }
-                return computation
+                continue
             }
-            return includePlaceholder ? placeholderCandidate : nil
+            result = computation
+            break
+        }
+        if result == nil {
+            result = includePlaceholder ? placeholderCandidate : nil
         }
 
         guard let computation = result else {
@@ -1928,7 +1929,6 @@ actor DataAgent {
     func scoreBreakdown() async throws -> ScoreBreakdown? {
         guard let snapshot = try await latestRealFeatureVector() else { return nil }
 
-        let context = self.context
         let dayString = DiagnosticsDayFormatter.dayString(from: snapshot.date)
         await DebugLogBuffer.shared.append("Computing scoreBreakdown for day=\(dayString)")
 
@@ -1940,46 +1940,38 @@ actor DataAgent {
         }
 
         let descriptors = Self.scoreMetricDescriptors
-        let coverageByFeature = try await metricCoverage(for: snapshot, descriptors: descriptors)
-        let rawAndBaselines = try await context.perform { () throws -> ([String: Double], [String: BaselinePayload]) in
-            var rawValues: [String: Double] = [:]
-            var baselines: [String: BaselinePayload] = [:]
+        let coverageByFeature = try metricCoverage(for: snapshot, descriptors: descriptors)
 
-            let metricsRequest = DailyMetrics.fetchRequest()
-            metricsRequest.predicate = NSPredicate(format: "date == %@", snapshot.date as NSDate)
-            metricsRequest.fetchLimit = 1
-            if let metrics = try context.fetch(metricsRequest).first {
-                rawValues["hrv"] = metrics.hrvMedian?.doubleValue
-                rawValues["nocthr"] = metrics.nocturnalHRPercentile10?.doubleValue
-                rawValues["resthr"] = metrics.restingHR?.doubleValue
-                rawValues["sleepDebt"] = metrics.sleepDebt?.doubleValue
-                rawValues["rr"] = metrics.respiratoryRate?.doubleValue
-                rawValues["steps"] = metrics.steps?.doubleValue
-            }
+        var rawValues: [String: Double] = [:]
+        var baselineValues: [String: BaselinePayload] = [:]
 
-            let baselineKeys = Array(Set(descriptors.compactMap { $0.baselineKey }))
-            if !baselineKeys.isEmpty {
-                let baselineKeysPredicate = baselineKeys as NSArray
-                let baselineRequest = Baseline.fetchRequest()
-                baselineRequest.predicate = NSPredicate(format: "metric IN %@", baselineKeysPredicate)
-                let baselineObjects = try context.fetch(baselineRequest)
-                for baseline in baselineObjects {
-                    let key = baseline.metric
-                    guard !key.isEmpty else { continue }
-                    baselines[key] = BaselinePayload(
-                        median: baseline.median?.doubleValue,
-                        mad: baseline.mad?.doubleValue,
-                        ewma: baseline.ewma?.doubleValue,
-                        updatedAt: baseline.updatedAt
-                    )
-                }
-            }
-
-            return (rawValues, baselines)
+        let snapshotDate = snapshot.date
+        var metricsDescriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date == snapshotDate })
+        metricsDescriptor.fetchLimit = 1
+        if let metrics = try modelContext.fetch(metricsDescriptor).first {
+            rawValues["hrv"] = metrics.hrvMedian
+            rawValues["nocthr"] = metrics.nocturnalHRPercentile10
+            rawValues["resthr"] = metrics.restingHR
+            rawValues["sleepDebt"] = metrics.sleepDebt
+            rawValues["rr"] = metrics.respiratoryRate
+            rawValues["steps"] = metrics.steps
         }
 
-        let rawValues = rawAndBaselines.0
-        let baselineValues = rawAndBaselines.1
+        let baselineKeys = Array(Set(descriptors.compactMap { $0.baselineKey }))
+        if !baselineKeys.isEmpty {
+            var baselineDescriptor = FetchDescriptor<Baseline>(predicate: #Predicate { baselineKeys.contains($0.metric) })
+            let baselineObjects = try modelContext.fetch(baselineDescriptor)
+            for baseline in baselineObjects {
+                let key = baseline.metric
+                guard !key.isEmpty else { continue }
+                baselineValues[key] = BaselinePayload(
+                    median: baseline.median,
+                    mad: baseline.mad,
+                    ewma: baseline.ewma,
+                    updatedAt: baseline.updatedAt
+                )
+            }
+        }
 
         var metrics: [ScoreBreakdown.MetricDetail] = []
         metrics.reserveCapacity(descriptors.count)
@@ -2032,74 +2024,72 @@ actor DataAgent {
     }
 
     private func metricCoverage(for snapshot: FeatureVectorSnapshot,
-                                descriptors: [ScoreMetricDescriptor]) async throws -> [String: ScoreBreakdown.MetricDetail.Coverage] {
+                                descriptors: [ScoreMetricDescriptor]) throws -> [String: ScoreBreakdown.MetricDetail.Coverage] {
         let calendar = self.calendar
-        let context = self.context
 
-        return try await context.perform {
-            var coverage: [String: ScoreBreakdown.MetricDetail.Coverage] = [:]
-            let endDate = calendar.startOfDay(for: snapshot.date)
+        var coverage: [String: ScoreBreakdown.MetricDetail.Coverage] = [:]
+        let endDate = calendar.startOfDay(for: snapshot.date)
 
-            var windowStarts: [String: Date] = [:]
-            for descriptor in descriptors {
-                guard let window = descriptor.rollingWindowDays else { continue }
-                let start = calendar.date(byAdding: .day, value: -(window - 1), to: endDate) ?? endDate
-                windowStarts[descriptor.featureKey] = start
-            }
-
-            guard let earliest = windowStarts.values.min() else { return [:] }
-
-            let request = DailyMetrics.fetchRequest()
-            request.predicate = NSPredicate(format: "date >= %@ AND date <= %@", earliest as NSDate, endDate as NSDate)
-            let metrics = try context.fetch(request)
-
-            var counts: [String: (days: Set<Date>, samples: Int)] = [:]
-
-            for metric in metrics {
-                let flags = DataAgent.decodeFlags(from: metric)
-                let day = calendar.startOfDay(for: metric.date)
-
-                let hrvCount = flags.hrvSamples.isEmpty ? (metric.hrvMedian != nil ? 1 : 0) : flags.hrvSamples.count
-                let nocturnalAvailable = metric.nocturnalHRPercentile10 != nil || flags.aggregatedNocturnalAverage != nil || !flags.heartRateSamples.isEmpty
-                let restingSamples = flags.heartRateSamples.filter { $0.context == .resting }.count
-                let restingCount = restingSamples == 0 ? (metric.restingHR != nil ? 1 : 0) : restingSamples
-                let sleepDebtCount = metric.sleepDebt != nil ? 1 : 0
-                let rrCount = flags.respiratorySamples.isEmpty ? (metric.respiratoryRate != nil ? 1 : 0) : flags.respiratorySamples.count
-                let stepsAvailable = metric.steps != nil || flags.aggregatedStepTotal != nil || !flags.stepBuckets.isEmpty
-
-                let sampleCounts: [String: Int] = [
-                    "z_hrv": hrvCount,
-                    "z_nocthr": nocturnalAvailable ? 1 : 0,
-                    "z_resthr": restingCount,
-                    "z_sleepDebt": sleepDebtCount,
-                    "z_rr": rrCount,
-                    "z_steps": stepsAvailable ? 1 : 0
-                ]
-
-                for (featureKey, count) in sampleCounts {
-                    guard let windowStart = windowStarts[featureKey] else { continue }
-                    guard day >= windowStart else { continue }
-                    guard count > 0 else { continue }
-
-                    var entry = counts[featureKey] ?? (Set<Date>(), 0)
-                    entry.days.insert(day)
-                    entry.samples += count
-                    counts[featureKey] = entry
-                }
-            }
-
-            for (featureKey, _) in windowStarts {
-                if let entry = counts[featureKey] {
-                    coverage[featureKey] = ScoreBreakdown.MetricDetail.Coverage(daysWithSamples: entry.days.count,
-                                                                                sampleCount: entry.samples)
-                } else {
-                    // Explicitly surface zero coverage when no samples are available
-                    coverage[featureKey] = ScoreBreakdown.MetricDetail.Coverage(daysWithSamples: 0, sampleCount: 0)
-                }
-            }
-
-            return coverage
+        var windowStarts: [String: Date] = [:]
+        for descriptor in descriptors {
+            guard let window = descriptor.rollingWindowDays else { continue }
+            let start = calendar.date(byAdding: .day, value: -(window - 1), to: endDate) ?? endDate
+            windowStarts[descriptor.featureKey] = start
         }
+
+        guard let earliest = windowStarts.values.min() else { return [:] }
+
+        let earliestDate = earliest
+        let endDateForPredicate = endDate
+        var metricsDescriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date >= earliestDate && $0.date <= endDateForPredicate })
+        let metrics = try modelContext.fetch(metricsDescriptor)
+
+        var counts: [String: (days: Set<Date>, samples: Int)] = [:]
+
+        for metric in metrics {
+            let flags = Self.decodeFlags(from: metric)
+            let day = calendar.startOfDay(for: metric.date)
+
+            let hrvCount = flags.hrvSamples.isEmpty ? (metric.hrvMedian != nil ? 1 : 0) : flags.hrvSamples.count
+            let nocturnalAvailable = metric.nocturnalHRPercentile10 != nil || flags.aggregatedNocturnalAverage != nil || !flags.heartRateSamples.isEmpty
+            let restingSamples = flags.heartRateSamples.filter { $0.context == .resting }.count
+            let restingCount = restingSamples == 0 ? (metric.restingHR != nil ? 1 : 0) : restingSamples
+            let sleepDebtCount = metric.sleepDebt != nil ? 1 : 0
+            let rrCount = flags.respiratorySamples.isEmpty ? (metric.respiratoryRate != nil ? 1 : 0) : flags.respiratorySamples.count
+            let stepsAvailable = metric.steps != nil || flags.aggregatedStepTotal != nil || !flags.stepBuckets.isEmpty
+
+            let sampleCounts: [String: Int] = [
+                "z_hrv": hrvCount,
+                "z_nocthr": nocturnalAvailable ? 1 : 0,
+                "z_resthr": restingCount,
+                "z_sleepDebt": sleepDebtCount,
+                "z_rr": rrCount,
+                "z_steps": stepsAvailable ? 1 : 0
+            ]
+
+            for (featureKey, count) in sampleCounts {
+                guard let windowStart = windowStarts[featureKey] else { continue }
+                guard day >= windowStart else { continue }
+                guard count > 0 else { continue }
+
+                var entry = counts[featureKey] ?? (Set<Date>(), 0)
+                entry.days.insert(day)
+                entry.samples += count
+                counts[featureKey] = entry
+            }
+        }
+
+        for (featureKey, _) in windowStarts {
+            if let entry = counts[featureKey] {
+                coverage[featureKey] = ScoreBreakdown.MetricDetail.Coverage(daysWithSamples: entry.days.count,
+                                                                            sampleCount: entry.samples)
+            } else {
+                // Explicitly surface zero coverage when no samples are available
+                coverage[featureKey] = ScoreBreakdown.MetricDetail.Coverage(daysWithSamples: 0, sampleCount: 0)
+            }
+        }
+
+        return coverage
     }
 
     func reprocessDay(date: Date) async throws {
@@ -2112,20 +2102,23 @@ actor DataAgent {
 
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {
         let targetDate = calendar.startOfDay(for: date)
-        let context = self.context
         let dayString = DiagnosticsDayFormatter.dayString(from: targetDate)
         await DebugLogBuffer.shared.append("Recording subjective inputs for day=\(dayString)")
-        try await context.perform {
-            let request = FeatureVector.fetchRequest()
-            request.predicate = NSPredicate(format: "date == %@", targetDate as NSDate)
-            request.fetchLimit = 1
-            let vector = try context.fetch(request).first ?? FeatureVector(context: context)
-            vector.date = targetDate
-            vector.subjectiveStress = NSNumber(value: stress)
-            vector.subjectiveEnergy = NSNumber(value: energy)
-            vector.subjectiveSleepQuality = NSNumber(value: sleepQuality)
-            try context.save()
+        let fetchDate = targetDate
+        var descriptor = FetchDescriptor<FeatureVector>(predicate: #Predicate { $0.date == fetchDate })
+        descriptor.fetchLimit = 1
+        let vector: FeatureVector
+        if let existing = try modelContext.fetch(descriptor).first {
+            vector = existing
+        } else {
+            vector = FeatureVector(date: targetDate)
+            modelContext.insert(vector)
         }
+        vector.date = targetDate
+        vector.subjectiveStress = stress
+        vector.subjectiveEnergy = energy
+        vector.subjectiveSleepQuality = sleepQuality
+        try modelContext.save()
         try await reprocessDayInternal(targetDate)
         notifySnapshotUpdate(for: targetDate,
                              reason: .stage("reprocess",
@@ -2209,7 +2202,6 @@ actor DataAgent {
         guard !samples.isEmpty else { return [] }
 
         let calendar = self.calendar
-        let context = self.context
         let identifier = type.identifier
 
         if identifier == HKQuantityTypeIdentifier.stepCount.rawValue {
@@ -2242,22 +2234,16 @@ actor DataAgent {
             }
         }
 
-        let dirtyDays = try await context.perform { () throws -> Set<Date> in
-            var dirtyDays: Set<Date> = []
-            for sample in samples {
-                let day = calendar.startOfDay(for: sample.startDate)
-                let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
-                DataAgent.mutateFlags(metrics) { flags in
-                    flags.append(quantitySample: sample, type: type)
-                }
-                dirtyDays.insert(day)
+        var dirtyDays: Set<Date> = []
+        for sample in samples {
+            let day = calendar.startOfDay(for: sample.startDate)
+            let metrics = self.fetchOrCreateDailyMetrics(date: day)
+            Self.mutateFlags(metrics) { flags in
+                flags.append(quantitySample: sample, type: type)
             }
-
-            if context.hasChanges {
-                try context.save()
-            }
-            return dirtyDays
+            dirtyDays.insert(day)
         }
+        try modelContext.save()
 
         for day in dirtyDays {
             try await reprocessDayInternal(day)
@@ -2272,25 +2258,19 @@ actor DataAgent {
         guard !samples.isEmpty else { return [] }
 
         let calendar = self.calendar
-        let context = self.context
 
-        let dirtyDays = try await context.perform { () throws -> Set<Date> in
-            var dirtyDays: Set<Date> = []
-            for sample in samples {
-                let day = calendar.startOfDay(for: sample.startDate)
-                let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
-                DataAgent.mutateFlags(metrics) { flags in
-                    let appended = flags.append(sleepSample: sample)
-                    if appended {
-                        dirtyDays.insert(day)
-                    }
+        var dirtyDays: Set<Date> = []
+        for sample in samples {
+            let day = calendar.startOfDay(for: sample.startDate)
+            let metrics = self.fetchOrCreateDailyMetrics(date: day)
+            Self.mutateFlags(metrics) { flags in
+                let appended = flags.append(sleepSample: sample)
+                if appended {
+                    dirtyDays.insert(day)
                 }
             }
-            if context.hasChanges {
-                try context.save()
-            }
-            return dirtyDays
         }
+        try modelContext.save()
 
         for day in dirtyDays {
             try await reprocessDayInternal(day)
@@ -2303,36 +2283,31 @@ actor DataAgent {
         guard !deletedObjects.isEmpty else { return [] }
 
         let identifiers = Set(deletedObjects.map { $0.uuid })
-        let context = self.context
-        let dirtyDays = try await context.perform { () throws -> Set<Date> in
-            let request = DailyMetrics.fetchRequest()
-            let metrics = try context.fetch(request)
-            var dirty: Set<Date> = []
-            for metric in metrics {
-                var flags = DataAgent.decodeFlags(from: metric)
-                let stepCount = flags.stepBuckets.count
-                let sleepCount = flags.sleepSegments.count
-                let heartRateCount = flags.heartRateSamples.count
-                if flags.pruneDeletedSamples(identifiers) {
-                    if flags.stepBuckets.count < stepCount {
-                        flags.aggregatedStepTotal = nil
-                    }
-                    if flags.sleepSegments.count < sleepCount {
-                        flags.aggregatedSleepDurationSeconds = nil
-                    }
-                    if flags.heartRateSamples.count < heartRateCount {
-                        flags.aggregatedNocturnalAverage = nil
-                        flags.aggregatedNocturnalMin = nil
-                    }
-                    metric.flags = DataAgent.encodeFlags(flags)
-                    dirty.insert(metric.date)
+        let descriptor = FetchDescriptor<DailyMetrics>()
+        let metrics = try modelContext.fetch(descriptor)
+        var dirty: Set<Date> = []
+        for metric in metrics {
+            var flags = Self.decodeFlags(from: metric)
+            let stepCount = flags.stepBuckets.count
+            let sleepCount = flags.sleepSegments.count
+            let heartRateCount = flags.heartRateSamples.count
+            if flags.pruneDeletedSamples(identifiers) {
+                if flags.stepBuckets.count < stepCount {
+                    flags.aggregatedStepTotal = nil
                 }
+                if flags.sleepSegments.count < sleepCount {
+                    flags.aggregatedSleepDurationSeconds = nil
+                }
+                if flags.heartRateSamples.count < heartRateCount {
+                    flags.aggregatedNocturnalAverage = nil
+                    flags.aggregatedNocturnalMin = nil
+                }
+                metric.flags = Self.encodeFlags(flags)
+                dirty.insert(metric.date)
             }
-            if context.hasChanges {
-                try context.save()
-            }
-            return dirty
         }
+        try modelContext.save()
+        let dirtyDays = dirty
 
         for day in dirtyDays {
             try await reprocessDayInternal(day)
@@ -2352,24 +2327,18 @@ actor DataAgent {
     private func applyStepTotals(_ totals: [Date: Int]) async throws -> Set<Date> {
         guard !totals.isEmpty else { return [] }
         let calendar = self.calendar
-        let context = self.context
 
-        let dirtyDays = try await context.perform { () throws -> Set<Date> in
-            var dirty: Set<Date> = []
-            for (rawDay, total) in totals {
-                let day = calendar.startOfDay(for: rawDay)
-                let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
-                DataAgent.mutateFlags(metrics) { flags in
-                    flags.aggregatedStepTotal = Double(total)
-                    flags.stepBuckets = []
-                }
-                dirty.insert(day)
+        var dirtyDays: Set<Date> = []
+        for (rawDay, total) in totals {
+            let day = calendar.startOfDay(for: rawDay)
+            let metrics = self.fetchOrCreateDailyMetrics(date: day)
+            Self.mutateFlags(metrics) { flags in
+                flags.aggregatedStepTotal = Double(total)
+                flags.stepBuckets = []
             }
-            if context.hasChanges {
-                try context.save()
-            }
-            return dirty
+            dirtyDays.insert(day)
         }
+        try modelContext.save()
 
         for day in dirtyDays {
             try await reprocessDayInternal(day)
@@ -2381,25 +2350,19 @@ actor DataAgent {
     private func applyNocturnalStats(_ stats: [Date: (avgBPM: Double, minBPM: Double?)]) async throws -> Set<Date> {
         guard !stats.isEmpty else { return [] }
         let calendar = self.calendar
-        let context = self.context
 
-        let dirtyDays = try await context.perform { () throws -> Set<Date> in
-            var dirty: Set<Date> = []
-            for (rawDay, value) in stats {
-                let day = calendar.startOfDay(for: rawDay)
-                let metrics = DataAgent.fetchOrCreateDailyMetrics(in: context, date: day)
-                DataAgent.mutateFlags(metrics) { flags in
-                    flags.aggregatedNocturnalAverage = value.avgBPM
-                    flags.aggregatedNocturnalMin = value.minBPM
-                    flags.heartRateSamples.removeAll { $0.context == .normal }
-                }
-                dirty.insert(day)
+        var dirtyDays: Set<Date> = []
+        for (rawDay, value) in stats {
+            let day = calendar.startOfDay(for: rawDay)
+            let metrics = self.fetchOrCreateDailyMetrics(date: day)
+            Self.mutateFlags(metrics) { flags in
+                flags.aggregatedNocturnalAverage = value.avgBPM
+                flags.aggregatedNocturnalMin = value.minBPM
+                flags.heartRateSamples.removeAll { $0.context == .normal }
             }
-            if context.hasChanges {
-                try context.save()
-            }
-            return dirty
+            dirtyDays.insert(day)
         }
+        try modelContext.save()
 
         for day in dirtyDays {
             try await reprocessDayInternal(day)
@@ -2411,55 +2374,47 @@ actor DataAgent {
     // MARK: - Daily Computation
 
     private func reprocessDayInternal(_ day: Date) async throws {
-        let context = self.context
         let calendar = self.calendar
         let sedentaryThreshold = sedentaryThresholdStepsPerHour
         let sedentaryDuration = sedentaryMinimumDuration
         let sleepDebtWindowDays = self.sleepDebtWindowDays
         let analysisWindowDays = self.fullAnalysisWindowDays
 
-        let computation = try await context.perform { () throws -> FeatureComputation in
-            let metrics = try DataAgent.fetchDailyMetrics(in: context, date: day)
-            var flags = DataAgent.decodeFlags(from: metrics)
-            let summary = try DataAgent.computeSummary(for: metrics,
-                                                       flags: flags,
-                                                       context: context,
-                                                       calendar: calendar,
-                                                       sedentaryThreshold: sedentaryThreshold,
-                                                       sedentaryMinimumDuration: sedentaryDuration,
-                                                       sleepDebtWindowDays: sleepDebtWindowDays,
-                                                       analysisWindowDays: analysisWindowDays)
-            flags = summary.updatedFlags
+        let metrics = try self.fetchDailyMetrics(date: day)
+        var flags = Self.decodeFlags(from: metrics)
+        let summary = try self.computeSummary(for: metrics,
+                                              flags: flags,
+                                              calendar: calendar,
+                                              sedentaryThreshold: sedentaryThreshold,
+                                              sedentaryMinimumDuration: sedentaryDuration,
+                                              sleepDebtWindowDays: sleepDebtWindowDays,
+                                              analysisWindowDays: analysisWindowDays)
+        flags = summary.updatedFlags
 
-            metrics.hrvMedian = summary.hrv.map(NSNumber.init(value:))
-            metrics.nocturnalHRPercentile10 = summary.nocturnalHR.map(NSNumber.init(value:))
-            metrics.restingHR = summary.restingHR.map(NSNumber.init(value:))
-            metrics.totalSleepTime = summary.totalSleepSeconds.map(NSNumber.init(value:))
-            metrics.sleepDebt = summary.sleepDebtHours.map(NSNumber.init(value:))
-            metrics.respiratoryRate = summary.respiratoryRate.map(NSNumber.init(value:))
-            metrics.steps = summary.stepCount.map(NSNumber.init(value:))
-            metrics.flags = DataAgent.encodeFlags(flags)
+        metrics.hrvMedian = summary.hrv
+        metrics.nocturnalHRPercentile10 = summary.nocturnalHR
+        metrics.restingHR = summary.restingHR
+        metrics.totalSleepTime = summary.totalSleepSeconds
+        metrics.sleepDebt = summary.sleepDebtHours
+        metrics.respiratoryRate = summary.respiratoryRate
+        metrics.steps = summary.stepCount
+        metrics.flags = Self.encodeFlags(flags)
 
-            let baselines = try DataAgent.updateBaselines(in: context,
-                                                          summary: summary,
-                                                          referenceDate: day,
-                                                          windowDays: analysisWindowDays)
-            let bundle = try DataAgent.buildFeatureBundle(for: metrics,
-                                                          summary: summary,
-                                                          baselines: baselines,
-                                                          context: context)
-            let featureVector = try DataAgent.fetchOrCreateFeatureVector(in: context, date: day)
-            DataAgent.apply(features: bundle.values, to: featureVector)
+        let baselines = try self.updateBaselines(summary: summary,
+                                                 referenceDate: day,
+                                                 windowDays: analysisWindowDays)
+        let bundle = try self.buildFeatureBundle(for: metrics,
+                                                 summary: summary,
+                                                 baselines: baselines)
+        let featureVector = try self.fetchOrCreateFeatureVector(date: day)
+        self.apply(features: bundle.values, to: featureVector)
 
-            if context.hasChanges {
-                try context.save()
-            }
+        try modelContext.save()
 
-            return FeatureComputation(date: day,
-                                      featureValues: bundle.values,
-                                      imputedFlags: bundle.imputed,
-                                      featureVectorObjectID: featureVector.objectID)
-        }
+        let computation = FeatureComputation(date: day,
+                                             featureValues: bundle.values,
+                                             imputedFlags: bundle.imputed,
+                                             featureVectorObjectID: featureVector.persistentModelID)
 
         let modelFeatures = WellbeingModeling.normalize(features: computation.featureValues,
                                                         imputedFlags: computation.imputedFlags)
@@ -2469,15 +2424,11 @@ actor DataAgent {
         await DebugLogBuffer.shared.append("Reprocessed day \(dayString) -> feature_count=\(computation.featureValues.count)")
         persistEstimatorState(from: snapshot)
 
-        try await context.perform {
-            guard let vector = try? context.existingObject(with: computation.featureVectorObjectID) as? FeatureVector else { return }
-            vector.imputedFlags = DataAgent.encodeFeatureMetadata(imputed: computation.imputedFlags,
-                                                                  contributions: snapshot.contributions,
-                                                                  wellbeing: snapshot.wellbeingScore)
-            if context.hasChanges {
-                try context.save()
-            }
-        }
+        guard let vector: FeatureVector = modelContext.registeredModel(for: computation.featureVectorObjectID) else { return }
+        vector.imputedFlags = Self.encodeFeatureMetadata(imputed: computation.imputedFlags,
+                                                         contributions: snapshot.contributions,
+                                                         wellbeing: snapshot.wellbeingScore)
+        try modelContext.save()
     }
 
     private func persistEstimatorState(from snapshot: StateEstimatorSnapshot) {
@@ -2595,14 +2546,13 @@ actor DataAgent {
         return nsError.localizedDescription.localizedCaseInsensitiveContains("Protected health data is inaccessible")
     }
 
-    private static func computeSummary(for metrics: DailyMetrics,
-                                       flags: DailyFlags,
-                                       context: NSManagedObjectContext,
-                                       calendar: Calendar,
-                                       sedentaryThreshold: Double,
-                                       sedentaryMinimumDuration: TimeInterval,
-                                       sleepDebtWindowDays: Int,
-                                       analysisWindowDays: Int) throws -> DailySummary {
+    private func computeSummary(for metrics: DailyMetrics,
+                                flags: DailyFlags,
+                                calendar: Calendar,
+                                sedentaryThreshold: Double,
+                                sedentaryMinimumDuration: TimeInterval,
+                                sleepDebtWindowDays: Int,
+                                analysisWindowDays: Int) throws -> DailySummary {
         var imputed: [String: Bool] = [:]
 
         let sleepIntervals = flags.sleepIntervals()
@@ -2613,32 +2563,28 @@ actor DataAgent {
             imputed["sedentary_missing"] = true
         }
 
-        let previousHRV = try previousMetricValue(in: context,
-                                                  keyPath: #keyPath(DailyMetrics.hrvMedian),
-                                                  before: metrics.date)
+        let previousHRV = try previousMetricValue(keyPath: \.hrvMedian,
+                                                  date: metrics.date)
         let hrvValue = flags.medianHRV(in: sleepIntervals,
                                        fallback: sedentaryIntervals,
                                        previous: previousHRV,
                                        imputed: &imputed)
 
-        let previousNocturnal = try previousMetricValue(in: context,
-                                                        keyPath: #keyPath(DailyMetrics.nocturnalHRPercentile10),
-                                                        before: metrics.date)
+        let previousNocturnal = try previousMetricValue(keyPath: \.nocturnalHRPercentile10,
+                                                        date: metrics.date)
         let nocturnalHR = flags.nocturnalHeartRate(in: sleepIntervals,
                                                    fallback: sedentaryIntervals,
                                                    previous: previousNocturnal,
                                                    imputed: &imputed)
 
-        let previousResting = try previousMetricValue(in: context,
-                                                      keyPath: #keyPath(DailyMetrics.restingHR),
-                                                      before: metrics.date)
+        let previousResting = try previousMetricValue(keyPath: \.restingHR,
+                                                      date: metrics.date)
         let restingHR = flags.restingHeartRate(fallback: sedentaryIntervals,
                                                previous: previousResting,
                                                imputed: &imputed)
 
         let sleepSeconds = flags.sleepDurations()
-        let sleepNeed = try personalizedSleepNeedHours(context: context,
-                                                       referenceDate: metrics.date,
+        let sleepNeed = try personalizedSleepNeedHours(referenceDate: metrics.date,
                                                        latestActualHours: (sleepSeconds ?? 0) / 3600,
                                                        windowDays: analysisWindowDays)
         var sleepDebt: Double?
@@ -2647,8 +2593,7 @@ actor DataAgent {
             if sleepSeconds < 3 * 3600 {
                 imputed["sleep_low_confidence"] = true
             }
-            sleepDebt = try sleepDebtHours(context: context,
-                                           personalNeed: sleepNeed,
+            sleepDebt = try sleepDebtHours(personalNeed: sleepNeed,
                                            currentHours: actualSleepHours,
                                            referenceDate: metrics.date,
                                            windowDays: sleepDebtWindowDays,
@@ -2681,10 +2626,9 @@ actor DataAgent {
                             imputed: imputed)
     }
 
-    private static func buildFeatureBundle(for _: DailyMetrics,
-                                           summary: DailySummary,
-                                           baselines: [String: BaselineMath.RobustStats],
-                                           context: NSManagedObjectContext) throws -> FeatureBundle {
+    private func buildFeatureBundle(for _: DailyMetrics,
+                                    summary: DailySummary,
+                                    baselines: [String: BaselineMath.RobustStats]) throws -> FeatureBundle {
         var values: [String: Double] = [:]
 
         if let hrv = summary.hrv, let stats = baselines["hrv"] {
@@ -2706,11 +2650,11 @@ actor DataAgent {
             values["z_steps"] = BaselineMath.zScore(value: steps, stats: stats)
         }
 
-        let vector = try fetchOrCreateFeatureVector(in: context, date: summary.date)
-        if let stress = vector.subjectiveStress?.doubleValue { values["subj_stress"] = stress }
-        if let energy = vector.subjectiveEnergy?.doubleValue { values["subj_energy"] = energy }
-        if let sleepQuality = vector.subjectiveSleepQuality?.doubleValue { values["subj_sleepQuality"] = sleepQuality }
-        if let sentiment = vector.sentiment?.doubleValue { values["sentiment"] = sentiment }
+        let vector = try self.fetchOrCreateFeatureVector(date: summary.date)
+        if let stress = vector.subjectiveStress { values["subj_stress"] = stress }
+        if let energy = vector.subjectiveEnergy { values["subj_energy"] = energy }
+        if let sleepQuality = vector.subjectiveSleepQuality { values["subj_sleepQuality"] = sleepQuality }
+        if let sentiment = vector.sentiment { values["sentiment"] = sentiment }
 
         for key in FeatureBundle.requiredKeys where values[key] == nil {
             values[key] = 0
@@ -2719,56 +2663,54 @@ actor DataAgent {
         return FeatureBundle(values: values, imputed: summary.imputed)
     }
 
-    private static func apply(features: [String: Double], to vector: FeatureVector) {
-        vector.zHrv = NSNumber(value: features["z_hrv"] ?? 0)
-        vector.zNocturnalHR = NSNumber(value: features["z_nocthr"] ?? 0)
-        vector.zRestingHR = NSNumber(value: features["z_resthr"] ?? 0)
-        vector.zSleepDebt = NSNumber(value: features["z_sleepDebt"] ?? 0)
-        vector.zRespiratoryRate = NSNumber(value: features["z_rr"] ?? 0)
-        vector.zSteps = NSNumber(value: features["z_steps"] ?? 0)
-        vector.subjectiveStress = NSNumber(value: features["subj_stress"] ?? 0)
-        vector.subjectiveEnergy = NSNumber(value: features["subj_energy"] ?? 0)
-        vector.subjectiveSleepQuality = NSNumber(value: features["subj_sleepQuality"] ?? 0)
-        vector.sentiment = NSNumber(value: features["sentiment"] ?? 0)
+    private func apply(features: [String: Double], to vector: FeatureVector) {
+        vector.zHrv = features["z_hrv"] ?? 0
+        vector.zNocturnalHR = features["z_nocthr"] ?? 0
+        vector.zRestingHR = features["z_resthr"] ?? 0
+        vector.zSleepDebt = features["z_sleepDebt"] ?? 0
+        vector.zRespiratoryRate = features["z_rr"] ?? 0
+        vector.zSteps = features["z_steps"] ?? 0
+        vector.subjectiveStress = features["subj_stress"] ?? 0
+        vector.subjectiveEnergy = features["subj_energy"] ?? 0
+        vector.subjectiveSleepQuality = features["subj_sleepQuality"] ?? 0
+        vector.sentiment = features["sentiment"] ?? 0
     }
 
     // MARK: - Persistence Helpers
 
-    private static func fetchDailyMetrics(in context: NSManagedObjectContext, date: Date) throws -> DailyMetrics {
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date == %@", date as NSDate)
-        request.fetchLimit = 1
-        if let metrics = try context.fetch(request).first {
+    private func fetchDailyMetrics(date: Date) throws -> DailyMetrics {
+        let targetDate = date
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date == targetDate })
+        descriptor.fetchLimit = 1
+        if let metrics = try modelContext.fetch(descriptor).first {
             return metrics
         }
-        let metrics = DailyMetrics(context: context)
-        metrics.date = date
-        metrics.flags = Self.encodeFlags(DailyFlags())
+        let metrics = DailyMetrics(date: date, flags: Self.encodeFlags(DailyFlags()))
+        modelContext.insert(metrics)
         return metrics
     }
 
-    private static func fetchOrCreateDailyMetrics(in context: NSManagedObjectContext, date: Date) -> DailyMetrics {
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date == %@", date as NSDate)
-        request.fetchLimit = 1
-        if let metrics = try? context.fetch(request).first {
+    private func fetchOrCreateDailyMetrics(date: Date) -> DailyMetrics {
+        let targetDate = date
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date == targetDate })
+        descriptor.fetchLimit = 1
+        if let metrics = try? modelContext.fetch(descriptor).first {
             return metrics
         }
-        let metrics = DailyMetrics(context: context)
-        metrics.date = date
-        metrics.flags = Self.encodeFlags(DailyFlags())
+        let metrics = DailyMetrics(date: date, flags: Self.encodeFlags(DailyFlags()))
+        modelContext.insert(metrics)
         return metrics
     }
 
-    private static func fetchOrCreateFeatureVector(in context: NSManagedObjectContext, date: Date) throws -> FeatureVector {
-        let request = FeatureVector.fetchRequest()
-        request.predicate = NSPredicate(format: "date == %@", date as NSDate)
-        request.fetchLimit = 1
-        if let vector = try context.fetch(request).first {
+    private func fetchOrCreateFeatureVector(date: Date) throws -> FeatureVector {
+        let targetDate = date
+        var descriptor = FetchDescriptor<FeatureVector>(predicate: #Predicate { $0.date == targetDate })
+        descriptor.fetchLimit = 1
+        if let vector = try modelContext.fetch(descriptor).first {
             return vector
         }
-        let vector = FeatureVector(context: context)
-        vector.date = date
+        let vector = FeatureVector(date: date)
+        modelContext.insert(vector)
         return vector
     }
 
@@ -2882,37 +2824,32 @@ actor DataAgent {
         }
 
         let values: [String: Double] = [
-            "z_hrv": vector.zHrv?.doubleValue ?? 0,
-            "z_nocthr": vector.zNocturnalHR?.doubleValue ?? 0,
-            "z_resthr": vector.zRestingHR?.doubleValue ?? 0,
-            "z_sleepDebt": vector.zSleepDebt?.doubleValue ?? 0,
-            "z_rr": vector.zRespiratoryRate?.doubleValue ?? 0,
-            "z_steps": vector.zSteps?.doubleValue ?? 0,
-            "subj_stress": vector.subjectiveStress?.doubleValue ?? 0,
-            "subj_energy": vector.subjectiveEnergy?.doubleValue ?? 0,
-            "subj_sleepQuality": vector.subjectiveSleepQuality?.doubleValue ?? 0,
-            "sentiment": vector.sentiment?.doubleValue ?? 0
+            "z_hrv": vector.zHrv ?? 0,
+            "z_nocthr": vector.zNocturnalHR ?? 0,
+            "z_resthr": vector.zRestingHR ?? 0,
+            "z_sleepDebt": vector.zSleepDebt ?? 0,
+            "z_rr": vector.zRespiratoryRate ?? 0,
+            "z_steps": vector.zSteps ?? 0,
+            "subj_stress": vector.subjectiveStress ?? 0,
+            "subj_energy": vector.subjectiveEnergy ?? 0,
+            "subj_sleepQuality": vector.subjectiveSleepQuality ?? 0,
+            "sentiment": vector.sentiment ?? 0
         ]
         return FeatureBundle(values: values, imputed: imputed)
     }
 
-    private static func previousMetricValue(in context: NSManagedObjectContext,
-                                            keyPath: String,
-                                            before date: Date) throws -> Double? {
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date < %@", date as NSDate)
-        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(DailyMetrics.date), ascending: false)]
-        request.fetchLimit = 1
-        let metrics = try context.fetch(request)
-        guard let number = (metrics.first?.value(forKey: keyPath) as? NSNumber) else { return nil }
-        return number.doubleValue
+    private func previousMetricValue(keyPath: KeyPath<DailyMetrics, Double?>, date: Date) throws -> Double? {
+        let targetDate = date
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date < targetDate })
+        descriptor.sortBy = [SortDescriptor(\.date, order: .reverse)]
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first?[keyPath: keyPath]
     }
 
-    private static func updateBaselines(in context: NSManagedObjectContext,
-                                        summary: DailySummary,
-                                        referenceDate: Date,
-                                        windowDays: Int) throws -> [String: BaselineMath.RobustStats] {
-        let stats = try computeBaselines(in: context, referenceDate: referenceDate, windowDays: windowDays)
+    private func updateBaselines(summary: DailySummary,
+                                 referenceDate: Date,
+                                 windowDays: Int) throws -> [String: BaselineMath.RobustStats] {
+        let stats = try computeBaselines(referenceDate: referenceDate, windowDays: windowDays)
         let latestValues: [String: Double?] = [
             "hrv": summary.hrv,
             "nocthr": summary.nocturnalHR,
@@ -2923,15 +2860,15 @@ actor DataAgent {
         ]
 
         for (metricKey, stat) in stats {
-            let baseline = try fetchBaseline(in: context, metric: metricKey)
+            let baseline = try self.fetchBaseline(metric: metricKey)
             baseline.metric = metricKey
             baseline.windowDays = Int16(windowDays)
-            baseline.median = NSNumber(value: stat.median)
-            baseline.mad = NSNumber(value: stat.mad)
+            baseline.median = stat.median
+            baseline.mad = stat.mad
             if let latest = latestValues[metricKey] ?? nil {
-                let previous = baseline.ewma?.doubleValue
+                let previous = baseline.ewma
                 let ewma = BaselineMath.ewma(previous: previous, newValue: latest)
-                baseline.ewma = NSNumber(value: ewma)
+                baseline.ewma = ewma
             }
             baseline.updatedAt = referenceDate
         }
@@ -2939,17 +2876,16 @@ actor DataAgent {
         return stats
     }
 
-    private static func computeBaselines(in context: NSManagedObjectContext,
-                                         referenceDate: Date,
-                                         windowDays: Int) throws -> [String: BaselineMath.RobustStats] {
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date <= %@", referenceDate as NSDate)
-        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(DailyMetrics.date), ascending: false)]
-        request.fetchLimit = windowDays
-        let metrics = try context.fetch(request)
+    private func computeBaselines(referenceDate: Date,
+                                  windowDays: Int) throws -> [String: BaselineMath.RobustStats] {
+        let refDate = referenceDate
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date <= refDate })
+        descriptor.sortBy = [SortDescriptor(\.date, order: .reverse)]
+        descriptor.fetchLimit = windowDays
+        let metrics = try modelContext.fetch(descriptor)
 
-        func stats(_ keyPath: KeyPath<DailyMetrics, NSNumber?>) -> BaselineMath.RobustStats? {
-            let values = metrics.compactMap { $0[keyPath: keyPath]?.doubleValue }
+        func stats(_ keyPath: KeyPath<DailyMetrics, Double?>) -> BaselineMath.RobustStats? {
+            let values = metrics.compactMap { $0[keyPath: keyPath] }
             return BaselineMath.robustStats(for: values)
         }
 
@@ -2963,48 +2899,46 @@ actor DataAgent {
         return result
     }
 
-    private static func fetchBaseline(in context: NSManagedObjectContext, metric: String) throws -> Baseline {
-        let request = Baseline.fetchRequest()
-        request.predicate = NSPredicate(format: "metric == %@", metric)
-        request.fetchLimit = 1
-        if let baseline = try context.fetch(request).first {
+    private func fetchBaseline(metric: String) throws -> Baseline {
+        let metricKey = metric
+        var descriptor = FetchDescriptor<Baseline>(predicate: #Predicate { $0.metric == metricKey })
+        descriptor.fetchLimit = 1
+        if let baseline = try modelContext.fetch(descriptor).first {
             return baseline
         }
-        let baseline = Baseline(context: context)
-        baseline.metric = metric
-        baseline.windowDays = 0
+        let baseline = Baseline(metric: metric, windowDays: 0)
+        modelContext.insert(baseline)
         return baseline
     }
 
-    private static func personalizedSleepNeedHours(context: NSManagedObjectContext,
-                                                   referenceDate: Date,
-                                                   latestActualHours _: Double,
-                                                   windowDays: Int) throws -> Double {
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date <= %@", referenceDate as NSDate)
-        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(DailyMetrics.date), ascending: false)]
-        request.fetchLimit = windowDays
-        let metrics = try context.fetch(request)
-        let historical = metrics.compactMap { $0.totalSleepTime?.doubleValue }.map { $0 / 3600 }
+    private func personalizedSleepNeedHours(referenceDate: Date,
+                                            latestActualHours _: Double,
+                                            windowDays: Int) throws -> Double {
+        let refDate = referenceDate
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date <= refDate })
+        descriptor.sortBy = [SortDescriptor(\.date, order: .reverse)]
+        descriptor.fetchLimit = windowDays
+        let metrics = try modelContext.fetch(descriptor)
+        let historical = metrics.compactMap { $0.totalSleepTime }.map { $0 / 3600 }
         let defaultNeed = 7.5
         guard historical.count >= 7 else { return defaultNeed }
         let mean = historical.reduce(0, +) / Double(historical.count)
         return min(max(mean, defaultNeed - 0.75), defaultNeed + 0.75)
     }
 
-    private static func sleepDebtHours(context: NSManagedObjectContext,
-                                       personalNeed: Double,
-                                       currentHours: Double?,
-                                       referenceDate: Date,
-                                       windowDays: Int,
-                                       calendar: Calendar) throws -> Double? {
+    private func sleepDebtHours(personalNeed: Double,
+                                currentHours: Double?,
+                                referenceDate: Date,
+                                windowDays: Int,
+                                calendar: Calendar) throws -> Double? {
         guard let currentHours else { return nil }
         let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: referenceDate) ?? referenceDate
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date <= %@", start as NSDate, referenceDate as NSDate)
-        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(DailyMetrics.date), ascending: true)]
-        let metrics = try context.fetch(request)
-        var window = metrics.map { ($0.totalSleepTime?.doubleValue ?? 0) / 3600 }
+        let startDate = start
+        let refDate = referenceDate
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date >= startDate && $0.date <= refDate })
+        descriptor.sortBy = [SortDescriptor(\.date)]
+        let metrics = try modelContext.fetch(descriptor)
+        var window = metrics.map { ($0.totalSleepTime ?? 0) / 3600 }
         if metrics.last?.date != referenceDate {
             window.append(currentHours)
         }
@@ -3333,7 +3267,7 @@ private struct FeatureComputation: Sendable {
     let date: Date
     let featureValues: [String: Double]
     let imputedFlags: [String: Bool]
-    let featureVectorObjectID: NSManagedObjectID
+    let featureVectorObjectID: PersistentIdentifier
 }
 
 private struct DailySummary {

@@ -1,5 +1,5 @@
 import Foundation
-import CoreData
+import SwiftData
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -11,7 +11,7 @@ import PulsumTypes
 
 @MainActor
 public final class CoachAgent {
-    private let context: NSManagedObjectContext
+    private let modelContext: ModelContext
     private let vectorIndex: VectorIndexProviding
     private let ranker: RecRanker
     private let rankerStore: RecRankerStateStoring
@@ -25,21 +25,23 @@ public final class CoachAgent {
     private var libraryPreparationTask: Task<Void, Error>?
     private let logger = Logger(subsystem: "com.pulsum", category: "CoachAgent")
 
-    public init(container: NSPersistentContainer = PulsumData.container,
-                vectorIndex: VectorIndexProviding = VectorIndexManager.shared,
-                libraryImporter: LibraryImporter = LibraryImporter(),
+    public init(container: ModelContainer,
+                storagePaths: StoragePaths,
+                vectorIndex: VectorIndexProviding? = nil,
+                libraryImporter: LibraryImporter? = nil,
                 llmGateway: LLMGateway = LLMGateway(),
                 shouldIngestLibrary: Bool = true,
-                rankerStore: RecRankerStateStoring = RecRankerStateStore()) throws {
-        self.context = container.newBackgroundContext()
-        self.context.name = "Pulsum.CoachAgent.FoundationModels"
-        self.context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        self.vectorIndex = vectorIndex
-        self.libraryImporter = libraryImporter
+                rankerStore: RecRankerStateStoring? = nil) throws {
+        self.modelContext = ModelContext(container)
+        let index = vectorIndex ?? VectorIndexManager(directory: storagePaths.vectorIndexDirectory)
+        self.vectorIndex = index
+        self.libraryImporter = libraryImporter ?? LibraryImporter(vectorIndex: index,
+                                                                  modelContainer: container)
         self.llmGateway = llmGateway
         self.shouldIngestLibrary = shouldIngestLibrary
-        self.rankerStore = rankerStore
-        self.ranker = RecRanker(state: rankerStore.loadState())
+        let store = rankerStore ?? RecRankerStateStore(baseDirectory: storagePaths.applicationSupport)
+        self.rankerStore = store
+        self.ranker = RecRanker(state: store.loadState())
     }
 
     public var libraryImportDeferred: Bool {
@@ -250,14 +252,15 @@ public final class CoachAgent {
     }
 
     public func logEvent(momentId: String, accepted: Bool) async throws {
-        try await contextPerform { context in
-            let event = RecommendationEvent(context: context)
-            event.momentId = momentId
-            event.date = Date()
-            event.accepted = accepted
-            event.completedAt = accepted ? Date() : nil
-            try context.save()
-        }
+        let event = RecommendationEvent(
+            momentId: momentId,
+            date: Date(),
+            accepted: accepted,
+            completedAt: accepted ? Date() : nil
+        )
+        modelContext.insert(event)
+        try modelContext.save()
+
         let feedback = await applyFeedback(for: momentId, accepted: accepted)
         Diagnostics.log(level: .info,
                         category: .coach,
@@ -271,12 +274,10 @@ public final class CoachAgent {
     }
 
     public func momentTitle(for id: String) async -> String? {
-        await contextPerform { context in
-            let request = MicroMoment.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", id)
-            request.fetchLimit = 1
-            return try? context.fetch(request).first?.title
-        }
+        let targetId = id
+        var descriptor = FetchDescriptor<MicroMoment>(predicate: #Predicate { $0.id == targetId })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first?.title
     }
 
     /// Fetch candidate micro-moments for intent-aware coaching
@@ -345,12 +346,10 @@ public final class CoachAgent {
     }
 
     private func fetchMicroMoments(ids: [String]) async throws -> [MicroMomentSnapshot] {
-        try await contextPerform { context in
-            let request = MicroMoment.fetchRequest()
-            request.predicate = NSPredicate(format: "id IN %@", ids)
-            let moments = try context.fetch(request)
-            return moments.map(MicroMomentSnapshot.init)
-        }
+        let targetIds = ids
+        let descriptor = FetchDescriptor<MicroMoment>(predicate: #Predicate { targetIds.contains($0.id) })
+        let moments = try modelContext.fetch(descriptor)
+        return moments.map(MicroMomentSnapshot.init)
     }
 
     func generateResponse(context: CoachLLMContext,
@@ -391,40 +390,37 @@ public final class CoachAgent {
 
     private func keywordBackfillMoments(for topic: String,
                                         limit: Int) async throws -> [MicroMomentSnapshot] {
-        try await contextPerform { context in
-            let request = NSFetchRequest<MicroMoment>(entityName: "MicroMoment")
-            let candidateLimit = max(limit * 20, 200)
-            request.fetchLimit = candidateLimit
-            request.fetchBatchSize = candidateLimit
-            request.sortDescriptors = [
-                NSSortDescriptor(key: "title",
-                                 ascending: true,
-                                 selector: #selector(NSString.localizedCaseInsensitiveCompare(_:))),
-                NSSortDescriptor(key: "id", ascending: true)
-            ]
+        let candidateLimit = max(limit * 20, 200)
+        var descriptor = FetchDescriptor<MicroMoment>()
+        descriptor.fetchLimit = candidateLimit
+        descriptor.sortBy = [SortDescriptor(\.title), SortDescriptor(\.id)]
 
-            // tags is Transformable; filter matches in-memory to avoid SQL string predicates
-            let candidates = try context.fetch(request)
-            let filtered = candidates.filter { moment in
-                if moment.title.range(of: topic, options: .caseInsensitive) != nil {
-                    return true
-                }
-                guard let tags = moment.tags else { return false }
-                return tags.contains { tag in
-                    tag.range(of: topic, options: .caseInsensitive) != nil
-                }
+        // tags is a JSON-encoded String?; filter matches in-memory
+        let candidates = try modelContext.fetch(descriptor)
+        let filtered = candidates.filter { moment in
+            if moment.title.range(of: topic, options: .caseInsensitive) != nil {
+                return true
             }
-
-            let sorted = filtered.sorted {
-                let comparison = $0.title.localizedCaseInsensitiveCompare($1.title)
-                if comparison == .orderedSame {
-                    return $0.id < $1.id
-                }
-                return comparison == .orderedAscending
+            guard let tagsJSON = moment.tags else { return false }
+            // Decode JSON string array from the stored tags string
+            guard let tagsData = tagsJSON.data(using: .utf8),
+                  let tags = try? JSONDecoder().decode([String].self, from: tagsData) else {
+                return false
             }
-
-            return Array(sorted.prefix(limit)).map(MicroMomentSnapshot.init)
+            return tags.contains { tag in
+                tag.range(of: topic, options: .caseInsensitive) != nil
+            }
         }
+
+        let sorted = filtered.sorted {
+            let comparison = $0.title.localizedCaseInsensitiveCompare($1.title)
+            if comparison == .orderedSame {
+                return $0.id < $1.id
+            }
+            return comparison == .orderedAscending
+        }
+
+        return Array(sorted.prefix(limit)).map(MicroMomentSnapshot.init)
     }
 
     func minimalCoachContext(from snapshot: FeatureVectorSnapshot?, topic: String) -> CoachLLMContext {
@@ -580,16 +576,15 @@ public final class CoachAgent {
 
     private func cooldownScore(for moment: MicroMomentSnapshot) async -> Double {
         guard let cooldown = moment.cooldownSec, cooldown > 0 else { return 0 }
-        let momentId = moment.id
-        let elapsed: TimeInterval? = await contextPerform { context in
-            let request = RecommendationEvent.fetchRequest()
-            request.predicate = NSPredicate(format: "momentId == %@ AND accepted == YES", momentId)
-            request.sortDescriptors = [NSSortDescriptor(key: #keyPath(RecommendationEvent.completedAt), ascending: false)]
-            request.fetchLimit = 1
-            guard let last = try? context.fetch(request).first, let completed = last.completedAt else { return nil }
-            return Date().timeIntervalSince(completed)
-        }
-        guard let elapsed else { return 0 }
+        let targetMomentId = moment.id
+        var descriptor = FetchDescriptor<RecommendationEvent>(
+            predicate: #Predicate { $0.momentId == targetMomentId && $0.accepted == true }
+        )
+        descriptor.sortBy = [SortDescriptor(\.completedAt, order: .reverse)]
+        descriptor.fetchLimit = 1
+        guard let last = try? modelContext.fetch(descriptor).first,
+              let completed = last.completedAt else { return 0 }
+        let elapsed = Date().timeIntervalSince(completed)
         if elapsed >= cooldown { return 0 }
         return 1 - (elapsed / cooldown)
     }
@@ -607,7 +602,7 @@ public final class CoachAgent {
             }
         }
 
-        let history = await acceptanceHistory(for: momentId)
+        let history = acceptanceHistory(for: momentId)
         await ranker.updateLearningRate(basedOn: history)
         await persistRankerState()
         return (changedCount: comparators.count, learningRateBucket: learningRateBucket(for: history.sampleCount))
@@ -624,27 +619,27 @@ public final class CoachAgent {
         }
     }
 
-    private func acceptanceHistory(for momentId: String) async -> AcceptanceHistory {
-        await contextPerform { context in
-            let request = RecommendationEvent.fetchRequest()
-            request.predicate = NSPredicate(format: "momentId == %@", momentId)
-            guard let events = try? context.fetch(request), !events.isEmpty else {
-                return AcceptanceHistory(rollingAcceptance: 0.5, sampleCount: 0)
-            }
-            let acceptances = events.filter { $0.accepted }.count
-            let rate = Double(acceptances) / Double(events.count)
-            return AcceptanceHistory(rollingAcceptance: rate, sampleCount: events.count)
+    private func acceptanceHistory(for momentId: String) -> AcceptanceHistory {
+        let targetMomentId = momentId
+        let descriptor = FetchDescriptor<RecommendationEvent>(
+            predicate: #Predicate { $0.momentId == targetMomentId }
+        )
+        guard let events = try? modelContext.fetch(descriptor), !events.isEmpty else {
+            return AcceptanceHistory(rollingAcceptance: 0.5, sampleCount: 0)
         }
+        let acceptances = events.filter { $0.accepted }.count
+        let rate = Double(acceptances) / Double(events.count)
+        return AcceptanceHistory(rollingAcceptance: rate, sampleCount: events.count)
     }
 
     private func acceptanceRate(for momentId: String) async -> Double {
-        await contextPerform { context in
-            let request = RecommendationEvent.fetchRequest()
-            request.predicate = NSPredicate(format: "momentId == %@", momentId)
-            guard let events = try? context.fetch(request), !events.isEmpty else { return 0.1 }
-            let acceptances = events.filter { $0.accepted }.count
-            return Double(acceptances) / Double(events.count)
-        }
+        let targetMomentId = momentId
+        let descriptor = FetchDescriptor<RecommendationEvent>(
+            predicate: #Predicate { $0.momentId == targetMomentId }
+        )
+        guard let events = try? modelContext.fetch(descriptor), !events.isEmpty else { return 0.1 }
+        let acceptances = events.filter { $0.accepted }.count
+        return Double(acceptances) / Double(events.count)
     }
 
     private func timeCostFit(for moment: MicroMomentSnapshot) -> Double {
@@ -686,30 +681,23 @@ private struct MicroMomentSnapshot: Sendable {
         title = moment.title
         shortDescription = moment.shortDescription
         detail = moment.detail
-        tags = moment.tags
-        estimatedTimeSec = moment.estimatedTimeSec?.doubleValue
+        // Decode JSON string array from stored tags string
+        if let tagsJSON = moment.tags,
+           let tagsData = tagsJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String].self, from: tagsData) {
+            tags = decoded
+        } else {
+            tags = nil
+        }
+        estimatedTimeSec = moment.estimatedTimeSec.map(Double.init)
         difficulty = moment.difficulty
         category = moment.category
         evidenceBadge = moment.evidenceBadge
-        cooldownSec = moment.cooldownSec?.doubleValue
+        cooldownSec = moment.cooldownSec.map(Double.init)
     }
 }
 
 private extension CoachAgent {
-    func contextPerform<T: Sendable>(_ work: @escaping @Sendable (NSManagedObjectContext) -> T) async -> T {
-        let ctx = self.context
-        return await ctx.perform {
-            work(ctx)
-        }
-    }
-
-    func contextPerform<T: Sendable>(_ work: @escaping @Sendable (NSManagedObjectContext) throws -> T) async throws -> T {
-        let ctx = self.context
-        return try await ctx.perform {
-            try work(ctx)
-        }
-    }
-
     func persistRankerState() async {
         let state = await ranker.snapshotState()
         rankerStore.saveState(state)

@@ -7,6 +7,7 @@ import PulsumData
 import PulsumServices
 import PulsumML
 import PulsumTypes
+import SwiftData
 
 public enum OrchestratorStartupError: Error {
     case healthDataUnavailable
@@ -174,7 +175,7 @@ public final class AgentOrchestrator {
     private let recommendationSnapshotTimeoutSeconds: Double = 2
     private let recommendationsTimeoutSeconds: Double
 
-    public init() throws {
+    public init(container: ModelContainer, storagePaths: StoragePaths) throws {
         // Check Foundation Models availability
         #if canImport(FoundationModels) && os(iOS)
         if #available(iOS 26.0, *) {
@@ -197,9 +198,12 @@ public final class AgentOrchestrator {
         self.topicGate = EmbeddingTopicGateProvider()
         #endif
 
-        self.dataAgent = DataAgent()
-        self.sentimentAgent = SentimentAgent()
-        self.coachAgent = try CoachAgent()
+        self.dataAgent = DataAgent(modelContainer: container,
+                                   storagePaths: storagePaths)
+        self.sentimentAgent = SentimentAgent(container: container,
+                                             vectorIndexDirectory: storagePaths.vectorIndexDirectory)
+        self.coachAgent = try CoachAgent(container: container,
+                                         storagePaths: storagePaths)
         self.safetyAgent = SafetyAgent()
         self.cheerAgent = CheerAgent()
         self.embeddingService = EmbeddingService.shared

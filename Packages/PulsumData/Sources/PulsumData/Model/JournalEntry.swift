@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDJournalEntry {
-    #Index<SDJournalEntry>([\.date])
+public final class JournalEntry {
+    #Index<JournalEntry>([\.date])
 
     public var id: UUID
     public var date: Date

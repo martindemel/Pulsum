@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDConsentState {
+public final class ConsentState {
     public var id: UUID
     @Attribute(.unique) public var version: String
     public var grantedAt: Date?

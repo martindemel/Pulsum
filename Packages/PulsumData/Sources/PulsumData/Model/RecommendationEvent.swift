@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDRecommendationEvent {
-    #Index<SDRecommendationEvent>([\.momentId])
+public final class RecommendationEvent {
+    #Index<RecommendationEvent>([\.momentId])
 
     public var momentId: String
     public var date: Date

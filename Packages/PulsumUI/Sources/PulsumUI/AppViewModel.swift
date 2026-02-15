@@ -1,5 +1,5 @@
 import Foundation
-import CoreData
+import SwiftData
 import Observation
 import PulsumAgents
 import PulsumData
@@ -50,7 +50,8 @@ final class AppViewModel {
         }
     }
 
-    private let consentStore: ConsentStore
+    private var consentStore: ConsentStore
+    private(set) var dataStack: DataStack?
     @ObservationIgnored private(set) var orchestrator: AgentOrchestrator?
     @ObservationIgnored private let observerBag = NotificationObserverBag()
 
@@ -194,7 +195,10 @@ final class AppViewModel {
             ])
             return
         }
-        if let error = PulsumData.initializationError {
+        let stack: DataStack
+        do {
+            stack = try DataStack()
+        } catch {
             startupState = .failed(error.localizedDescription)
             Task { await DebugLogBuffer.shared.append("Startup failed: DataStack initialization error: \(error.localizedDescription)") }
             emitFirstRunEnd(fields: [
@@ -203,7 +207,9 @@ final class AppViewModel {
             ], error: error)
             return
         }
-        if let issue = PulsumData.backupSecurityIssue {
+        self.dataStack = stack
+        consentStore.setModelContainer(stack.container)
+        if let issue = stack.backupSecurityIssue {
             let location = issue.url.lastPathComponent
             startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")
             Task { await DebugLogBuffer.shared.append("Startup blocked: \(issue.reason)") }
@@ -222,7 +228,8 @@ final class AppViewModel {
                                 category: .app,
                                 name: "app.orchestrator.create.begin",
                                 traceId: startupTraceId)
-                let orchestrator = try PulsumAgents.makeOrchestrator()
+                let orchestrator = try PulsumAgents.makeOrchestrator(container: stack.container,
+                                                                     storagePaths: stack.storagePaths)
                 Diagnostics.log(level: .info,
                                 category: .app,
                                 name: "app.orchestrator.create.end",
@@ -232,6 +239,8 @@ final class AppViewModel {
                     self?.consentGranted ?? false
                 })
                 self.pulseViewModel.bind(orchestrator: orchestrator)
+                self.settingsViewModel.modelContainer = stack.container
+                self.settingsViewModel.vectorIndexDirectory = stack.storagePaths.vectorIndexDirectory
                 self.settingsViewModel.bind(orchestrator: orchestrator)
                 self.settingsViewModel.refreshFoundationStatus()
                 Diagnostics.log(level: .info,
@@ -475,18 +484,18 @@ private extension AppViewModel {
 
 @MainActor
 struct ConsentStore {
-    private let contextProvider: () -> NSManagedObjectContext
+    private var modelContainer: ModelContainer?
     private static let recordID = "default"
     private static let consentDefaultsKey = "ai.pulsum.cloudConsent"
     private let consentVersion: String
 
-    init(contextProvider: @escaping () -> NSManagedObjectContext = { PulsumData.viewContext },
-         consentVersion: String = ConsentStore.defaultConsentVersion()) {
-        self.contextProvider = contextProvider
+    init(consentVersion: String = ConsentStore.defaultConsentVersion()) {
         self.consentVersion = consentVersion
     }
 
-    private var context: NSManagedObjectContext { contextProvider() }
+    mutating func setModelContainer(_ container: ModelContainer) {
+        self.modelContainer = container
+    }
 
     private var defaults: UserDefaults {
         AppRuntimeConfig.runtimeDefaults
@@ -500,12 +509,15 @@ struct ConsentStore {
         if AppRuntimeConfig.isUITesting {
             return false
         }
-        let request = UserPrefs.fetchRequest()
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "id == %@", Self.recordID)
-        if let existing = try? context.fetch(request).first {
-            defaults.set(existing.consentCloud, forKey: Self.consentDefaultsKey)
-            return existing.consentCloud
+        if let modelContainer {
+            let context = ModelContext(modelContainer)
+            let targetId = Self.recordID
+            var descriptor = FetchDescriptor<UserPrefs>(predicate: #Predicate { $0.id == targetId })
+            descriptor.fetchLimit = 1
+            if let existing = try? context.fetch(descriptor).first {
+                defaults.set(existing.consentCloud, forKey: Self.consentDefaultsKey)
+                return existing.consentCloud
+            }
         }
         return false
     }
@@ -517,38 +529,39 @@ struct ConsentStore {
         if AppRuntimeConfig.isUITesting {
             return
         }
-        let request = UserPrefs.fetchRequest()
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "id == %@", Self.recordID)
+        guard let modelContainer else { return }
+        let context = ModelContext(modelContainer)
+        let targetId = Self.recordID
+        var descriptor = FetchDescriptor<UserPrefs>(predicate: #Predicate { $0.id == targetId })
+        descriptor.fetchLimit = 1
         let prefs: UserPrefs
-        if let existing = try? context.fetch(request).first {
+        if let existing = try? context.fetch(descriptor).first {
             prefs = existing
         } else {
-            prefs = UserPrefs(context: context)
-            prefs.id = Self.recordID
+            prefs = UserPrefs(id: targetId)
+            context.insert(prefs)
         }
         prefs.consentCloud = granted
         prefs.updatedAt = Date()
         do {
-            persistConsentHistory(granted: granted)
+            persistConsentHistory(granted: granted, context: context)
             try context.save()
         } catch {
-            context.rollback()
+            // Errors are logged; changes discarded on context dealloc
         }
     }
 
-    private func persistConsentHistory(granted: Bool) {
-        let request = ConsentState.fetchRequest()
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "version == %@", consentVersion)
+    private func persistConsentHistory(granted: Bool, context: ModelContext) {
+        let version = consentVersion
+        var descriptor = FetchDescriptor<ConsentState>(predicate: #Predicate { $0.version == version })
+        descriptor.fetchLimit = 1
 
         let record: ConsentState
-        if let existing = try? context.fetch(request).first {
+        if let existing = try? context.fetch(descriptor).first {
             record = existing
         } else {
-            record = ConsentState(context: context)
-            record.id = UUID()
-            record.version = consentVersion
+            record = ConsentState(version: consentVersion)
+            context.insert(record)
         }
 
         let timestamp = Date()

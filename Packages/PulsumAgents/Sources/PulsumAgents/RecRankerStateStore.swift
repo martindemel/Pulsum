@@ -1,6 +1,5 @@
 import Foundation
 import os.log
-import PulsumData
 import PulsumML
 
 public protocol RecRankerStateStoring: Sendable {
@@ -19,7 +18,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
         logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
     }
 
-    public init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
+    public init(baseDirectory: URL,
                 fileManager: FileManager = .default) {
         self.fileManager = fileManager
         let directory = baseDirectory.appendingPathComponent("RecRankerState", isDirectory: true)

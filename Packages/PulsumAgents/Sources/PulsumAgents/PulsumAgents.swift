@@ -5,16 +5,16 @@ import FoundationModels
 import PulsumData
 import PulsumServices
 import PulsumML
+import SwiftData
 
 public enum PulsumAgents {
     @MainActor
-    public static func makeOrchestrator() throws -> AgentOrchestrator {
-        try AgentOrchestrator()
+    public static func makeOrchestrator(container: ModelContainer, storagePaths: StoragePaths) throws -> AgentOrchestrator {
+        try AgentOrchestrator(container: container, storagePaths: storagePaths)
     }
 
-    public static func healthCheck() -> Bool {
-        let metadata = PulsumServices.storageMetadata()
-        return !metadata.storeURL.path.isEmpty && !metadata.anchorsDirectory.path.isEmpty
+    public static func healthCheck(storagePaths: StoragePaths) -> Bool {
+        !storagePaths.sqliteStoreURL.path.isEmpty && !storagePaths.healthAnchorsDirectory.path.isEmpty
     }
 
     public static func foundationModelsStatus() -> String {

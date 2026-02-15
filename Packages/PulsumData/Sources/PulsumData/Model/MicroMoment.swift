@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDMicroMoment {
-    #Index<SDMicroMoment>([\.id])
+public final class MicroMoment {
+    #Index<MicroMoment>([\.id])
 
     @Attribute(.unique) public var id: String
     public var title: String

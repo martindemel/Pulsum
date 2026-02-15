@@ -165,7 +165,7 @@ public final class HealthKitService: @unchecked Sendable {
     private var activeObserverQueries: [HKSampleType: HKObserverQuery] = [:]
     private var activeAnchoredQueries: [HKSampleType: HKAnchoredObjectQuery] = [:]
 
-    public init(healthStore: HKHealthStore = HKHealthStore(), anchorStore: HealthKitAnchorStore = HealthKitAnchorStore()) {
+    public init(healthStore: HKHealthStore = HKHealthStore(), anchorStore: HealthKitAnchorStore) {
         self.healthStore = healthStore
         self.anchorStore = anchorStore
     }

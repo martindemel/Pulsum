@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDDailyMetrics {
-    #Index<SDDailyMetrics>([\.date])
+public final class DailyMetrics {
+    #Index<DailyMetrics>([\.date])
 
     @Attribute(.unique) public var date: Date
     public var hrvMedian: Double?

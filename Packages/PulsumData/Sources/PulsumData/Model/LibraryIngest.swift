@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDLibraryIngest {
-    #Index<SDLibraryIngest>([\.source])
+public final class LibraryIngest {
+    #Index<LibraryIngest>([\.source])
 
     public var id: UUID
     @Attribute(.unique) public var source: String

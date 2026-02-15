@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import CoreData
+import SwiftData
 import PulsumAgents
 import PulsumData
 import HealthKit
@@ -23,6 +23,8 @@ final class SettingsViewModel {
     // MARK: - Core
 
     @ObservationIgnored var orchestrator: AgentOrchestrator?
+    @ObservationIgnored var modelContainer: ModelContainer?
+    @ObservationIgnored var vectorIndexDirectory: URL?
     var foundationModelsStatus: String = ""
     var consentGranted: Bool
     var lastConsentUpdated: Date = Date()

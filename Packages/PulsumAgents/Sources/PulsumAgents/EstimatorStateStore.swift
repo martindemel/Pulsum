@@ -1,6 +1,5 @@
 import Foundation
 import os.log
-import PulsumData
 import PulsumML
 
 protocol EstimatorStateStoring: Sendable {
@@ -22,7 +21,7 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
         logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
     }
 
-    init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
+    init(baseDirectory: URL,
          fileManager: FileManager = .default) {
         self.fileManager = fileManager
         let directory = baseDirectory.appendingPathComponent("EstimatorState", isDirectory: true)

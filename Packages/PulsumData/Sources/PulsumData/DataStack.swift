@@ -71,15 +71,15 @@ public final class DataStack: Sendable {
 
     /// All SwiftData model types managed by Pulsum.
     public static let modelTypes: [any PersistentModel.Type] = [
-        SDJournalEntry.self,
-        SDDailyMetrics.self,
-        SDBaseline.self,
-        SDFeatureVector.self,
-        SDMicroMoment.self,
-        SDRecommendationEvent.self,
-        SDLibraryIngest.self,
-        SDUserPrefs.self,
-        SDConsentState.self,
+        JournalEntry.self,
+        DailyMetrics.self,
+        Baseline.self,
+        FeatureVector.self,
+        MicroMoment.self,
+        RecommendationEvent.self,
+        LibraryIngest.self,
+        UserPrefs.self,
+        ConsentState.self,
     ]
 
     public init(appGroupIdentifier: String? = nil) throws {

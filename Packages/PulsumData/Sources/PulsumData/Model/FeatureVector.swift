@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDFeatureVector {
-    #Index<SDFeatureVector>([\.date])
+public final class FeatureVector {
+    #Index<FeatureVector>([\.date])
 
     @Attribute(.unique) public var date: Date
     public var zHrv: Double?

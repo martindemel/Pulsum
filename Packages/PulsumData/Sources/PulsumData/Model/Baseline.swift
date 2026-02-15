@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-public final class SDBaseline {
-    #Unique<SDBaseline>([\.metric, \.windowDays])
+public final class Baseline {
+    #Unique<Baseline>([\.metric, \.windowDays])
 
     public var metric: String
     public var windowDays: Int16 = 21

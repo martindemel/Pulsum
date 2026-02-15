@@ -3,7 +3,7 @@ import PulsumTypes
 
 // MARK: - Snapshot Extensions
 
-public extension SDDailyMetrics {
+public extension DailyMetrics {
     var snapshot: DailyMetricsSnapshot {
         DailyMetricsSnapshot(
             date: date,
@@ -19,7 +19,7 @@ public extension SDDailyMetrics {
     }
 }
 
-public extension SDJournalEntry {
+public extension JournalEntry {
     var snapshot: JournalEntrySnapshot {
         JournalEntrySnapshot(
             id: id,
@@ -30,7 +30,7 @@ public extension SDJournalEntry {
     }
 }
 
-public extension SDBaseline {
+public extension Baseline {
     var snapshot: BaselineSnapshot {
         BaselineSnapshot(
             metric: metric,
@@ -43,7 +43,7 @@ public extension SDBaseline {
     }
 }
 
-public extension SDFeatureVector {
+public extension FeatureVector {
     var snapshot: FeatureVectorSnapshot {
         FeatureVectorSnapshot(
             date: date,
@@ -62,7 +62,7 @@ public extension SDFeatureVector {
     }
 }
 
-public extension SDMicroMoment {
+public extension MicroMoment {
     var snapshot: MicroMomentSnapshot {
         MicroMomentSnapshot(
             id: id,
@@ -80,7 +80,7 @@ public extension SDMicroMoment {
     }
 }
 
-public extension SDRecommendationEvent {
+public extension RecommendationEvent {
     var snapshot: RecommendationEventSnapshot {
         RecommendationEventSnapshot(
             momentId: momentId,

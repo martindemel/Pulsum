@@ -1,25 +1,12 @@
-import CoreData
+import SwiftData
 import PulsumData
 
 final class TestCoreDataStack {
-    static func makeContainer() -> NSPersistentContainer {
-        guard let model = PulsumManagedObjectModel.shared else {
-            fatalError("Test setup: PulsumManagedObjectModel not found")
-        }
-        let container = NSPersistentContainer(name: "Pulsum", managedObjectModel: model)
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        description.shouldAddStoreAsynchronously = false
-        container.persistentStoreDescriptions = [description]
-
-        container.loadPersistentStores { _, error in
-            if let error {
-                fatalError("Test Core Data store error: \(error)")
-            }
-        }
-
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        return container
+    static func makeContainer() throws -> ModelContainer {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try ModelContainer(
+            for: DataStack.modelTypes,
+            configurations: [config]
+        )
     }
 }
