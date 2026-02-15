@@ -105,7 +105,7 @@ protocol SentimentAgentProviding: AnyObject {
 
 extension SentimentAgent: SentimentAgentProviding {}
 
-public struct RecommendationResponse {
+public struct RecommendationResponse: Sendable {
     public let cards: [RecommendationCard]
     public let wellbeingScore: Double
     public let contributions: [String: Double]
@@ -147,8 +147,8 @@ public struct JournalResult: Sendable {
     public let embeddingPending: Bool
 }
 
-public struct CheerEvent {
-    public enum HapticStyle {
+public struct CheerEvent: Sendable {
+    public enum HapticStyle: Sendable {
         case success
         case light
         case heavy
@@ -159,8 +159,11 @@ public struct CheerEvent {
     public let timestamp: Date
 }
 
-@MainActor
-public final class AgentOrchestrator {
+/// Orchestrator is @unchecked Sendable because all stored properties are `let` (set once
+/// in init) except `isVoiceJournalActive` which is @MainActor-protected. Each agent handles
+/// its own isolation: DataAgent is an actor, CoachAgent/CheerAgent are @MainActor,
+/// SafetyAgent is a Sendable struct, EmbeddingService is @unchecked Sendable.
+public final class AgentOrchestrator: @unchecked Sendable {
     private let dataAgent: any DataAgentProviding
     private let sentimentAgent: any SentimentAgentProviding
     private let coachAgent: CoachAgent
@@ -171,10 +174,11 @@ public final class AgentOrchestrator {
     private let afmAvailable: Bool
     private let topicGate: TopicGateProviding
     private let logger = Logger(subsystem: "com.pulsum", category: "AgentOrchestrator")
-    private var isVoiceJournalActive = false
+    @MainActor private var isVoiceJournalActive = false
     private let recommendationSnapshotTimeoutSeconds: Double = 2
     private let recommendationsTimeoutSeconds: Double
 
+    @MainActor
     public init(container: ModelContainer, storagePaths: StoragePaths) throws {
         // Check Foundation Models availability
         #if canImport(FoundationModels) && os(iOS)
@@ -211,6 +215,7 @@ public final class AgentOrchestrator {
     }
 
     #if DEBUG
+    @MainActor
     init(dataAgent: any DataAgentProviding,
          sentimentAgent: any SentimentAgentProviding,
          coachAgent: CoachAgent,
@@ -233,6 +238,7 @@ public final class AgentOrchestrator {
     #endif
 
     #if DEBUG
+    @MainActor
     init(testDataAgent: DataAgent,
          testSentimentAgent: any SentimentAgentProviding,
          testCoachAgent: CoachAgent,
@@ -305,6 +311,7 @@ public final class AgentOrchestrator {
             let embeddingsAvailable = embeddingService.availabilityMode(trigger: "start") == .available
             let pendingJournals = await sentimentAgent.pendingEmbeddingCount()
             let backfillCounts = await dataAgent.diagnosticsBackfillCounts()
+            let libraryDeferred = await MainActor.run { self.coachAgent.libraryImportDeferred }
             let checkpointFields: [String: DiagnosticsValue] = [
                 "health_granted": .int(healthStatus.granted.count),
                 "health_denied": .int(healthStatus.denied.count),
@@ -315,7 +322,7 @@ public final class AgentOrchestrator {
                 "pending_journals": .int(pendingJournals),
                 "backfill_warm_completed": .int(backfillCounts.warmCompleted),
                 "backfill_full_completed": .int(backfillCounts.fullCompleted),
-                "library_deferred": .bool(coachAgent.libraryImportDeferred)
+                "library_deferred": .bool(libraryDeferred)
             ]
             Diagnostics.log(level: .info,
                             category: .orchestrator,
@@ -371,6 +378,7 @@ public final class AgentOrchestrator {
     /// Audio levels and speech stream become available synchronously via properties.
     /// The caller should consume `voiceJournalSpeechStream` for real-time transcription.
     /// Call `finishVoiceJournalRecording(transcript:)` to complete recording and get the result.
+    @MainActor
     public func beginVoiceJournalRecording(maxDuration: TimeInterval = 30) async throws {
         guard !isVoiceJournalActive else {
             throw SentimentAgentError.sessionAlreadyActive
@@ -387,6 +395,7 @@ public final class AgentOrchestrator {
     /// Completes the voice journal recording that was started with `beginVoiceJournalRecording()`.
     /// Uses the provided transcript (from consuming the speech stream) to persist the journal.
     /// Returns the journal result with safety evaluation.
+    @MainActor
     public func finishVoiceJournalRecording(transcript: String? = nil) async throws -> JournalCaptureResponse {
         defer { isVoiceJournalActive = false }
         let result = try await sentimentAgent.finishVoiceJournal(transcript: transcript)
@@ -396,6 +405,7 @@ public final class AgentOrchestrator {
     }
 
     /// Legacy method that combines begin + finish for backward compatibility
+    @MainActor
     public func recordVoiceJournal(maxDuration: TimeInterval = 30) async throws -> JournalCaptureResponse {
         try await beginVoiceJournalRecording(maxDuration: maxDuration)
         var transcript = ""
@@ -425,10 +435,12 @@ public final class AgentOrchestrator {
         return JournalCaptureResponse(result: result, safety: safety)
     }
 
+    @MainActor
     public func currentLLMAPIKey() -> String? {
         coachAgent.currentLLMAPIKey()
     }
 
+    @MainActor
     public func setLLMAPIKey(_ key: String) throws {
         try coachAgent.setLLMAPIKey(key)
     }
@@ -437,19 +449,23 @@ public final class AgentOrchestrator {
         try await coachAgent.testLLMAPIConnection()
     }
 
+    @MainActor
     public func stopVoiceJournalRecording() {
         isVoiceJournalActive = false
         sentimentAgent.stopRecording()
     }
 
+    @MainActor
     public var voiceJournalAudioLevels: AsyncStream<Float>? {
         sentimentAgent.audioLevels
     }
 
+    @MainActor
     public var voiceJournalSpeechStream: AsyncThrowingStream<SpeechSegment, Error>? {
         sentimentAgent.speechStream
     }
 
+    @MainActor
     public func updateVoiceJournalTranscript(_ transcript: String) {
         sentimentAgent.updateTranscript(transcript)
     }
@@ -559,7 +575,7 @@ public final class AgentOrchestrator {
                                                                          contributions: snapshot.contributions),
                                                   notice: "Recommendations are taking longer than expected. Try refreshing again soon.")
                 case .value(let cards):
-                    let notice = coachAgent.recommendationNotice
+                    let notice = await MainActor.run { self.coachAgent.recommendationNotice }
                     return RecommendationResponse(cards: cards,
                                                   wellbeingScore: snapshot.wellbeingScore,
                                                   contributions: snapshot.contributions,
@@ -619,6 +635,7 @@ public final class AgentOrchestrator {
         let pendingJournals = await sentimentAgent.pendingEmbeddingCount()
         let backfillCounts = await dataAgent.diagnosticsBackfillCounts()
         let latest = await dataAgent.latestSnapshotMetadata()
+        let libraryDeferred = await MainActor.run { self.coachAgent.libraryImportDeferred }
         return DiagnosticsSnapshot(
             healthGrantedCount: healthStatus.granted.count,
             healthDeniedCount: healthStatus.denied.count,
@@ -631,7 +648,7 @@ public final class AgentOrchestrator {
             pendingJournalsCount: pendingJournals,
             backfillWarmCompleted: backfillCounts.warmCompleted,
             backfillFullCompleted: backfillCounts.fullCompleted,
-            deferredLibraryImport: coachAgent.libraryImportDeferred,
+            deferredLibraryImport: libraryDeferred,
             lastSnapshotDay: latest.dayString,
             wellbeingScore: latest.score
         )
@@ -721,7 +738,7 @@ public final class AgentOrchestrator {
 
         if Self.isGreeting(sanitizedInput) {
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=greeting coverage=skip → on-device", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-            let context = coachAgent.minimalCoachContext(from: snapshot, topic: "greeting")
+            let context = await MainActor.run { self.coachAgent.minimalCoachContext(from: snapshot, topic: "greeting") }
             let payload = await coachAgent.generateResponse(context: context,
                                                             intentTopic: "greeting",
                                                             consentGranted: false,
@@ -788,7 +805,7 @@ public final class AgentOrchestrator {
                                  count: nil,
                                  context: diagnosticsContext)
             let topic = intentTopic ?? "wellbeing"
-            let context = coachAgent.minimalCoachContext(from: snapshot, topic: topic)
+            let context = await MainActor.run { self.coachAgent.minimalCoachContext(from: snapshot, topic: topic) }
             let payload = await coachAgent.generateResponse(context: context,
                                                             intentTopic: intentTopic ?? topic,
                                                             consentGranted: false,
@@ -807,7 +824,7 @@ public final class AgentOrchestrator {
                 logger.error("Coverage evaluation skipped: embeddings unavailable. Routing to on-device response.")
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unavailable → on-device", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
                 let topic = intentTopic ?? "wellbeing"
-                let context = coachAgent.minimalCoachContext(from: snapshot, topic: topic)
+                let context = await MainActor.run { self.coachAgent.minimalCoachContext(from: snapshot, topic: topic) }
                 let payload = await coachAgent.generateResponse(context: context,
                                                                 intentTopic: intentTopic ?? topic,
                                                                 consentGranted: false,
@@ -849,7 +866,7 @@ public final class AgentOrchestrator {
                                      median: decision.median,
                                      count: decision.count,
                                      context: diagnosticsContext)
-                let context = coachAgent.minimalCoachContext(from: snapshot, topic: "greeting")
+                let context = await MainActor.run { self.coachAgent.minimalCoachContext(from: snapshot, topic: "greeting") }
                 let payload = await coachAgent.generateResponse(context: context,
                                                                 intentTopic: "greeting",
                                                                 consentGranted: false,
@@ -862,7 +879,7 @@ public final class AgentOrchestrator {
                                  median: decision.median,
                                  count: decision.count,
                                  context: diagnosticsContext)
-            let context = coachAgent.minimalCoachContext(from: snapshot, topic: intentTopic ?? "wellbeing")
+            let context = await MainActor.run { self.coachAgent.minimalCoachContext(from: snapshot, topic: intentTopic ?? "wellbeing") }
             let payload = await coachAgent.generateResponse(context: context,
                                                             intentTopic: intentTopic,
                                                             consentGranted: false,

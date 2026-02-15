@@ -2,13 +2,13 @@ import Foundation
 import PulsumData
 import PulsumTypes
 
-public enum CoveragePassKind {
+public enum CoveragePassKind: Sendable {
     case strong
     case soft
     case fail
 }
 
-public struct CoverageDecision {
+public struct CoverageDecision: Sendable {
     public let kind: CoveragePassKind
     public let reason: String
     public let count: Int

@@ -7,8 +7,7 @@ import FoundationModels
 #endif
 import PulsumTypes
 
-@MainActor
-protocol CoachOrchestrating: AnyObject {
+protocol CoachOrchestrating: AnyObject, Sendable {
     func wellbeingSnapshotState(consentGranted: Bool) async throws -> WellbeingSnapshotResponse
     func recommendations(consentGranted: Bool) async throws -> RecommendationResponse
     func logCompletion(momentId: String) async throws -> CheerEvent
