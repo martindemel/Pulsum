@@ -743,7 +743,7 @@ public final class GPT5Client: CloudLLMClient {
     private func parseAndValidateStructuredResponse(data: Data) throws -> CoachPhrasing {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-            logger.error("Failed to parse GPT response: \(errorMsg.prefix(280), privacy: .public)")
+            logger.error("Failed to parse GPT response: \(errorMsg.prefix(280), privacy: .private)")
             throw LLMGatewayError.cloudGenerationFailed("Invalid JSON structure")
         }
 
@@ -798,7 +798,7 @@ public final class GPT5Client: CloudLLMClient {
         guard let jsonString = textPayload,
               let jsonData = jsonString.data(using: .utf8) else {
             let snippet = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-            logger.error("Failed to locate structured content in GPT response (snippet: \(snippet.prefix(280)), privacy: .public)")
+            logger.error("Failed to locate structured content in GPT response (snippet: \(snippet.prefix(280), privacy: .private))")
             throw LLMGatewayError.cloudGenerationFailed("Missing structured output")
         }
 
