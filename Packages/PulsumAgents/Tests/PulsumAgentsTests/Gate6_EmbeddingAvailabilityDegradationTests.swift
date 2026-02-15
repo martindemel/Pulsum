@@ -34,7 +34,7 @@ final class Gate6_EmbeddingAvailabilityDegradationTests: XCTestCase {
                                              features: ["z_hrv": 0.5])
 
         let index = UnavailableIndexStub()
-        let importer = LibraryImporter(configuration: LibraryImporterConfiguration(bundle: Bundle.pulsumDataResources,
+        let importer = LibraryImporter(configuration: LibraryImporterConfiguration(bundle: .module,
                                                                                   subdirectory: "PulsumDataTests/Resources"),
                                        vectorIndex: index,
                                        modelContainer: container)

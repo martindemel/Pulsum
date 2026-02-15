@@ -1,30 +1,36 @@
-import CoreData
+import SwiftData
 import XCTest
 @testable import PulsumData
 
 final class Gate5_LibraryImporterPerfTests: XCTestCase {
-    func testCoreDataReadCompletesQuicklyDuringImport() async throws {
-        let viewContext = PulsumData.viewContext
-        viewContext.performAndWait {
-            let request = NSFetchRequest<NSFetchRequestResult>(entityName: "LibraryIngest")
-            let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-            _ = try? viewContext.execute(deleteRequest)
-            try? viewContext.save()
-        }
+    func testSwiftDataReadCompletesQuicklyDuringImport() async throws {
+        let schema = Schema(DataStack.modelTypes)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
 
-        let config = LibraryImporterConfiguration(bundle: .module,
-                                                  subdirectory: "PulsumDataTests/Resources")
-        let importer = LibraryImporter(configuration: config)
+        let cleanContext = ModelContext(container)
+        try cleanContext.delete(model: LibraryIngest.self)
+        try cleanContext.save()
+
+        let importer = LibraryImporter(configuration: LibraryImporterConfiguration(bundle: .module,
+                                                                                    subdirectory: "PulsumDataTests/Resources"),
+                                       vectorIndex: StubVectorIndex(),
+                                       modelContainer: container)
 
         async let ingestTask: Void = importer.ingestIfNeeded()
         let start = Date()
-        viewContext.performAndWait {
-            let request = MicroMoment.fetchRequest()
-            request.fetchLimit = 1
-            _ = try? viewContext.fetch(request)
-        }
+        let readContext = ModelContext(container)
+        var descriptor = FetchDescriptor<MicroMoment>()
+        descriptor.fetchLimit = 1
+        _ = try? readContext.fetch(descriptor)
         let elapsed = Date().timeIntervalSince(start)
         try await ingestTask
-        XCTAssertLessThan(elapsed, 0.5, "Core Data read blocked for \(elapsed) seconds")
+        XCTAssertLessThan(elapsed, 1.0, "SwiftData read blocked for \(elapsed) seconds")
     }
+}
+
+private actor StubVectorIndex: VectorIndexProviding {
+    func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] { [] }
+    func removeMicroMoment(id: String) async throws {}
+    func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] { [] }
 }

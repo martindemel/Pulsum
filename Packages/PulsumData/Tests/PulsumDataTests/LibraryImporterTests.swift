@@ -1,4 +1,4 @@
-import CoreData
+import SwiftData
 import XCTest
 @testable import PulsumData
 
@@ -22,42 +22,36 @@ final actor HappyPathIndexStub: VectorIndexProviding {
 
 final class LibraryImporterTests: XCTestCase {
     func testIngestCreatesMicroMomentsAndVectorIndex() async throws {
-        let config = LibraryImporterConfiguration(bundle: .module,
-                                                  subdirectory: "PulsumDataTests/Resources")
+        let schema = Schema(DataStack.modelTypes)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+
+        let testConfig = LibraryImporterConfiguration(bundle: .module,
+                                                       subdirectory: "PulsumDataTests/Resources")
         let indexStub = HappyPathIndexStub()
-        let importer = LibraryImporter(configuration: config, vectorIndex: indexStub)
+        let importer = LibraryImporter(configuration: testConfig,
+                                       vectorIndex: indexStub,
+                                       modelContainer: container)
         try await importer.ingestIfNeeded()
 
-        let viewContext = PulsumData.viewContext
-        let snapshot = await viewContext.perform { () -> (id: String, title: String, badge: String?)? in
-            do {
-                let request = MicroMoment.fetchRequest()
-                request.fetchLimit = 1
-                if let moment = try viewContext.fetch(request).first {
-                    return (moment.id, moment.title, moment.evidenceBadge)
-                }
-            } catch {
-                XCTFail("Fetch failed: \(error)")
-            }
-            return nil
-        }
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<MicroMoment>()
+        descriptor.fetchLimit = 1
+        let first = try context.fetch(descriptor).first
 
-        guard let momentSnapshot = snapshot else {
+        guard let moment = first else {
             XCTFail("MicroMoment not ingested")
             return
         }
 
-        let counts = await viewContext.perform { () -> (count: Int, unique: Int) in
-            let request: NSFetchRequest<MicroMoment> = MicroMoment.fetchRequest()
-            let moments = (try? viewContext.fetch(request)) ?? []
-            let unique = Set(moments.map(\.id)).count
-            return (moments.count, unique)
-        }
+        XCTAssertEqual(moment.title, "Practice diaphragmatic breathing")
+        XCTAssertEqual(moment.evidenceBadge, EvidenceBadge.strong.rawValue)
 
-        XCTAssertEqual(momentSnapshot.title, "Practice diaphragmatic breathing")
-        XCTAssertEqual(momentSnapshot.badge, EvidenceBadge.strong.rawValue)
-        XCTAssertGreaterThan(counts.count, 0)
-        XCTAssertEqual(counts.count, counts.unique)
+        let allDescriptor = FetchDescriptor<MicroMoment>()
+        let all = try context.fetch(allDescriptor)
+        let uniqueIds = Set(all.map(\.id))
+        XCTAssertGreaterThan(all.count, 0)
+        XCTAssertEqual(all.count, uniqueIds.count)
 
         let upserts = await indexStub.upsertedIds.count
         XCTAssertGreaterThan(upserts, 0, "Happy-path importer should upsert at least one micro-moment into the index.")

@@ -1,5 +1,5 @@
-import CoreData
 import CryptoKit
+import SwiftData
 import XCTest
 @testable import PulsumData
 @testable import PulsumML
@@ -8,17 +8,17 @@ import XCTest
 final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     private let testConfig = LibraryImporterConfiguration(bundle: .module,
                                                           subdirectory: "PulsumDataTests/Resources")
-    private var container: NSPersistentContainer!
-    private var storeDirectoryURL: URL?
-    private var storeURL: URL?
+    private var container: ModelContainer!
 
     override func setUp() async throws {
-        try setUpStore()
+        let schema = Schema(DataStack.modelTypes)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        container = try ModelContainer(for: schema, configurations: [config])
         resetStore()
     }
 
     override func tearDown() async throws {
-        try tearDownStore()
+        container = nil
     }
 
     func testChecksumNotSavedOnIndexFailure_andRetrySucceeds() async throws {
@@ -26,7 +26,7 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         let failingIndex = FlakyIndex(failCount: 3)
         let importerFail = LibraryImporter(configuration: testConfig,
                                            vectorIndex: failingIndex,
-                                           persistentContainer: container)
+                                           modelContainer: container)
 
         do {
             try await importerFail.ingestIfNeeded()
@@ -42,7 +42,7 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         let succeedingIndex = FlakyIndex(failCount: 0)
         let importerSuccess = LibraryImporter(configuration: testConfig,
                                               vectorIndex: succeedingIndex,
-                                              persistentContainer: container)
+                                              modelContainer: container)
         try await importerSuccess.ingestIfNeeded()
 
         let ingest = fetchLibraryIngest(source: metadata.filename)
@@ -59,7 +59,7 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         let failingIndex = FlakyIndex(failCount: 2)
         let importerFail = LibraryImporter(configuration: testConfig,
                                            vectorIndex: failingIndex,
-                                           persistentContainer: container)
+                                           modelContainer: container)
         do {
             try await importerFail.ingestIfNeeded()
             XCTFail("Expected indexing failure")
@@ -72,7 +72,7 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         let succeedingIndex = FlakyIndex(failCount: 0)
         let importerSuccess = LibraryImporter(configuration: testConfig,
                                               vectorIndex: succeedingIndex,
-                                              persistentContainer: container)
+                                              modelContainer: container)
         try await importerSuccess.ingestIfNeeded()
 
         let (count, uniqueCount) = fetchMicroMomentCounts()
@@ -83,12 +83,12 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
     func testSkipWhenChecksumMatches_DoesNotTouchIndex() async throws {
         try await LibraryImporter(configuration: testConfig,
                                   vectorIndex: SpyIndex(),
-                                  persistentContainer: container).ingestIfNeeded()
+                                  modelContainer: container).ingestIfNeeded()
 
         let spy = SpyIndex(throwsOnUpsert: true)
         let importer = LibraryImporter(configuration: testConfig,
                                        vectorIndex: spy,
-                                       persistentContainer: container)
+                                       modelContainer: container)
         try await importer.ingestIfNeeded()
 
         let calls = await spy.upsertCallCount()
@@ -100,7 +100,7 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
         let unavailableIndex = UnavailableEmbeddingIndex()
         let importer = LibraryImporter(configuration: testConfig,
                                        vectorIndex: unavailableIndex,
-                                       persistentContainer: container)
+                                       modelContainer: container)
 
         try await importer.ingestIfNeeded()
 
@@ -113,98 +113,27 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func setUpStore() throws {
-        let fileManager = FileManager.default
-        let directoryURL = fileManager.temporaryDirectory
-            .appendingPathComponent("PulsumDataTests-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let storeURL = directoryURL.appendingPathComponent("Pulsum.sqlite")
-        container = Self.makePersistentContainer(storeURL: storeURL)
-        storeDirectoryURL = directoryURL
-        self.storeURL = storeURL
-    }
-
-    private func tearDownStore() throws {
-        guard let container else { return }
-        let coordinator = container.persistentStoreCoordinator
-        if let storeURL, let store = coordinator.persistentStore(for: storeURL) {
-            try coordinator.remove(store)
-        }
-        if let storeDirectoryURL {
-            try FileManager.default.removeItem(at: storeDirectoryURL)
-        }
-        self.storeURL = nil
-        self.storeDirectoryURL = nil
-        self.container = nil
-    }
-
-    private static func makePersistentContainer(storeURL: URL) -> NSPersistentContainer {
-        guard let model = PulsumManagedObjectModel.shared else {
-            return NSPersistentContainer(name: "Pulsum", managedObjectModel: NSManagedObjectModel())
-        }
-        let container = NSPersistentContainer(name: "Pulsum",
-                                              managedObjectModel: model)
-        let description = NSPersistentStoreDescription(url: storeURL)
-        description.type = NSSQLiteStoreType
-        description.shouldAddStoreAsynchronously = false
-        description.shouldMigrateStoreAutomatically = true
-        description.shouldInferMappingModelAutomatically = true
-        description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-        container.persistentStoreDescriptions = [description]
-        container.loadPersistentStores { _, error in
-            if let error {
-                fatalError("Test Core Data store error: \(error)")
-            }
-        }
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        container.viewContext.transactionAuthor = "Pulsum.Tests"
-        return container
-    }
-
     private func resetStore() {
-        guard let container else {
-            XCTFail("Test store not initialized")
-            return
-        }
-        let viewContext = container.viewContext
-        viewContext.performAndWait {
-            ["MicroMoment", "LibraryIngest"].forEach { entity in
-                let fetch = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
-                let delete = NSBatchDeleteRequest(fetchRequest: fetch)
-                _ = try? viewContext.execute(delete)
-            }
-            try? viewContext.save()
-        }
+        let context = ModelContext(container)
+        try? context.delete(model: MicroMoment.self)
+        try? context.delete(model: LibraryIngest.self)
+        try? context.save()
     }
 
     private func fetchLibraryIngest(source: String) -> LibraryIngest? {
-        guard let container else {
-            XCTFail("Test store not initialized")
-            return nil
-        }
-        let viewContext = container.viewContext
-        return viewContext.performAndWait {
-            let request: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
-            request.predicate = NSPredicate(format: "source == %@", source)
-            request.fetchLimit = 1
-            let results = try? viewContext.fetch(request)
-            return results?.first
-        }
+        let context = ModelContext(container)
+        let targetSource = source
+        var descriptor = FetchDescriptor<LibraryIngest>(predicate: #Predicate { $0.source == targetSource })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
     }
 
     private func fetchMicroMomentCounts() -> (Int, Int) {
-        guard let container else {
-            XCTFail("Test store not initialized")
-            return (0, 0)
-        }
-        let viewContext = container.viewContext
-        return viewContext.performAndWait {
-            let request: NSFetchRequest<MicroMoment> = MicroMoment.fetchRequest()
-            guard let moments = try? viewContext.fetch(request) else { return (0, 0) }
-            let ids = moments.compactMap { $0.id }
-            return (ids.count, Set(ids).count)
-        }
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<MicroMoment>()
+        guard let moments = try? context.fetch(descriptor) else { return (0, 0) }
+        let ids = moments.map(\.id)
+        return (ids.count, Set(ids).count)
     }
 
     private func sampleMetadata() throws -> (filename: String, checksum: String, microMomentCount: Int) {
