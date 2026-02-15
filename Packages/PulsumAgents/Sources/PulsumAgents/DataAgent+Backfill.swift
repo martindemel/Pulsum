@@ -169,13 +169,6 @@ extension DataAgent {
         var endError: Error?
         var allFailed = false
 
-        func recordOutcome(_ identifier: String, result: BootstrapBatchResult) {
-            outcomes[identifier] = result
-            if result == .timeout || result == .error {
-                retryIdentifiers.insert(identifier)
-            }
-        }
-
         defer {
             let successCount = outcomes.values.filter { $0 == .success }.count
             let emptyCount = outcomes.values.filter { $0 == .empty }.count
@@ -208,168 +201,18 @@ extension DataAgent {
         }
 
         for type in types {
-            let identifier = type.identifier
-            let batchSpan = Diagnostics.span(category: .dataAgent,
-                                             name: "data.bootstrap.batch",
-                                             fields: [
-                                                 "type": .safeString(.metadata(identifier)),
-                                                 "batch_start_day": .day(start),
-                                                 "batch_end_day": .day(today)
-                                             ],
-                                             traceId: diagnosticsTraceId,
-                                             level: .info)
-            do {
-                switch identifier {
-                case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totalsResult: HardTimeoutResult<[Date: Int]>
-                    do {
-                        totalsResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
-                            try await self.safeFetchDailyStepTotals(startDate: start,
-                                                                    endDate: today,
-                                                                    context: "Bootstrap \(identifier)")
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            endBootstrapBatch(batchSpan,
-                                              result: .empty,
-                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                            recordOutcome(identifier, result: .empty)
-                            continue
-                        }
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                          error: error)
-                        recordOutcome(identifier, result: .error)
-                        continue
-                    }
-
-                    switch totalsResult {
-                    case .timedOut:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
-                        recordOutcome(identifier, result: .timeout)
-                    case .value(let totals):
-                        let days = try await applyStepTotals(totals)
-                        touchedDays.formUnion(days)
-                        totalSamples += totals.count
-                        let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
-                        endBootstrapBatch(batchSpan,
-                                          result: result,
-                                          rawCount: totals.count,
-                                          processedDays: days.count)
-                        recordOutcome(identifier, result: result)
-                    }
-                case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let hrResult = await fetchHeartRateStatsWithTimeout(startDate: start,
-                                                                        endDate: today,
-                                                                        context: "Bootstrap \(identifier)",
-                                                                        timeoutSeconds: heartRateTimeoutSeconds)
-                    switch hrResult.result {
-                    case .success:
-                        do {
-                            let days = try await applyNocturnalStats(hrResult.stats)
-                            touchedDays.formUnion(days)
-                            totalSamples += hrResult.stats.count
-                            endBootstrapBatch(batchSpan,
-                                              result: .success,
-                                              rawCount: hrResult.stats.count,
-                                              processedDays: days.count)
-                            recordOutcome(identifier, result: .success)
-                        } catch {
-                            endBootstrapBatch(batchSpan,
-                                              result: .error,
-                                              rawCount: hrResult.stats.count,
-                                              processedDays: hrResult.stats.count,
-                                              error: error)
-                            recordOutcome(identifier, result: .error)
-                        }
-                    case .empty:
-                        endBootstrapBatch(batchSpan,
-                                          result: .empty,
-                                          rawCount: 0,
-                                          processedDays: 0)
-                        recordOutcome(identifier, result: .empty)
-                    case .timeout:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(heartRateTimeoutSeconds * 1_000))
-                        recordOutcome(identifier, result: .timeout)
-                    case .error:
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          error: hrResult.error)
-                        recordOutcome(identifier, result: .error)
-                    case .cancelled:
-                        endBootstrapBatch(batchSpan,
-                                          result: .cancelled,
-                                          rawCount: 0,
-                                          processedDays: 0)
-                        recordOutcome(identifier, result: .cancelled)
-                    }
-                default:
-                    let samplesResult: HardTimeoutResult<[HKSample]>
-                    do {
-                        samplesResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
-                            try await self.healthKit.fetchSamples(for: type, startDate: start, endDate: today)
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            endBootstrapBatch(batchSpan,
-                                              result: .empty,
-                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                            recordOutcome(identifier, result: .empty)
-                            continue
-                        }
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                          error: error)
-                        recordOutcome(identifier, result: .error)
-                        continue
-                    }
-
-                    switch samplesResult {
-                    case .timedOut:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
-                        recordOutcome(identifier, result: .timeout)
-                    case .value(let samples):
-                        let processed = try await processBackfillSamples(samples, type: type)
-                        touchedDays.formUnion(processed.days)
-                        totalSamples += processed.processedSamples
-                        let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
-                        endBootstrapBatch(batchSpan,
-                                          result: result,
-                                          rawCount: samples.count,
-                                          processedCount: processed.processedSamples,
-                                          processedDays: processed.days.count)
-                        recordOutcome(identifier, result: result)
-                    }
-                }
-            } catch {
-                if isProtectedHealthDataInaccessible(error) {
-                    endBootstrapBatch(batchSpan,
-                                      result: .empty,
-                                      skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                    recordOutcome(identifier, result: .empty)
-                    continue
-                }
-                endBootstrapBatch(batchSpan,
-                                  result: .error,
-                                  skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                  error: error)
-                recordOutcome(identifier, result: .error)
+            let fetchResult = await fetchAndProcessBootstrapType(type,
+                                                                 startDate: start,
+                                                                 endDate: today,
+                                                                 fetchTimeoutSeconds: fetchTimeoutSeconds,
+                                                                 heartRateTimeoutSeconds: heartRateTimeoutSeconds,
+                                                                 contextPrefix: "Bootstrap",
+                                                                 batchSpanName: "data.bootstrap.batch")
+            outcomes[type.identifier] = fetchResult.outcome
+            touchedDays.formUnion(fetchResult.touchedDays)
+            totalSamples += fetchResult.sampleCount
+            if fetchResult.outcome == .timeout || fetchResult.outcome == .error {
+                retryIdentifiers.insert(type.identifier)
             }
         }
         notifySnapshotUpdate(for: today,
@@ -538,177 +381,20 @@ extension DataAgent {
         var outcomes: [String: BootstrapBatchResult] = [:]
         var timedOutIdentifiers: Set<String> = []
 
-        func recordOutcome(_ identifier: String, result: BootstrapBatchResult) {
-            outcomes[identifier] = result
-            if result == .timeout {
-                timedOutIdentifiers.insert(identifier)
-            }
-        }
-
         for type in types {
-            let identifier = type.identifier
-            let batchSpan = Diagnostics.span(category: .dataAgent,
-                                             name: "data.bootstrap.retry.batch",
-                                             fields: [
-                                                 "type": .safeString(.metadata(identifier)),
-                                                 "batch_start_day": .day(startDate),
-                                                 "batch_end_day": .day(endDate),
-                                                 "attempt": .int(attempt)
-                                             ],
-                                             traceId: diagnosticsTraceId,
-                                             level: .info)
-            do {
-                switch identifier {
-                case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totalsResult: HardTimeoutResult<[Date: Int]>
-                    do {
-                        totalsResult = try await withHardTimeout(seconds: timeoutSeconds) {
-                            try await self.safeFetchDailyStepTotals(startDate: startDate,
-                                                                    endDate: endDate,
-                                                                    context: "Bootstrap retry \(identifier)")
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            endBootstrapBatch(batchSpan,
-                                              result: .empty,
-                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                            recordOutcome(identifier, result: .empty)
-                            continue
-                        }
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                          error: error)
-                        recordOutcome(identifier, result: .error)
-                        continue
-                    }
-
-                    switch totalsResult {
-                    case .timedOut:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(timeoutSeconds * 1_000))
-                        recordOutcome(identifier, result: .timeout)
-                    case .value(let totals):
-                        let days = try await applyStepTotals(totals)
-                        touchedDays.formUnion(days)
-                        totalSamples += totals.count
-                        let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
-                        endBootstrapBatch(batchSpan,
-                                          result: result,
-                                          rawCount: totals.count,
-                                          processedDays: days.count)
-                        recordOutcome(identifier, result: result)
-                    }
-                case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let hrResult = await fetchHeartRateStatsWithTimeout(startDate: startDate,
-                                                                        endDate: endDate,
-                                                                        context: "Bootstrap retry \(identifier)",
-                                                                        timeoutSeconds: timeoutSeconds)
-                    switch hrResult.result {
-                    case .success:
-                        do {
-                            let days = try await applyNocturnalStats(hrResult.stats)
-                            touchedDays.formUnion(days)
-                            totalSamples += hrResult.stats.count
-                            endBootstrapBatch(batchSpan,
-                                              result: .success,
-                                              rawCount: hrResult.stats.count,
-                                              processedDays: days.count)
-                            recordOutcome(identifier, result: .success)
-                        } catch {
-                            endBootstrapBatch(batchSpan,
-                                              result: .error,
-                                              rawCount: hrResult.stats.count,
-                                              processedDays: hrResult.stats.count,
-                                              error: error)
-                            recordOutcome(identifier, result: .error)
-                        }
-                    case .empty:
-                        endBootstrapBatch(batchSpan,
-                                          result: .empty,
-                                          rawCount: 0,
-                                          processedDays: 0)
-                        recordOutcome(identifier, result: .empty)
-                    case .timeout:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(timeoutSeconds * 1_000))
-                        recordOutcome(identifier, result: .timeout)
-                    case .error:
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          error: hrResult.error)
-                        recordOutcome(identifier, result: .error)
-                    case .cancelled:
-                        endBootstrapBatch(batchSpan,
-                                          result: .cancelled,
-                                          rawCount: 0,
-                                          processedDays: 0)
-                        recordOutcome(identifier, result: .cancelled)
-                    }
-                default:
-                    let samplesResult: HardTimeoutResult<[HKSample]>
-                    do {
-                        samplesResult = try await withHardTimeout(seconds: timeoutSeconds) {
-                            try await self.healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            endBootstrapBatch(batchSpan,
-                                              result: .empty,
-                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                            recordOutcome(identifier, result: .empty)
-                            continue
-                        }
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                          error: error)
-                        recordOutcome(identifier, result: .error)
-                        continue
-                    }
-
-                    switch samplesResult {
-                    case .timedOut:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(timeoutSeconds * 1_000))
-                        recordOutcome(identifier, result: .timeout)
-                    case .value(let samples):
-                        let processed = try await processBackfillSamples(samples, type: type)
-                        touchedDays.formUnion(processed.days)
-                        totalSamples += processed.processedSamples
-                        let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
-                        endBootstrapBatch(batchSpan,
-                                          result: result,
-                                          rawCount: samples.count,
-                                          processedCount: processed.processedSamples,
-                                          processedDays: processed.days.count)
-                        recordOutcome(identifier, result: result)
-                    }
-                }
-            } catch {
-                if isProtectedHealthDataInaccessible(error) {
-                    endBootstrapBatch(batchSpan,
-                                      result: .empty,
-                                      skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                    recordOutcome(identifier, result: .empty)
-                    continue
-                }
-                endBootstrapBatch(batchSpan,
-                                  result: .error,
-                                  skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                  error: error)
-                recordOutcome(identifier, result: .error)
+            let fetchResult = await fetchAndProcessBootstrapType(type,
+                                                                 startDate: startDate,
+                                                                 endDate: endDate,
+                                                                 fetchTimeoutSeconds: timeoutSeconds,
+                                                                 heartRateTimeoutSeconds: timeoutSeconds,
+                                                                 contextPrefix: "Bootstrap retry",
+                                                                 batchSpanName: "data.bootstrap.retry.batch",
+                                                                 extraBatchSpanFields: ["attempt": .int(attempt)])
+            outcomes[type.identifier] = fetchResult.outcome
+            touchedDays.formUnion(fetchResult.touchedDays)
+            totalSamples += fetchResult.sampleCount
+            if fetchResult.outcome == .timeout {
+                timedOutIdentifiers.insert(type.identifier)
             }
         }
 
@@ -846,160 +532,20 @@ extension DataAgent {
         let types = status.granted.sorted { $0.identifier < $1.identifier }
 
         for type in types {
-            let identifier = type.identifier
-            let batchSpan = Diagnostics.span(category: .dataAgent,
-                                             name: "data.bootstrap.fallback.batch",
-                                             fields: [
-                                                 "type": .safeString(.metadata(identifier)),
-                                                 "batch_start_day": .day(fallbackStartDate),
-                                                 "batch_end_day": .day(fallbackEndDate)
-                                             ],
-                                             traceId: diagnosticsTraceId,
-                                             level: .info)
-            do {
-                switch identifier {
-                case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totalsResult: HardTimeoutResult<[Date: Int]>
-                    do {
-                        totalsResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
-                            try await self.safeFetchDailyStepTotals(startDate: fallbackStartDate,
-                                                                    endDate: fallbackEndDate,
-                                                                    context: "Bootstrap fallback \(identifier)")
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            endBootstrapBatch(batchSpan,
-                                              result: .empty,
-                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                            continue
-                        }
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                          error: error)
-                        continue
-                    }
-
-                    switch totalsResult {
-                    case .timedOut:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
-                    case .value(let totals):
-                        let days = try await applyStepTotals(totals)
-                        touchedDays.formUnion(days)
-                        totalSamples += totals.count
-                        let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
-                        endBootstrapBatch(batchSpan,
-                                          result: result,
-                                          rawCount: totals.count,
-                                          processedDays: days.count)
-                    }
-                case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let hrResult = await fetchHeartRateStatsWithTimeout(startDate: fallbackStartDate,
-                                                                        endDate: fallbackEndDate,
-                                                                        context: "Bootstrap fallback \(identifier)",
-                                                                        timeoutSeconds: heartRateTimeoutSeconds)
-                    switch hrResult.result {
-                    case .success:
-                        do {
-                            let days = try await applyNocturnalStats(hrResult.stats)
-                            touchedDays.formUnion(days)
-                            totalSamples += hrResult.stats.count
-                            endBootstrapBatch(batchSpan,
-                                              result: .success,
-                                              rawCount: hrResult.stats.count,
-                                              processedDays: days.count)
-                        } catch {
-                            endBootstrapBatch(batchSpan,
-                                              result: .error,
-                                              rawCount: hrResult.stats.count,
-                                              processedDays: hrResult.stats.count,
-                                              error: error)
-                        }
-                    case .empty:
-                        endBootstrapBatch(batchSpan,
-                                          result: .empty,
-                                          rawCount: 0,
-                                          processedDays: 0)
-                    case .timeout:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(heartRateTimeoutSeconds * 1_000))
-                    case .error:
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          error: hrResult.error)
-                    case .cancelled:
-                        endBootstrapBatch(batchSpan,
-                                          result: .cancelled,
-                                          rawCount: 0,
-                                          processedDays: 0)
-                    }
-                default:
-                    let samplesResult: HardTimeoutResult<[HKSample]>
-                    do {
-                        samplesResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
-                            try await self.healthKit.fetchSamples(for: type, startDate: fallbackStartDate, endDate: fallbackEndDate)
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            endBootstrapBatch(batchSpan,
-                                              result: .empty,
-                                              skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                            continue
-                        }
-                        endBootstrapBatch(batchSpan,
-                                          result: .error,
-                                          skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                          error: error)
-                        span.end(additionalFields: [
-                            "touched_days": .int(touchedDays.count),
-                            "raw_sample_count": .int(totalSamples)
-                        ], error: error)
-                        return false
-                    }
-
-                    switch samplesResult {
-                    case .timedOut:
-                        endBootstrapBatch(batchSpan,
-                                          result: .timeout,
-                                          rawCount: 0,
-                                          processedDays: 0,
-                                          timeoutMs: Int(fetchTimeoutSeconds * 1_000))
-                    case .value(let samples):
-                        let processed = try await processBackfillSamples(samples, type: type)
-                        touchedDays.formUnion(processed.days)
-                        totalSamples += processed.processedSamples
-                        let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
-                        endBootstrapBatch(batchSpan,
-                                          result: result,
-                                          rawCount: samples.count,
-                                          processedCount: processed.processedSamples,
-                                          processedDays: processed.days.count)
-                    }
-                }
-            } catch {
-                if isProtectedHealthDataInaccessible(error) {
-                    endBootstrapBatch(batchSpan,
-                                      result: .empty,
-                                      skipReason: .stage("protected_data", allowed: ["protected_data", "fetch_failed"]))
-                    continue
-                }
-                endBootstrapBatch(batchSpan,
-                                  result: .error,
-                                  skipReason: .stage("fetch_failed", allowed: ["protected_data", "fetch_failed"]),
-                                  error: error)
+            let fetchResult = await fetchAndProcessBootstrapType(type,
+                                                                 startDate: fallbackStartDate,
+                                                                 endDate: fallbackEndDate,
+                                                                 fetchTimeoutSeconds: fetchTimeoutSeconds,
+                                                                 heartRateTimeoutSeconds: heartRateTimeoutSeconds,
+                                                                 contextPrefix: "Bootstrap fallback",
+                                                                 batchSpanName: "data.bootstrap.fallback.batch")
+            touchedDays.formUnion(fetchResult.touchedDays)
+            totalSamples += fetchResult.sampleCount
+            if fetchResult.hadUnrecoverableError {
                 span.end(additionalFields: [
                     "touched_days": .int(touchedDays.count),
                     "raw_sample_count": .int(totalSamples)
-                ], error: error)
+                ], error: fetchResult.unrecoverableError)
                 return false
             }
         }
@@ -1397,6 +943,174 @@ extension DataAgent {
             "raw_sample_count": .int(totalSamples),
             "iterations": .int(iteration)
         ], error: nil)
+    }
+
+    // MARK: - Shared Bootstrap Type Processing
+
+    struct BootstrapTypeResult {
+        let outcome: BootstrapBatchResult
+        let touchedDays: Set<Date>
+        let sampleCount: Int
+        let hadUnrecoverableError: Bool
+        let unrecoverableError: Error?
+
+        init(outcome: BootstrapBatchResult,
+             touchedDays: Set<Date> = [],
+             sampleCount: Int = 0,
+             hadUnrecoverableError: Bool = false,
+             unrecoverableError: Error? = nil) {
+            self.outcome = outcome
+            self.touchedDays = touchedDays
+            self.sampleCount = sampleCount
+            self.hadUnrecoverableError = hadUnrecoverableError
+            self.unrecoverableError = unrecoverableError
+        }
+    }
+
+    /// Fetches and processes samples for a single HK type during bootstrap/retry/fallback.
+    /// Handles the three-way switch on type (stepCount, heartRate, default),
+    /// creates and ends the batch diagnostics span, and returns the result.
+    func fetchAndProcessBootstrapType(
+        _ type: HKSampleType,
+        startDate: Date,
+        endDate: Date,
+        fetchTimeoutSeconds: Double,
+        heartRateTimeoutSeconds: Double,
+        contextPrefix: String,
+        batchSpanName: String,
+        extraBatchSpanFields: [String: DiagnosticsValue] = [:]
+    ) async -> BootstrapTypeResult {
+        let identifier = type.identifier
+        var spanFields: [String: DiagnosticsValue] = [
+            "type": .safeString(.metadata(identifier)),
+            "batch_start_day": .day(startDate),
+            "batch_end_day": .day(endDate)
+        ]
+        spanFields.merge(extraBatchSpanFields) { _, new in new }
+        let batchSpan = Diagnostics.span(category: .dataAgent,
+                                         name: batchSpanName,
+                                         fields: spanFields,
+                                         traceId: diagnosticsTraceId,
+                                         level: .info)
+        let context = "\(contextPrefix) \(identifier)"
+
+        do {
+            switch identifier {
+            case HKQuantityTypeIdentifier.stepCount.rawValue:
+                let totalsResult: HardTimeoutResult<[Date: Int]>
+                do {
+                    totalsResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
+                        try await self.safeFetchDailyStepTotals(startDate: startDate,
+                                                                endDate: endDate,
+                                                                context: context)
+                    }
+                } catch {
+                    let isProtected = isProtectedHealthDataInaccessible(error)
+                    endBootstrapBatch(batchSpan,
+                                      result: isProtected ? .empty : .error,
+                                      skipReason: .stage(isProtected ? "protected_data" : "fetch_failed",
+                                                         allowed: ["protected_data", "fetch_failed"]),
+                                      error: isProtected ? nil : error)
+                    return BootstrapTypeResult(outcome: isProtected ? .empty : .error)
+                }
+                switch totalsResult {
+                case .timedOut:
+                    endBootstrapBatch(batchSpan, result: .timeout, rawCount: 0, processedDays: 0,
+                                      timeoutMs: Int(fetchTimeoutSeconds * 1_000))
+                    return BootstrapTypeResult(outcome: .timeout)
+                case .value(let totals):
+                    let days = try await applyStepTotals(totals)
+                    let result: BootstrapBatchResult = totals.isEmpty ? .empty : .success
+                    endBootstrapBatch(batchSpan, result: result, rawCount: totals.count,
+                                      processedDays: days.count)
+                    return BootstrapTypeResult(outcome: result, touchedDays: days,
+                                               sampleCount: totals.count)
+                }
+
+            case HKQuantityTypeIdentifier.heartRate.rawValue:
+                let hrResult = await fetchHeartRateStatsWithTimeout(
+                    startDate: startDate, endDate: endDate,
+                    context: context, timeoutSeconds: heartRateTimeoutSeconds)
+                switch hrResult.result {
+                case .success:
+                    do {
+                        let days = try await applyNocturnalStats(hrResult.stats)
+                        endBootstrapBatch(batchSpan, result: .success,
+                                          rawCount: hrResult.stats.count,
+                                          processedDays: days.count)
+                        return BootstrapTypeResult(outcome: .success, touchedDays: days,
+                                                   sampleCount: hrResult.stats.count)
+                    } catch {
+                        endBootstrapBatch(batchSpan, result: .error,
+                                          rawCount: hrResult.stats.count,
+                                          processedDays: hrResult.stats.count,
+                                          error: error)
+                        return BootstrapTypeResult(outcome: .error)
+                    }
+                case .empty:
+                    endBootstrapBatch(batchSpan, result: .empty, rawCount: 0, processedDays: 0)
+                    return BootstrapTypeResult(outcome: .empty)
+                case .timeout:
+                    endBootstrapBatch(batchSpan, result: .timeout, rawCount: 0, processedDays: 0,
+                                      timeoutMs: Int(heartRateTimeoutSeconds * 1_000))
+                    return BootstrapTypeResult(outcome: .timeout)
+                case .error:
+                    endBootstrapBatch(batchSpan, result: .error, rawCount: 0, processedDays: 0,
+                                      error: hrResult.error)
+                    return BootstrapTypeResult(outcome: .error)
+                case .cancelled:
+                    endBootstrapBatch(batchSpan, result: .cancelled, rawCount: 0, processedDays: 0)
+                    return BootstrapTypeResult(outcome: .cancelled)
+                }
+
+            default:
+                let samplesResult: HardTimeoutResult<[HKSample]>
+                do {
+                    samplesResult = try await withHardTimeout(seconds: fetchTimeoutSeconds) {
+                        try await self.healthKit.fetchSamples(for: type, startDate: startDate,
+                                                              endDate: endDate)
+                    }
+                } catch {
+                    let isProtected = isProtectedHealthDataInaccessible(error)
+                    endBootstrapBatch(batchSpan,
+                                      result: isProtected ? .empty : .error,
+                                      skipReason: .stage(isProtected ? "protected_data" : "fetch_failed",
+                                                         allowed: ["protected_data", "fetch_failed"]),
+                                      error: isProtected ? nil : error)
+                    if isProtected {
+                        return BootstrapTypeResult(outcome: .empty)
+                    }
+                    return BootstrapTypeResult(outcome: .error, hadUnrecoverableError: true,
+                                               unrecoverableError: error)
+                }
+                switch samplesResult {
+                case .timedOut:
+                    endBootstrapBatch(batchSpan, result: .timeout, rawCount: 0, processedDays: 0,
+                                      timeoutMs: Int(fetchTimeoutSeconds * 1_000))
+                    return BootstrapTypeResult(outcome: .timeout)
+                case .value(let samples):
+                    let processed = try await processBackfillSamples(samples, type: type)
+                    let result: BootstrapBatchResult = samples.isEmpty ? .empty : .success
+                    endBootstrapBatch(batchSpan, result: result, rawCount: samples.count,
+                                      processedCount: processed.processedSamples,
+                                      processedDays: processed.days.count)
+                    return BootstrapTypeResult(outcome: result, touchedDays: processed.days,
+                                               sampleCount: processed.processedSamples)
+                }
+            }
+        } catch {
+            let isProtected = isProtectedHealthDataInaccessible(error)
+            endBootstrapBatch(batchSpan,
+                              result: isProtected ? .empty : .error,
+                              skipReason: .stage(isProtected ? "protected_data" : "fetch_failed",
+                                                 allowed: ["protected_data", "fetch_failed"]),
+                              error: isProtected ? nil : error)
+            if isProtected {
+                return BootstrapTypeResult(outcome: .empty)
+            }
+            return BootstrapTypeResult(outcome: .error, hadUnrecoverableError: true,
+                                       unrecoverableError: error)
+        }
     }
 
     // MARK: - Backfill Helpers
