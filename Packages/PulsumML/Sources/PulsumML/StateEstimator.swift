@@ -80,6 +80,10 @@ public actor StateEstimator {
             Diagnostics.log(level: .warn, category: .dataAgent, name: "nan.features.update", fields: [:])
             return currentSnapshot(features: features)
         }
+        guard !target.isNaN else {
+            Diagnostics.log(level: .warn, category: .dataAgent, name: "nan.target.update", fields: [:])
+            return currentSnapshot(features: features)
+        }
         let prediction = predict(features: features)
         let error = target - prediction
 

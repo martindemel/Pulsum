@@ -7,7 +7,7 @@ public enum BaselineMath {
 
         public init(median: Double, mad: Double) {
             self.median = median
-            self.mad = mad
+            self.mad = max(mad, 1e-6)
         }
     }
 

@@ -7,11 +7,14 @@ public protocol RecRankerStateStoring: Sendable {
     func saveState(_ state: RecRankerState)
 }
 
+// SAFETY: All file I/O is serialized through `ioQueue`. Immutable properties
+// (`fileURL`, `fileManager`, `logger`) are set once in init and never mutated.
 public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendable {
     public static let schemaVersion = 1
 
     private let fileURL: URL
     private let fileManager: FileManager
+    private let ioQueue = DispatchQueue(label: "ai.pulsum.recranker-state")
     private let logger = Logger(subsystem: "ai.pulsum", category: "RecRankerStateStore")
     private func logError(_ message: String, error: Error) {
         let nsError = error as NSError
@@ -27,33 +30,37 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
     }
 
     public func loadState() -> RecRankerState? {
-        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let state = try JSONDecoder().decode(RecRankerState.self, from: data)
-            guard state.version == Self.schemaVersion else {
-                logger.warning("RecRanker state version mismatch. Expected \(Self.schemaVersion), found \(state.version).")
+        ioQueue.sync {
+            guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+            do {
+                let data = try Data(contentsOf: fileURL)
+                let state = try JSONDecoder().decode(RecRankerState.self, from: data)
+                guard state.version == Self.schemaVersion else {
+                    logger.warning("RecRanker state version mismatch. Expected \(Self.schemaVersion), found \(state.version).")
+                    return nil
+                }
+                return state
+            } catch {
+                logError("Failed to load RecRanker state.", error: error)
                 return nil
             }
-            return state
-        } catch {
-            logError("Failed to load RecRanker state.", error: error)
-            return nil
         }
     }
 
     public func saveState(_ state: RecRankerState) {
-        guard state.version == Self.schemaVersion else {
-            logger.error("Refusing to persist RecRanker state: version mismatch (expected \(Self.schemaVersion), found \(state.version)).")
-            return
-        }
-        do {
-            let data = try JSONEncoder().encode(state)
-            try data.write(to: fileURL, options: .atomic)
-            applyFileProtection()
-            excludeFromBackup()
-        } catch {
-            logError("Failed to persist RecRanker state.", error: error)
+        ioQueue.sync {
+            guard state.version == Self.schemaVersion else {
+                logger.error("Refusing to persist RecRanker state: version mismatch (expected \(Self.schemaVersion), found \(state.version)).")
+                return
+            }
+            do {
+                let data = try JSONEncoder().encode(state)
+                try data.write(to: fileURL, options: .atomic)
+                applyFileProtection()
+                excludeFromBackup()
+            } catch {
+                logError("Failed to persist RecRanker state.", error: error)
+            }
         }
     }
 

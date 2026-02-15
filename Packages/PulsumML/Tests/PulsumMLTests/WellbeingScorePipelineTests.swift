@@ -86,6 +86,25 @@ struct StateEstimatorTests {
         #expect(abs(stateAfter.bias - stateBefore.bias) < 0.001)
     }
 
+    @Test("Update with NaN target does not modify weights")
+    func updateWithNaNTargetDoesNotModifyWeights() async {
+        let estimator = StateEstimator(
+            initialWeights: ["z_hrv": 0.6, "subj_energy": 0.5],
+            bias: 1.0
+        )
+        let features: [String: Double] = [
+            "z_hrv": 1.0,
+            "subj_energy": 5.0,
+        ]
+        let stateBefore = await estimator.persistedState()
+        _ = await estimator.update(features: features, target: .nan)
+        let stateAfter = await estimator.persistedState()
+
+        // Weights and bias should be unchanged since NaN target was rejected
+        #expect(stateAfter.weights == stateBefore.weights)
+        #expect(abs(stateAfter.bias - stateBefore.bias) < 0.001)
+    }
+
     @Test("Weights stay within cap after many updates")
     func weightsCappedAfterManyUpdates() async {
         let config = StateEstimatorConfig(learningRate: 0.5, regularization: 0, weightCap: -2.0 ... 2.0)
@@ -168,6 +187,22 @@ struct BaselineMathTests {
         let z = BaselineMath.zScore(value: 51.0, stats: stats)
         #expect(z.isFinite, "z-score should be finite even with near-zero MAD")
         #expect(z > 0, "Value above median should produce positive z-score")
+    }
+
+    @Test("RobustStats init with mad=0 clamps to epsilon")
+    func robustStatsMadZeroClampedToEpsilon() {
+        let stats = BaselineMath.RobustStats(median: 50.0, mad: 0)
+        #expect(stats.mad >= 1e-6, "MAD should be clamped to at least 1e-6")
+
+        let z = BaselineMath.zScore(value: 51.0, stats: stats)
+        #expect(z.isFinite, "z-score should be finite even when init receives mad=0")
+        #expect(z > 0, "Value above median should produce positive z-score")
+    }
+
+    @Test("RobustStats init with negative mad clamps to epsilon")
+    func robustStatsNegativeMadClampedToEpsilon() {
+        let stats = BaselineMath.RobustStats(median: 50.0, mad: -5.0)
+        #expect(stats.mad >= 1e-6, "Negative MAD should be clamped to at least 1e-6")
     }
 
     @Test("z-score computation with normal MAD")

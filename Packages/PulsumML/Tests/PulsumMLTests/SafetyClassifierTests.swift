@@ -322,10 +322,115 @@ struct SafetyClassifierConfigTests {
     }
 }
 
+// MARK: - NaN embedding tests
+
+struct SafetyClassifierNaNTests {
+    @Test("NaN embedding for caution-level text returns .caution via fallback, not .safe")
+    func nanEmbeddingReturnsCautionViaFallback() {
+        // Provider returns NaN vectors for user text (simulating a malfunctioning provider).
+        // EmbeddingService.validated() rejects NaN, so SafetyLocal falls back to keyword-only.
+        // Text with caution keywords should still return .caution, not .safe.
+        let nanProvider = NaNForUserInputProvider(dimension: 4)
+        let embeddingService = EmbeddingService.debugInstance(
+            primary: nanProvider,
+            fallback: nil,
+            dimension: 4
+        )
+        let safety = SafetyLocal(embeddingService: embeddingService)
+
+        // "depressed" is a caution keyword — even with broken embeddings,
+        // the keyword fallback should catch it
+        let result = safety.classify(text: "I feel so depressed and everything is broken")
+        switch result {
+        case .caution:
+            break // expected — keyword fallback catches it
+        case .crisis:
+            break // also acceptable (more conservative)
+        case .safe:
+            Issue.record("Expected .caution for caution keyword text with NaN embeddings, got .safe")
+        }
+    }
+
+    @Test("NaN embedding for crisis-keyword text returns .crisis")
+    func nanEmbeddingCrisisKeywordStillWorks() {
+        // Even when embeddings are NaN, crisis keywords must trigger .crisis
+        let nanProvider = NaNForUserInputProvider(dimension: 4)
+        let embeddingService = EmbeddingService.debugInstance(
+            primary: nanProvider,
+            fallback: nil,
+            dimension: 4
+        )
+        let safety = SafetyLocal(embeddingService: embeddingService)
+
+        let result = safety.classify(text: "I want to kill myself")
+        switch result {
+        case .crisis:
+            break // expected — keyword check runs before embedding
+        default:
+            Issue.record("Expected .crisis for crisis keyword even with NaN embeddings, got \(result)")
+        }
+    }
+
+    @Test("EmbeddingService rejects vectors containing NaN")
+    func embeddingServiceRejectsNaN() {
+        let nanProvider = AlwaysNaNProvider(dimension: 4)
+        let service = EmbeddingService.debugInstance(
+            primary: nanProvider,
+            fallback: nil,
+            dimension: 4
+        )
+
+        #expect(throws: EmbeddingError.self) {
+            _ = try service.embedding(for: "test input")
+        }
+    }
+}
+
 // MARK: - Helpers
+
+/// Returns valid embeddings for known prototype texts, but NaN vectors for unknown user input.
+/// This simulates a malfunctioning provider that produces NaN only for novel text.
+private struct NaNForUserInputProvider: TextEmbeddingProviding {
+    let dimension: Int
+    private let prototypeTexts: Set<String> = [
+        "i want to hurt myself",
+        "thinking about ending my life",
+        "i can't stay safe tonight",
+        "i overdosed and don't want to wake up",
+        "feeling really hopeless today",
+        "my anxiety is spiking",
+        "i'm panicking and can't calm down",
+        "everything feels overwhelming",
+        "i could use a gentle nudge",
+        "looking for a quick habit to stay on track",
+        "just want a supportive reminder",
+        "i finished a light workout and feel grounded",
+        "pulsum-availability-check",
+    ]
+
+    func embedding(for text: String) throws -> [Float] {
+        let lower = text.lowercased()
+        if prototypeTexts.contains(lower) {
+            // Return a valid deterministic embedding for prototypes
+            var vector = [Float](repeating: 0.1, count: dimension)
+            vector[0] = Float(lower.count % 5) * 0.2
+            return vector
+        }
+        // Return NaN vector for user input
+        return [Float](repeating: Float.nan, count: dimension)
+    }
+}
 
 private struct AlwaysFailProvider: TextEmbeddingProviding {
     func embedding(for _: String) throws -> [Float] {
         throw EmbeddingError.generatorUnavailable
+    }
+}
+
+private struct AlwaysNaNProvider: TextEmbeddingProviding {
+    let dimension: Int
+
+    func embedding(for _: String) throws -> [Float] {
+        [Float](repeating: Float.nan, count: dimension)
     }
 }

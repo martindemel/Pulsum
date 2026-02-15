@@ -245,6 +245,7 @@ public final class EmbeddingService {
 
     private func validated(_ vector: [Float]) throws -> [Float] {
         guard !vector.isEmpty else { throw EmbeddingError.emptyResult }
+        guard !vector.contains(where: { $0.isNaN }) else { throw EmbeddingError.emptyResult }
         if vector.count == dimension {
             guard vector.contains(where: { $0 != 0 }) else { throw EmbeddingError.emptyResult }
             return vector

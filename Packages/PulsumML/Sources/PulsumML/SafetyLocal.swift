@@ -100,6 +100,9 @@ public final class SafetyLocal: @unchecked Sendable {
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
         for prototype in localPrototypes {
             let similarity = cosineSimilarity(embedding, prototype.embedding)
+            if similarity.isNaN {
+                return .caution(reason: "Classification unavailable — embedding error")
+            }
             if let current = scores[prototype.label], current.similarity >= similarity { continue }
             scores[prototype.label] = (similarity, prototype)
         }

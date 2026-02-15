@@ -1,6 +1,6 @@
 # Pulsum -- Master Remediation Plan (Post-Phase 0)
 
-**Status:** Ready to execute | **Progress:** 2 / 74 items | **Est. effort:** 3-4 weeks
+**Status:** Ready to execute | **Progress:** 6 / 74 items | **Est. effort:** 3-4 weeks
 **Based on:** `master_report.md` (2026-02-14, 87 findings, health score 6.5/10)
 
 ---
@@ -148,26 +148,15 @@ scripts/ci/check-privacy-manifests.sh
 
 **Goal:** Fix NaN corruption paths and safety bypasses. These are data-destroying or safety-defeating bugs.
 
-- [ ] **B1-01** | CRIT-01: Add NaN guard on `target` in `StateEstimator.update()`
-  **File:** `Packages/PulsumML/Sources/PulsumML/StateEstimator.swift`
-  **Change:** Add `guard !target.isNaN else { return }` after the features guard (line 79).
-  **Test:** Add `test_update_nanTarget_weightsUnchanged` in `WellbeingScorePipelineTests.swift`.
+- [x] **B1-01** | CRIT-01: Add NaN guard on `target` in `StateEstimator.update()` *(2026-02-15)*
 
-- [ ] **B1-02** | CRIT-02: Add NaN guard in SafetyLocal cosine similarity
-  **File:** `Packages/PulsumML/Sources/PulsumML/SafetyLocal.swift`
-  **Change:** After computing cosine similarity, add `guard !score.isNaN else { return .caution(reason: "Classification unavailable") }`. Also add NaN check in `EmbeddingService.validated()` to reject vectors with NaN elements.
-  **Test:** Add `test_nanEmbedding_returnsCaution` in `SafetyClassifierTests.swift`.
+- [x] **B1-02** | CRIT-02: Add NaN guard in SafetyLocal cosine similarity + EmbeddingService NaN rejection *(2026-02-15)*
 
-- [ ] **B1-03** | CRIT-04: Clamp MAD in `RobustStats.init`
-  **File:** `Packages/PulsumML/Sources/PulsumML/BaselineMath.swift`
-  **Change:** In `public init(median:mad:)`, add `self.mad = max(mad, 1e-6)`.
-  **Test:** Add `test_robustStats_madZero_clampedToEpsilon` in `WellbeingScorePipelineTests.swift`.
+- [x] **B1-03** | CRIT-04: Clamp MAD in `RobustStats.init` *(2026-02-15)*
 
 - [x] **B1-04** | CRIT-05: Fix PulsumServicesDependencyTests compilation *(2026-02-15 — stale test file deleted)*
 
-- [ ] **B1-05** | HIGH-05: Add dispatch queue to RecRankerStateStore
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/RecRankerStateStore.swift`
-  **Change:** Add `private let ioQueue = DispatchQueue(label: "ai.pulsum.recranker-state")` and wrap `saveState`/`loadState` in `ioQueue.sync { }` (matching `EstimatorStateStore` pattern).
+- [x] **B1-05** | HIGH-05: Add dispatch queue to RecRankerStateStore *(2026-02-15)*
 
 ---
 
@@ -492,7 +481,7 @@ scripts/ci/check-privacy-manifests.sh
 
 | Batch | Items | Effort | Status |
 |---|---|---|---|
-| Batch 1: Safety-Critical | 5 | ~1 day | 1/5 done |
+| Batch 1: Safety-Critical | 5 | ~1 day | 5/5 done |
 | Batch 2: Concurrency | 8 | ~3-4 days | Not started |
 | Batch 3: ML Correctness | 5 | ~2 days | Not started |
 | Batch 4: Safety & Privacy | 6 | ~2 days | Not started |
@@ -503,9 +492,9 @@ scripts/ci/check-privacy-manifests.sh
 | Batch 9: Degraded Mode Safety | 4 | ~1 day | Not started |
 | Batch 10: @unchecked Sendable | 6 | ~2-3 days | Not started |
 | Remaining | 6 | ~1 day | Not started |
-| **Total** | **74** | **~3-4 weeks** | **2 / 74** |
+| **Total** | **74** | **~3-4 weeks** | **6 / 74** |
 
 ---
 
 *Plan generated 2026-02-14 based on full codebase analysis of 191 files.*
-*Updated 2026-02-15: B1-04 (CRIT-05), B5-03 (HIGH-16) marked done. B2-05 partial (SafetyDecision/JournalResult).*
+*Updated 2026-02-15: Batch 1 complete (B1-01 CRIT-01, B1-02 CRIT-02, B1-03 CRIT-04, B1-04 CRIT-05, B1-05 HIGH-05). B5-03 (HIGH-16) done. B2-05 partial (SafetyDecision/JournalResult).*
