@@ -6,7 +6,7 @@ import PulsumTypes
 
 public struct PulsumRootView: View {
     @State private var viewModel: AppViewModel
-    @AppStorage("ai.pulsum.hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage(PulsumDefaultsKey.hasCompletedOnboarding) private var hasCompletedOnboarding = false
 
     public init() {
         _viewModel = State(initialValue: AppViewModel())

@@ -47,6 +47,21 @@ struct SafetyCardView: View {
                         .cornerRadius(PulsumRadius.md)
                     }
 
+                    // 988 Suicide & Crisis Lifeline Button
+                    Link(destination: URL(string: "tel://988")!) {
+                        HStack {
+                            Image(systemName: "phone.fill")
+                                .font(.pulsumHeadline)
+                            Text("988 Suicide & Crisis Lifeline")
+                                .font(.pulsumHeadline)
+                        }
+                        .foregroundStyle(Color.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, PulsumSpacing.md)
+                        .background(Color.pulsumWarning)
+                        .cornerRadius(PulsumRadius.md)
+                    }
+
                     // I'm Safe Button
                     Button(action: dismiss) {
                         Text("I'm safe")

@@ -11,9 +11,7 @@ import HealthKit
 import UIKit
 #endif
 
-private enum PulsumDefaults {
-    static let hasLaunched = "ai.pulsum.hasLaunched"
-}
+private typealias PulsumDefaults = PulsumDefaultsKey
 
 @MainActor
 @Observable
@@ -527,7 +525,7 @@ private extension AppViewModel {
 struct ConsentStore {
     private var modelContainer: ModelContainer?
     private static let recordID = "default"
-    private static let consentDefaultsKey = "ai.pulsum.cloudConsent"
+    private static let consentDefaultsKey = PulsumDefaultsKey.cloudConsent
     private let consentVersion: String
 
     init(consentVersion: String = ConsentStore.defaultConsentVersion()) {

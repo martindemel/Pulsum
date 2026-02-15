@@ -10,7 +10,8 @@ public enum PIIRedactor {
             #"\+?\d[\d\s\-]{7,}\d"#, // Phone numbers
             #"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"#, // SSN (###-##-####)
             #"\b(?:4\d{3}|5[1-5]\d{2}|3[47]\d{2}|6(?:011|5\d{2}))[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"#, // Credit card
-            #"\b\d{1,5}\s+\w+\s+(?:St(?:reet)?|Ave(?:nue)?|Blvd|Dr(?:ive)?|Ln|Rd|Ct|Pl|Way)\b"# // Street address
+            #"\b\d{1,5}\s+\w+\s+(?:St(?:reet)?|Ave(?:nue)?|Blvd|Dr(?:ive)?|Ln|Rd|Ct|Pl|Way)\b"#, // Street address
+            #"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"# // IP address
         ]
         for pattern in patterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {

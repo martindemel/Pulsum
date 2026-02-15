@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import PulsumAgents
+import PulsumServices
 import PulsumTypes
 
 public struct ChatInputView: View {
@@ -80,16 +81,37 @@ struct CoachScreen: View {
     let showChatInput: Bool
 
     private let chatBottomAnchor = "coach-chat-bottom"
+    private let networkMonitor = NetworkMonitor.shared
 
     var body: some View {
         VStack(spacing: 0) {
+            if !networkMonitor.isConnected {
+                HStack(spacing: PulsumSpacing.xs) {
+                    Image(systemName: "wifi.slash")
+                        .font(.pulsumCaption)
+                    Text("You're offline. Cloud features unavailable.")
+                        .font(.pulsumCaption)
+                }
+                .foregroundStyle(Color.pulsumTextPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, PulsumSpacing.xs)
+                .background(Color.pulsumWarning.opacity(0.15))
+            }
+
             chatMessagesOnly
 
             if showChatInput {
-                ChatInputView(viewModel: viewModel)
-                    .padding(.horizontal, PulsumSpacing.lg)
-                    .padding(.vertical, PulsumSpacing.md)
-                    .background(Color.pulsumBackgroundBeige.opacity(0.95))
+                VStack(spacing: PulsumSpacing.xs) {
+                    Text("Responses are AI-generated and not medical advice.")
+                        .font(.pulsumCaption2)
+                        .foregroundStyle(Color.pulsumTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    ChatInputView(viewModel: viewModel)
+                }
+                .padding(.horizontal, PulsumSpacing.lg)
+                .padding(.vertical, PulsumSpacing.md)
+                .background(Color.pulsumBackgroundBeige.opacity(0.95))
             }
         }
         .background(
@@ -334,9 +356,21 @@ private struct ChatBubble: View {
                 )
                 .accessibilityIdentifier(message.role == .assistant ? "CoachAssistantMessage" : "CoachUserMessage")
 
-            Text(message.timestamp, style: .time)
-                .font(.pulsumCaption2)
-                .foregroundStyle(Color.pulsumTextTertiary)
+            HStack(spacing: PulsumSpacing.xs) {
+                Text(message.timestamp, style: .time)
+                    .font(.pulsumCaption2)
+                    .foregroundStyle(Color.pulsumTextTertiary)
+
+                if message.role == .assistant {
+                    Text("AI-generated")
+                        .font(.pulsumCaption2)
+                        .foregroundStyle(Color.pulsumTextTertiary)
+                        .padding(.horizontal, PulsumSpacing.xxs)
+                        .padding(.vertical, 1)
+                        .background(Color.pulsumTextTertiary.opacity(0.1))
+                        .cornerRadius(PulsumRadius.xs)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
     }

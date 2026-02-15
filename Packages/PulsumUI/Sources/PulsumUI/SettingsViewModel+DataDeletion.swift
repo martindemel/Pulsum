@@ -50,9 +50,9 @@ extension SettingsViewModel {
             if let bundleId = Bundle.main.bundleIdentifier {
                 defaults.removePersistentDomain(forName: bundleId)
             }
-            defaults.removeObject(forKey: "ai.pulsum.hasLaunched")
-            defaults.removeObject(forKey: "ai.pulsum.cloudConsent")
-            defaults.removeObject(forKey: "ai.pulsum.hasCompletedOnboarding")
+            defaults.removeObject(forKey: PulsumDefaultsKey.hasLaunched)
+            defaults.removeObject(forKey: PulsumDefaultsKey.cloudConsent)
+            defaults.removeObject(forKey: PulsumDefaultsKey.hasCompletedOnboarding)
 
             // 5. Clear diagnostics
             await Diagnostics.clearDiagnostics()

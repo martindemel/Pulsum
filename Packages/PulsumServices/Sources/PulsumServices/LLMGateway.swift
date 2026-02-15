@@ -298,9 +298,7 @@ public final class LLMGateway {
         set { apiKeyLock.withLock { _inMemoryAPIKey = newValue } }
     }
 
-    private let rateLimitLock = NSLock()
-    private var _lastRequestTime: Date = .distantPast
-    private static let minimumRequestInterval: TimeInterval = 3.0
+    private let rateLimiter = RateLimiter(minimumInterval: 3.0)
 
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
 
@@ -464,16 +462,7 @@ public final class LLMGateway {
     }
 
     private func enforceRateLimit() async throws {
-        let now = Date()
-        let elapsed: TimeInterval = rateLimitLock.withLock {
-            now.timeIntervalSince(_lastRequestTime)
-        }
-        let delay = Self.minimumRequestInterval - elapsed
-        if delay > 0 {
-            logger.debug("Rate limiting: waiting \(String(format: "%.1f", delay), privacy: .public)s before next API call.")
-            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-        }
-        rateLimitLock.withLock { _lastRequestTime = Date() }
+        try await rateLimiter.acquire()
     }
 
     private func keySourceDescriptor() -> String {
