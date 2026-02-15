@@ -1,6 +1,6 @@
 # Pulsum -- Master Remediation Plan (Post-Phase 0)
 
-**Status:** Ready to execute | **Progress:** 0 / 74 items | **Est. effort:** 3-4 weeks
+**Status:** Ready to execute | **Progress:** 2 / 74 items | **Est. effort:** 3-4 weeks
 **Based on:** `master_report.md` (2026-02-14, 87 findings, health score 6.5/10)
 
 ---
@@ -163,10 +163,7 @@ scripts/ci/check-privacy-manifests.sh
   **Change:** In `public init(median:mad:)`, add `self.mad = max(mad, 1e-6)`.
   **Test:** Add `test_robustStats_madZero_clampedToEpsilon` in `WellbeingScorePipelineTests.swift`.
 
-- [ ] **B1-04** | CRIT-05: Fix PulsumServicesDependencyTests compilation
-  **File:** `Packages/PulsumServices/Tests/PulsumServicesTests/PulsumServicesDependencyTests.swift`
-  **Change:** Either add `storageMetadata()` to `PulsumServices` enum in `Placeholder.swift`, or update the test to call `PulsumServices.version` or another existing API.
-  **Test:** Verify `swift test --package-path Packages/PulsumServices` passes.
+- [x] **B1-04** | CRIT-05: Fix PulsumServicesDependencyTests compilation *(2026-02-15 — stale test file deleted)*
 
 - [ ] **B1-05** | HIGH-05: Add dispatch queue to RecRankerStateStore
   **File:** `Packages/PulsumAgents/Sources/PulsumAgents/RecRankerStateStore.swift`
@@ -197,7 +194,7 @@ scripts/ci/check-privacy-manifests.sh
 
 - [ ] **B2-05** | MED-10: Add Sendable to response types
   **Files:** `AgentOrchestrator.swift`, `CoachAgent.swift`, `SafetyAgent.swift`, `CheerAgent.swift`, `SentimentAgent.swift`
-  **Change:** Add `: Sendable` to `RecommendationResponse`, `CheerEvent`, `SafetyDecision`, `JournalResult`, `JournalCaptureResponse`.
+  **Change:** Add `: Sendable` to `RecommendationResponse`, `CheerEvent`, `JournalCaptureResponse`. *(SafetyDecision and JournalResult already done — 2026-02-15)*
 
 - [ ] **B2-06** | MED-19: Add Sendable to provider protocols
   **Files:** `TextEmbeddingProviding.swift`, `SentimentProviding.swift`
@@ -281,9 +278,7 @@ scripts/ci/check-privacy-manifests.sh
   **Files:** `VectorStore.swift`, `SafetyCardView.swift`, `SettingsView.swift`
   **Change:** Replace `baseAddress!` with `guard let baseAddress = buffer.baseAddress else { throw VectorStoreError.corruptFile }`. Replace URL force unwraps with `guard let url = URL(string: ...) else { return }`.
 
-- [ ] **B5-03** | HIGH-16: Fix potential unaligned memory access in VectorStore
-  **File:** `Packages/PulsumData/Sources/PulsumData/VectorStore.swift`
-  **Change:** After reading variable-length string ID, copy float bytes to an aligned buffer before interpreting: `let floatData = data[cursor..<cursor+floatByteCount]; floats = Array(unsafeUninitializedCapacity: count) { ... }`.
+- [x] **B5-03** | HIGH-16: Fix potential unaligned memory access in VectorStore *(2026-02-15 — safe byte copy via unsafeUninitializedCapacity)*
 
 - [ ] **B5-04** | MED-24: Remove redundant validation in LLMGateway
   **File:** `Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift`
@@ -497,19 +492,20 @@ scripts/ci/check-privacy-manifests.sh
 
 | Batch | Items | Effort | Status |
 |---|---|---|---|
-| Batch 1: Safety-Critical | 5 | ~1 day | Not started |
+| Batch 1: Safety-Critical | 5 | ~1 day | 1/5 done |
 | Batch 2: Concurrency | 8 | ~3-4 days | Not started |
 | Batch 3: ML Correctness | 5 | ~2 days | Not started |
 | Batch 4: Safety & Privacy | 6 | ~2 days | Not started |
-| Batch 5: Security & LLM | 4 | ~1 day | Not started |
+| Batch 5: Security & LLM | 4 | ~1 day | 1/4 done |
 | Batch 6: UI & Accessibility | 7 | ~2 days | Not started |
 | Batch 7: Test Coverage | 12 | ~3 days | Not started |
 | Batch 8: Cleanup & Polish | 11 | ~1-2 days | Not started |
 | Batch 9: Degraded Mode Safety | 4 | ~1 day | Not started |
 | Batch 10: @unchecked Sendable | 6 | ~2-3 days | Not started |
 | Remaining | 6 | ~1 day | Not started |
-| **Total** | **74** | **~3-4 weeks** | **0 / 74** |
+| **Total** | **74** | **~3-4 weeks** | **2 / 74** |
 
 ---
 
 *Plan generated 2026-02-14 based on full codebase analysis of 191 files.*
+*Updated 2026-02-15: B1-04 (CRIT-05), B5-03 (HIGH-16) marked done. B2-05 partial (SafetyDecision/JournalResult).*
