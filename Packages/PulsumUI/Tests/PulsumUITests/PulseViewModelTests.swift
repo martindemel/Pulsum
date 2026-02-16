@@ -89,8 +89,10 @@ struct PulseViewModelTests {
         // isSubmittingInputs should be true immediately
         #expect(vm.isSubmittingInputs == true)
 
-        // Wait for the background task to complete
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // Wait for the background @MainActor task to complete (yield execution)
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
 
         #expect(orchestrator.updateSubjectiveInputsCalled == true)
         #expect(orchestrator.lastStress == 7)
@@ -119,7 +121,10 @@ struct PulseViewModelTests {
         vm.bind(orchestrator: orchestrator)
 
         vm.submitInputs()
-        try await Task.sleep(nanoseconds: 100_000_000)
+
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
 
         #expect(vm.isSubmittingInputs == false)
         #expect(vm.sliderErrorMessage == "Test failure")

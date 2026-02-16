@@ -192,6 +192,13 @@ public actor VectorStore {
     }
 }
 
+// MARK: - Match Result
+
+public struct VectorMatch: Equatable, Sendable {
+    public let id: String
+    public let score: Float
+}
+
 // MARK: - Error
 
 public enum VectorStoreError: LocalizedError {
