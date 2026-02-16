@@ -6,7 +6,7 @@ import PulsumTypes
 
 public struct PulsumRootView: View {
     @State private var viewModel: AppViewModel
-    @AppStorage("ai.pulsum.hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage(PulsumDefaultsKey.hasCompletedOnboarding) private var hasCompletedOnboarding = false
 
     public init() {
         _viewModel = State(initialValue: AppViewModel())
@@ -182,13 +182,16 @@ struct MainContainerView: View {
         .sheet(isPresented: settingsSheetBinding) {
             SettingsScreen(
                 viewModel: viewModel.settingsViewModel,
+                healthViewModel: viewModel.healthSettingsViewModel,
+                diagnosticsViewModel: viewModel.diagnosticsViewModel,
                 wellbeingState: viewModel.coachViewModel.wellbeingState,
                 snapshotKind: viewModel.coachViewModel.snapshotKind
             )
         }
         .overlay {
             if viewModel.isShowingSafetyCard {
-                SafetyCardView(message: viewModel.safetyMessage ?? "If in danger, call 911") {
+                SafetyCardView(message: viewModel.safetyMessage ?? "If in danger, call your local emergency number.",
+                               crisisResources: viewModel.safetyCrisisResources) {
                     viewModel.dismissSafetyCard()
                 }
             }
@@ -252,35 +255,16 @@ struct MainContainerView: View {
         .ignoresSafeArea()
     }
 
-    @ViewBuilder
     private var wellbeingCard: some View {
-        switch viewModel.coachViewModel.wellbeingState {
-        case let .ready(score, _):
-            if let detailViewModel = viewModel.settingsViewModel.makeScoreBreakdownViewModel() {
-                NavigationLink {
-                    ScoreBreakdownScreen(viewModel: detailViewModel)
-                } label: {
-                    WellbeingScoreCard(score: score)
-                }
-                .buttonStyle(.plain)
-            } else {
-                WellbeingScoreCard(score: score)
-            }
-        case .loading:
-            WellbeingScoreLoadingCard()
-        case let .noData(reason):
-            if viewModel.coachViewModel.snapshotKind == .placeholder, reason == .insufficientSamples {
-                WellbeingPlaceholderCard()
-            } else {
-                WellbeingNoDataCard(reason: reason) {
-                    Task { await viewModel.settingsViewModel.requestHealthKitAuthorization() }
-                }
-            }
-        case let .error(message):
-            WellbeingErrorCard(message: message) {
-                viewModel.coachViewModel.reloadIfNeeded()
-            }
-        }
+        WellbeingStateCardView(
+            wellbeingState: viewModel.coachViewModel.wellbeingState,
+            snapshotKind: viewModel.coachViewModel.snapshotKind,
+            makeDetailViewModel: { viewModel.settingsViewModel.makeScoreBreakdownViewModel() },
+            requestHealthAccess: {
+                Task { await viewModel.healthSettingsViewModel.requestHealthKitAuthorization() }
+            },
+            retryAction: { viewModel.coachViewModel.reloadIfNeeded() }
+        )
     }
 
     private var mainTab: some View {
@@ -338,7 +322,7 @@ struct MainContainerView: View {
         NavigationStack {
             InsightsScreen(
                 viewModel: viewModel.coachViewModel,
-                foundationStatus: viewModel.orchestrator?.foundationModelsStatus ?? "",
+                isFoundationModelsReady: viewModel.orchestrator?.isFoundationModelsReady ?? false,
                 consentGranted: viewModel.consentGranted,
                 triggerSettings: { presentSettings() }
             )

@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 import PulsumTypes
 @testable import PulsumData
@@ -39,7 +40,10 @@ final class LibraryImporterDiagnosticsTests: XCTestCase {
         let configuration = LibraryImporterConfiguration(bundle: .module,
                                                          subdirectory: "PulsumDataTests/Resources")
         let indexStub = DiagnosticsIndexStub()
-        let importer = LibraryImporter(configuration: configuration, vectorIndex: indexStub)
+        let schema = Schema(DataStack.modelTypes)
+        let containerConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [containerConfig])
+        let importer = LibraryImporter(configuration: configuration, vectorIndex: indexStub, modelContainer: container)
 
         try await importer.ingestIfNeeded()
         let clock = ContinuousClock()

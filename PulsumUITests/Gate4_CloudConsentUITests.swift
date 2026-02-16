@@ -1,9 +1,9 @@
 import XCTest
 
 final class Gate4_CloudConsentUITests: PulsumUITestCase {
-    func test_enter_key_and_test_connection_shows_ok_status() {
+    func test_enter_key_and_test_connection_shows_ok_status() throws {
         launchPulsum(additionalEnvironment: ["PULSUM_COACH_API_KEY": "sk-test-ui-123"])
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         let secureKeyField = app.secureTextFields["CloudAPIKeyField"]
         let textKeyField = app.textFields["CloudAPIKeyField"]
@@ -41,12 +41,12 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         dismissSettingsSheet()
     }
 
-    func test_open_ai_enablement_link_falls_back_to_support_url() {
+    func test_open_ai_enablement_link_falls_back_to_support_url() throws {
         launchPulsum(additionalEnvironment: [
             "UITEST_CAPTURE_URLS": "1",
             "UITEST_FORCE_SETTINGS_FALLBACK": "1"
         ])
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         let linkButton = app.buttons["AppleIntelligenceLinkButton"]
         XCTAssertTrue(linkButton.waitForExistence(timeout: 4))
@@ -60,9 +60,9 @@ final class Gate4_CloudConsentUITests: PulsumUITestCase {
         dismissSettingsSheet()
     }
 
-    func test_escape_key_dismisses_settings_if_supported() {
+    func test_escape_key_dismisses_settings_if_supported() throws {
         launchPulsum()
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         let closeButton = app.buttons["Close Settings"]
         XCTAssertTrue(closeButton.waitForExistence(timeout: 3))

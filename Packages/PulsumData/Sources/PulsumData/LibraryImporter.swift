@@ -1,5 +1,5 @@
 import Foundation
-import CoreData
+import SwiftData
 import CryptoKit
 import PulsumML
 import PulsumTypes
@@ -36,7 +36,7 @@ public enum LibraryImporterError: LocalizedError {
 public final class LibraryImporter {
     private let configuration: LibraryImporterConfiguration
     private let vectorIndex: VectorIndexProviding
-    private let persistentContainer: NSPersistentContainer
+    private let modelContainer: ModelContainer
     private let stateLock = NSLock()
     private var _lastImportHadDeferredEmbeddings = false
     public var lastImportHadDeferredEmbeddings: Bool {
@@ -52,11 +52,11 @@ public final class LibraryImporter {
     }
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
-                vectorIndex: VectorIndexProviding = VectorIndexManager.shared,
-                persistentContainer: NSPersistentContainer = PulsumData.container) {
+                vectorIndex: VectorIndexProviding,
+                modelContainer: ModelContainer) {
         self.configuration = configuration
         self.vectorIndex = vectorIndex
-        self.persistentContainer = persistentContainer
+        self.modelContainer = modelContainer
     }
 
     public func ingestIfNeeded() async throws {
@@ -85,6 +85,7 @@ public final class LibraryImporter {
         await monitor.start()
 
         do {
+            // Phase 1: Async — load resources from disk
             let resources = try await Self.loadResourcesAsync(from: urls)
             decodedCount = resources.count
             await monitor.heartbeat(progressFields: ["decoded_count": .int(decodedCount)])
@@ -98,40 +99,39 @@ public final class LibraryImporter {
                 return
             }
 
-            let context = persistentContainer.newBackgroundContext()
-            context.name = "Pulsum.LibraryImporter"
-            context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-            context.transactionAuthor = "Pulsum.LibraryImporter"
-
-            let result = try await context.perform {
-                var payloads: [MicroMomentIndexPayload] = []
-                var updates: [LibraryIngestUpdate] = []
+            // Phase 2: Sync — process resources with ModelContext, save MicroMoments.
+            // Context is scoped here so it never crosses an await boundary.
+            let payloads: [MicroMomentIndexPayload]
+            let updates: [LibraryIngestUpdate]
+            do {
+                let context = ModelContext(modelContainer)
+                var collectedPayloads: [MicroMomentIndexPayload] = []
+                var collectedUpdates: [LibraryIngestUpdate] = []
                 for resource in resources {
                     let outcome = try self.process(resource: resource, context: context)
-                    payloads.append(contentsOf: outcome.payloads)
+                    collectedPayloads.append(contentsOf: outcome.payloads)
                     if let update = outcome.ingestUpdate {
-                        updates.append(update)
+                        collectedUpdates.append(update)
                     }
                 }
-                // Don't save yet — defer until indexing succeeds so all changes
-                // (MicroMoments + LibraryIngest records) commit atomically.
-                return (payloads, updates)
+                if context.hasChanges { try context.save() }
+                payloads = collectedPayloads
+                updates = collectedUpdates
             }
 
-            payloadCount = result.0.count
+            payloadCount = payloads.count
             await monitor.heartbeat(progressFields: ["payload_count": .int(payloadCount)])
 
-            if !result.0.isEmpty {
+            // Phase 3: Async — upsert vector index entries
+            if !payloads.isEmpty {
                 do {
-                    try await upsertIndexEntries(result.0)
+                    try await upsertIndexEntries(payloads)
                     indexedCount = payloadCount
                 } catch {
                     if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
                         setLastImportHadDeferredEmbeddings(true)
-                        // Save MicroMoments without ingest records so they're re-indexed on next launch
-                        try await context.perform {
-                            if context.hasChanges { try context.save() }
-                        }
+                        // MicroMoments already saved in Phase 2; no ingest records
+                        // so they will be re-indexed on next launch
                         Diagnostics.log(level: .warn,
                                         category: .library,
                                         name: "library.import.deferred",
@@ -162,34 +162,26 @@ public final class LibraryImporter {
                 }
             }
 
-            // Atomic save: MicroMoments + LibraryIngest records in a single transaction
-            if !result.1.isEmpty {
-                try await context.perform {
-                    for update in result.1 {
-                        let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
-                        fetchRequest.predicate = NSPredicate(format: "source == %@", update.source)
-                        fetchRequest.fetchLimit = 1
-                        let ingest: LibraryIngest
-                        if let existing = try context.fetch(fetchRequest).first {
-                            ingest = existing
-                        } else {
-                            let newIngest = LibraryIngest(context: context)
-                            newIngest.id = UUID()
-                            ingest = newIngest
-                        }
-                        ingest.source = update.source
-                        ingest.checksum = update.checksum
-                        ingest.version = "1"
-                        ingest.ingestedAt = Date()
+            // Phase 4: Sync — update LibraryIngest records in a fresh context
+            if !updates.isEmpty {
+                let ingestContext = ModelContext(modelContainer)
+                for update in updates {
+                    let targetSource = update.source
+                    var descriptor = FetchDescriptor<LibraryIngest>(predicate: #Predicate { $0.source == targetSource })
+                    descriptor.fetchLimit = 1
+                    let ingest: LibraryIngest
+                    if let existing = try ingestContext.fetch(descriptor).first {
+                        ingest = existing
+                    } else {
+                        ingest = LibraryIngest(source: update.source)
+                        ingestContext.insert(ingest)
                     }
-                    if context.hasChanges {
-                        try context.save()
-                    }
+                    ingest.checksum = update.checksum
+                    ingest.version = "1"
+                    ingest.ingestedAt = Date()
                 }
-            } else {
-                // No ingest updates but we may have MicroMoment changes to save
-                try await context.perform {
-                    if context.hasChanges { try context.save() }
+                if ingestContext.hasChanges {
+                    try ingestContext.save()
                 }
             }
 
@@ -224,12 +216,12 @@ public final class LibraryImporter {
         }
     }
 
-    private func process(resource: LibraryResourcePayload, context: NSManagedObjectContext) throws -> LibraryProcessOutcome {
-        let fetchRequest: NSFetchRequest<LibraryIngest> = LibraryIngest.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "source == %@", resource.filename)
-        fetchRequest.fetchLimit = 1
+    private func process(resource: LibraryResourcePayload, context: ModelContext) throws -> LibraryProcessOutcome {
+        let targetSource = resource.filename
+        var descriptor = FetchDescriptor<LibraryIngest>(predicate: #Predicate { $0.source == targetSource })
+        descriptor.fetchLimit = 1
 
-        let existing = try context.fetch(fetchRequest).first
+        let existing = try context.fetch(descriptor).first
         if let existing, existing.checksum == resource.checksum {
             return LibraryProcessOutcome(payloads: [], ingestUpdate: nil)
         }
@@ -251,29 +243,39 @@ public final class LibraryImporter {
 
     private func upsertMicroMoment(episode: PodcastEpisode,
                                    recommendation: PodcastRecommendation,
-                                   context: NSManagedObjectContext) throws -> MicroMomentIndexPayload {
+                                   context: ModelContext) throws -> MicroMomentIndexPayload {
         let identifier = recommendationIdentifier(episode: episode, recommendation: recommendation)
-        let fetch: NSFetchRequest<MicroMoment> = MicroMoment.fetchRequest()
-        fetch.predicate = NSPredicate(format: "id == %@", identifier)
-        fetch.fetchLimit = 1
+        var descriptor = FetchDescriptor<MicroMoment>(predicate: #Predicate { $0.id == identifier })
+        descriptor.fetchLimit = 1
 
-        let microMoment = try context.fetch(fetch).first ?? MicroMoment(context: context)
-        microMoment.id = identifier
+        let microMoment: MicroMoment
+        if let existing = try context.fetch(descriptor).first {
+            microMoment = existing
+        } else {
+            microMoment = MicroMoment(id: identifier,
+                                      title: recommendation.recommendation,
+                                      shortDescription: recommendation.shortDescription)
+            context.insert(microMoment)
+        }
         microMoment.title = recommendation.recommendation
         microMoment.shortDescription = recommendation.shortDescription
         microMoment.detail = buildDetail(episode: episode, recommendation: recommendation)
-        microMoment.tags = recommendation.tags
+        // tags stored as JSON string in SwiftData
+        if let tags = recommendation.tags {
+            microMoment.tags = (try? JSONEncoder().encode(tags)).flatMap { String(data: $0, encoding: .utf8) }
+        } else {
+            microMoment.tags = nil
+        }
         microMoment.difficulty = recommendation.difficultyLevel
         microMoment.category = recommendation.category
         microMoment.sourceURL = recommendation.researchLink
         microMoment.evidenceBadge = EvidenceScorer.badge(for: recommendation.researchLink).rawValue
-        microMoment.estimatedTimeSec = NSNumber(value: parseTimeInterval(from: recommendation.timeToComplete))
-        microMoment.cooldownSec = recommendation.cooldownSec.map { NSNumber(value: $0) }
-        let title = microMoment.title
+        microMoment.estimatedTimeSec = Int32(parseTimeInterval(from: recommendation.timeToComplete))
+        microMoment.cooldownSec = recommendation.cooldownSec.map(Int32.init)
         return MicroMomentIndexPayload(id: identifier,
-                                       title: title,
+                                       title: microMoment.title,
                                        detail: microMoment.detail,
-                                       tags: microMoment.tags)
+                                       tags: recommendation.tags)
     }
 
     private func recommendationIdentifier(episode: PodcastEpisode, recommendation: PodcastRecommendation) -> String {
@@ -351,17 +353,8 @@ public final class LibraryImporter {
     }
 
     private func upsertIndexEntries(_ payloads: [MicroMomentIndexPayload]) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for payload in payloads {
-                group.addTask { [vectorIndex] in
-                    _ = try await vectorIndex.upsertMicroMoment(id: payload.id,
-                                                                title: payload.title,
-                                                                detail: payload.detail,
-                                                                tags: payload.tags)
-                }
-            }
-            try await group.waitForAll()
-        }
+        let items = payloads.map { (id: $0.id, title: $0.title, detail: $0.detail, tags: $0.tags) }
+        try await vectorIndex.bulkUpsertMicroMoments(items)
     }
 
     private static func sha256Hex(for data: Data) -> String {
@@ -414,5 +407,5 @@ private struct PodcastRecommendation: Decodable {
 }
 
 // SAFETY: Mutable state (`_lastImportHadDeferredEmbeddings`) is protected by `stateLock`.
-// Immutable properties (`configuration`, `vectorIndex`, `persistentContainer`) are set once in init.
+// Immutable properties (`configuration`, `vectorIndex`, `modelContainer`) are set once in init.
 extension LibraryImporter: @unchecked Sendable {}

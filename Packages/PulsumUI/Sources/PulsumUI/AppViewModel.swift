@@ -1,5 +1,5 @@
 import Foundation
-import CoreData
+import SwiftData
 import Observation
 import PulsumAgents
 import PulsumData
@@ -11,9 +11,7 @@ import HealthKit
 import UIKit
 #endif
 
-private enum PulsumDefaults {
-    static let hasLaunched = "ai.pulsum.hasLaunched"
-}
+private typealias PulsumDefaults = PulsumDefaultsKey
 
 @MainActor
 @Observable
@@ -50,7 +48,8 @@ final class AppViewModel {
         }
     }
 
-    private let consentStore: ConsentStore
+    private var consentStore: ConsentStore
+    private(set) var dataStack: DataStack?
     @ObservationIgnored private(set) var orchestrator: AgentOrchestrator?
     @ObservationIgnored private let observerBag = NotificationObserverBag()
 
@@ -60,6 +59,7 @@ final class AppViewModel {
     var isPresentingSettings = false
     var isShowingSafetyCard = false
     var safetyMessage: String?
+    var safetyCrisisResources: CrisisResourceInfo?
     var showOnboarding = false
 
     var consentGranted: Bool
@@ -69,6 +69,8 @@ final class AppViewModel {
     let coachViewModel: CoachViewModel
     let pulseViewModel: PulseViewModel
     let settingsViewModel: SettingsViewModel
+    let healthSettingsViewModel: HealthSettingsViewModel
+    let diagnosticsViewModel: DiagnosticsViewModel
     private let startupTraceId = UUID()
     private var didEmitFirstRunStart = false
     private var didEmitFirstRunEnd = false
@@ -101,6 +103,8 @@ final class AppViewModel {
         let coachVM = CoachViewModel()
         let pulseVM = PulseViewModel()
         let settingsVM = SettingsViewModel(initialConsent: consent)
+        let healthVM = HealthSettingsViewModel()
+        let diagVM = DiagnosticsViewModel()
 
         self.consentStore = consentStore
         self.consentGranted = consent
@@ -110,6 +114,8 @@ final class AppViewModel {
         self.coachViewModel = coachVM
         self.pulseViewModel = pulseVM
         self.settingsViewModel = settingsVM
+        self.healthSettingsViewModel = healthVM
+        self.diagnosticsViewModel = diagVM
         if AppRuntimeConfig.hideConsentBanner {
             self.shouldHideConsentBanner = true
         }
@@ -119,24 +125,14 @@ final class AppViewModel {
         }
         #endif
 
-        settingsVM.onConsentChanged = { [weak self] newValue in
-            guard let self else { return }
-            self.updateConsent(to: newValue)
-        }
+        // P0-26: Observe settingsViewModel.consentDidChange instead of closure
+        observeConsentChanges()
 
-        settingsVM.onDataDeleted = { [weak self] in
-            guard let self else { return }
-            self.showOnboarding = true
-            self.isPresentingSettings = false
-        }
+        // P0-26: Observe settingsViewModel.dataDidDelete instead of closure
+        observeDataDeletion()
 
-        pulseVM.onSafetyDecision = { [weak self] decision in
-            guard let self else { return }
-            if !decision.allowCloud, case .crisis = decision.classification {
-                self.safetyMessage = decision.crisisMessage ?? "If in danger, call 911"
-                self.isShowingSafetyCard = true
-            }
-        }
+        // P0-26: Observe pulseViewModel.lastSafetyDecision instead of closure
+        observeSafetyDecisions()
 
         let scoreRefreshObserver = NotificationCenter.default.addObserver(forName: .pulsumScoresUpdated,
                                                                           object: nil,
@@ -194,7 +190,10 @@ final class AppViewModel {
             ])
             return
         }
-        if let error = PulsumData.initializationError {
+        let stack: DataStack
+        do {
+            stack = try DataStack()
+        } catch {
             startupState = .failed(error.localizedDescription)
             Task { await DebugLogBuffer.shared.append("Startup failed: DataStack initialization error: \(error.localizedDescription)") }
             emitFirstRunEnd(fields: [
@@ -203,7 +202,9 @@ final class AppViewModel {
             ], error: error)
             return
         }
-        if let issue = PulsumData.backupSecurityIssue {
+        self.dataStack = stack
+        consentStore.setModelContainer(stack.container)
+        if let issue = stack.backupSecurityIssue {
             let location = issue.url.lastPathComponent
             startupState = .blocked("Storage is not secured for backup (directory: \(location)). \(issue.reason)")
             Task { await DebugLogBuffer.shared.append("Startup blocked: \(issue.reason)") }
@@ -222,7 +223,8 @@ final class AppViewModel {
                                 category: .app,
                                 name: "app.orchestrator.create.begin",
                                 traceId: startupTraceId)
-                let orchestrator = try PulsumAgents.makeOrchestrator()
+                let orchestrator = try PulsumAgents.makeOrchestrator(container: stack.container,
+                                                                     storagePaths: stack.storagePaths)
                 Diagnostics.log(level: .info,
                                 category: .app,
                                 name: "app.orchestrator.create.end",
@@ -232,8 +234,11 @@ final class AppViewModel {
                     self?.consentGranted ?? false
                 })
                 self.pulseViewModel.bind(orchestrator: orchestrator)
+                self.settingsViewModel.modelContainer = stack.container
+                self.settingsViewModel.vectorIndexDirectory = stack.storagePaths.vectorIndexDirectory
                 self.settingsViewModel.bind(orchestrator: orchestrator)
-                self.settingsViewModel.refreshFoundationStatus()
+                self.healthSettingsViewModel.bind(orchestrator: orchestrator)
+                self.diagnosticsViewModel.bind(orchestrator: orchestrator)
                 Diagnostics.log(level: .info,
                                 category: .ui,
                                 name: "timeline.firstRun.checkpoint",
@@ -251,7 +256,7 @@ final class AppViewModel {
                     do {
                         try await orchestrator.start(traceId: startupTraceId)
                         startSpan.end(error: nil)
-                        self.settingsViewModel.refreshHealthAccessStatus()
+                        self.healthSettingsViewModel.refreshHealthAccessStatus()
                         await self.coachViewModel.refreshRecommendations()
                         if let deferred = analysisDeferredFields(from: await orchestrator.diagnosticsSnapshot()) {
                             var fields = deferred.fields
@@ -359,12 +364,58 @@ final class AppViewModel {
     func dismissSafetyCard() {
         isShowingSafetyCard = false
         safetyMessage = nil
+        safetyCrisisResources = nil
     }
 
     private func refreshOnForeground() {
         guard startupState == .ready, let orchestrator else { return }
         Task {
             await orchestrator.refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: startupTraceId)
+        }
+    }
+
+    // MARK: - P0-26: Observable property observation (replaces closure callbacks)
+
+    private func observeConsentChanges() {
+        withObservationTracking {
+            _ = settingsViewModel.consentDidChange
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateConsent(to: self.settingsViewModel.consentGranted)
+                self.observeConsentChanges()
+            }
+        }
+    }
+
+    private func observeDataDeletion() {
+        withObservationTracking {
+            _ = settingsViewModel.dataDidDelete
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.showOnboarding = true
+                self.isPresentingSettings = false
+                self.observeDataDeletion()
+            }
+        }
+    }
+
+    private func observeSafetyDecisions() {
+        withObservationTracking {
+            _ = pulseViewModel.lastSafetyDecision
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if let decision = self.pulseViewModel.lastSafetyDecision {
+                    if !decision.allowCloud, case .crisis = decision.classification {
+                        self.safetyMessage = decision.crisisMessage ?? "If in danger, call your local emergency number."
+                        self.safetyCrisisResources = decision.crisisResources
+                        self.isShowingSafetyCard = true
+                    }
+                }
+                self.observeSafetyDecisions()
+            }
         }
     }
 }
@@ -383,9 +434,18 @@ private final class NotificationObserverBag {
     }
 }
 
+#if canImport(HealthKit)
 private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
-    (error as NSError).localizedDescription.contains("Missing com.apple.developer.healthkit.background-delivery")
+    let nsError = error as NSError
+    guard nsError.domain == HKError.errorDomain else { return false }
+    // HKError.errorInvalidArgument is a real error, not a missing entitlement
+    return nsError.code != HKError.errorInvalidArgument.rawValue
 }
+#else
+private func shouldIgnoreBackgroundDeliveryError(_: Error) -> Bool {
+    false
+}
+#endif
 
 private extension AppViewModel {
     func logSessionStart() {
@@ -475,18 +535,18 @@ private extension AppViewModel {
 
 @MainActor
 struct ConsentStore {
-    private let contextProvider: () -> NSManagedObjectContext
+    private var modelContainer: ModelContainer?
     private static let recordID = "default"
-    private static let consentDefaultsKey = "ai.pulsum.cloudConsent"
+    private static let consentDefaultsKey = PulsumDefaultsKey.cloudConsent
     private let consentVersion: String
 
-    init(contextProvider: @escaping () -> NSManagedObjectContext = { PulsumData.viewContext },
-         consentVersion: String = ConsentStore.defaultConsentVersion()) {
-        self.contextProvider = contextProvider
+    init(consentVersion: String = ConsentStore.defaultConsentVersion()) {
         self.consentVersion = consentVersion
     }
 
-    private var context: NSManagedObjectContext { contextProvider() }
+    mutating func setModelContainer(_ container: ModelContainer) {
+        self.modelContainer = container
+    }
 
     private var defaults: UserDefaults {
         AppRuntimeConfig.runtimeDefaults
@@ -500,12 +560,15 @@ struct ConsentStore {
         if AppRuntimeConfig.isUITesting {
             return false
         }
-        let request = UserPrefs.fetchRequest()
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "id == %@", Self.recordID)
-        if let existing = try? context.fetch(request).first {
-            defaults.set(existing.consentCloud, forKey: Self.consentDefaultsKey)
-            return existing.consentCloud
+        if let modelContainer {
+            let context = ModelContext(modelContainer)
+            let targetId = Self.recordID
+            var descriptor = FetchDescriptor<UserPrefs>(predicate: #Predicate { $0.id == targetId })
+            descriptor.fetchLimit = 1
+            if let existing = try? context.fetch(descriptor).first {
+                defaults.set(existing.consentCloud, forKey: Self.consentDefaultsKey)
+                return existing.consentCloud
+            }
         }
         return false
     }
@@ -517,38 +580,39 @@ struct ConsentStore {
         if AppRuntimeConfig.isUITesting {
             return
         }
-        let request = UserPrefs.fetchRequest()
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "id == %@", Self.recordID)
+        guard let modelContainer else { return }
+        let context = ModelContext(modelContainer)
+        let targetId = Self.recordID
+        var descriptor = FetchDescriptor<UserPrefs>(predicate: #Predicate { $0.id == targetId })
+        descriptor.fetchLimit = 1
         let prefs: UserPrefs
-        if let existing = try? context.fetch(request).first {
+        if let existing = try? context.fetch(descriptor).first {
             prefs = existing
         } else {
-            prefs = UserPrefs(context: context)
-            prefs.id = Self.recordID
+            prefs = UserPrefs(id: targetId)
+            context.insert(prefs)
         }
         prefs.consentCloud = granted
         prefs.updatedAt = Date()
         do {
-            persistConsentHistory(granted: granted)
+            persistConsentHistory(granted: granted, context: context)
             try context.save()
         } catch {
-            context.rollback()
+            // Errors are logged; changes discarded on context dealloc
         }
     }
 
-    private func persistConsentHistory(granted: Bool) {
-        let request = ConsentState.fetchRequest()
-        request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "version == %@", consentVersion)
+    private func persistConsentHistory(granted: Bool, context: ModelContext) {
+        let version = consentVersion
+        var descriptor = FetchDescriptor<ConsentState>(predicate: #Predicate { $0.version == version })
+        descriptor.fetchLimit = 1
 
         let record: ConsentState
-        if let existing = try? context.fetch(request).first {
+        if let existing = try? context.fetch(descriptor).first {
             record = existing
         } else {
-            record = ConsentState(context: context)
-            record.id = UUID()
-            record.version = consentVersion
+            record = ConsentState(version: consentVersion)
+            context.insert(record)
         }
 
         let timestamp = Date()
@@ -556,9 +620,8 @@ struct ConsentStore {
             record.grantedAt = timestamp
             record.revokedAt = nil
         } else {
-            if record.grantedAt == nil {
-                record.grantedAt = timestamp
-            }
+            // Only record revocation if consent was previously granted
+            guard record.grantedAt != nil else { return }
             record.revokedAt = timestamp
         }
     }

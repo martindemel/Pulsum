@@ -2,9 +2,9 @@ import XCTest
 import Foundation
 
 final class SettingsAndCoachUITests: PulsumUITestCase {
-    func testCoachChat_withStub_returnsGroundedReply() {
+    func testCoachChat_withStub_returnsGroundedReply() throws {
         launchPulsum()
-        guard enableCloudConsentIfNeeded() else { return }
+        try enableCloudConsentIfNeeded()
 
         let coachTab = app.tabBars.buttons["Coach"]
         XCTAssertTrue(coachTab.waitForExistence(timeout: 5), "Coach tab is unavailable.")
@@ -24,9 +24,9 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
         XCTAssertTrue(stubReply.label.contains("Stub response"), "Stubbed reply text missing.")
     }
 
-    func testCloudConsentToggle_existsAndPersists() {
+    func testCloudConsentToggle_existsAndPersists() throws {
         launchPulsum()
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         guard let toggle = findConsentToggle() else {
             XCTFail("Cloud consent toggle not present yet.")
@@ -45,7 +45,7 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
         app.terminate()
 
         launchPulsum()
-        guard openSettingsSheetOrSkip() else { return }
+        try openSettingsSheetOrSkip()
 
         guard findConsentToggle() != nil else {
             XCTFail("Consent toggle missing after relaunch.")
@@ -66,23 +66,21 @@ final class SettingsAndCoachUITests: PulsumUITestCase {
         return nil
     }
 
-    @discardableResult
-    private func enableCloudConsentIfNeeded() -> Bool {
-        guard openSettingsSheetOrSkip() else { return false }
+    private func enableCloudConsentIfNeeded() throws {
+        try openSettingsSheetOrSkip()
         guard let toggle = findConsentToggle() else {
             XCTFail("Consent toggle not found.")
-            return false
+            return
         }
         guard let currentValue = toggleValue(toggle) else {
             XCTFail("Consent toggle value unreadable.")
             dismissSettingsSheet()
-            return false
+            return
         }
         if currentValue == false {
             tapConsentToggle(toggle)
         }
         dismissSettingsSheet()
-        return true
     }
 
     private func toggleValue(_ toggle: XCUIElement) -> Bool? {

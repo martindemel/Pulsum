@@ -1,71 +1,63 @@
 import Foundation
 import os.log
-import PulsumData
 import PulsumML
 
 protocol EstimatorStateStoring: Sendable {
-    func loadState() -> StateEstimatorState?
-    func saveState(_ state: StateEstimatorState)
+    func loadState() async -> StateEstimatorState?
+    func saveState(_ state: StateEstimatorState) async
 }
 
-// SAFETY: All file I/O is serialized through `ioQueue`. Immutable properties
-// (`fileURL`, `fileManager`, `logger`) are set once in init and never mutated.
-final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
+actor EstimatorStateStore: EstimatorStateStoring {
     static let schemaVersion = 1
 
     private let fileURL: URL
     private let fileManager: FileManager
-    private let ioQueue = DispatchQueue(label: "ai.pulsum.estimatorstate.io")
-    private let logger = Logger(subsystem: "ai.pulsum", category: "EstimatorStateStore")
-    private func logError(_ message: String, error: Error) {
+    private nonisolated let logger = Logger(subsystem: "ai.pulsum", category: "EstimatorStateStore")
+    private nonisolated func logError(_ message: String, error: Error) {
         let nsError = error as NSError
         logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
     }
 
-    init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
+    init(baseDirectory: URL,
          fileManager: FileManager = .default) {
         self.fileManager = fileManager
         let directory = baseDirectory.appendingPathComponent("EstimatorState", isDirectory: true)
         self.fileURL = directory.appendingPathComponent("state_v\(Self.schemaVersion).json")
-        prepareDirectory(at: directory)
+        Self.prepareDirectory(at: directory, fileManager: fileManager, logger: logger)
     }
 
     func loadState() -> StateEstimatorState? {
-        ioQueue.sync {
-            guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
-            do {
-                let data = try Data(contentsOf: fileURL)
-                let state = try JSONDecoder().decode(StateEstimatorState.self, from: data)
-                guard state.version == Self.schemaVersion else {
-                    logger.warning("Estimator state version mismatch. Expected \(Self.schemaVersion), found \(state.version). Ignoring persisted state.")
-                    return nil
-                }
-                return state
-            } catch {
-                logError("Failed to load estimator state.", error: error)
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let state = try JSONDecoder().decode(StateEstimatorState.self, from: data)
+            guard state.version == Self.schemaVersion else {
+                logger.warning("Estimator state version mismatch. Expected \(Self.schemaVersion), found \(state.version). Ignoring persisted state.")
                 return nil
             }
+            return state
+        } catch {
+            logError("Failed to load estimator state.", error: error)
+            return nil
         }
     }
 
     func saveState(_ state: StateEstimatorState) {
-        ioQueue.sync {
-            guard state.version == Self.schemaVersion else {
-                logger.error("Refusing to persist estimator state: version mismatch (expected \(Self.schemaVersion), found \(state.version)).")
-                return
-            }
-            do {
-                let data = try JSONEncoder().encode(state)
-                try data.write(to: fileURL, options: .atomic)
-                applyFileProtection()
-                excludeFromBackup()
-            } catch {
-                logError("Failed to persist estimator state.", error: error)
-            }
+        guard state.version == Self.schemaVersion else {
+            logger.error("Refusing to persist estimator state: version mismatch (expected \(Self.schemaVersion), found \(state.version)).")
+            return
+        }
+        do {
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: fileURL, options: .atomic)
+            applyFileProtection()
+            excludeFromBackup()
+        } catch {
+            logError("Failed to persist estimator state.", error: error)
         }
     }
 
-    private func prepareDirectory(at url: URL) {
+    private static func prepareDirectory(at url: URL, fileManager: FileManager, logger: Logger) {
         if !fileManager.fileExists(atPath: url.path) {
             do {
                 #if os(iOS)
@@ -74,14 +66,16 @@ final class EstimatorStateStore: EstimatorStateStoring, @unchecked Sendable {
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
                 #endif
             } catch {
-                logError("Failed to prepare estimator state directory.", error: error)
+                let nsError = error as NSError
+                logger.error("Failed to prepare estimator state directory. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
             }
         } else {
             #if os(iOS)
             do {
                 try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
             } catch {
-                logError("Failed to update estimator state directory protection.", error: error)
+                let nsError = error as NSError
+                logger.error("Failed to update estimator state directory protection. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
             }
             #endif
         }

@@ -44,6 +44,8 @@ public func withHardTimeout<T: Sendable>(seconds: Double,
     }
 }
 
+// SAFETY: Mutable state (`finished`, `operationTask`) is protected by `lock` (NSLock).
+// CheckedContinuation is resumed at most once, guarded by `finished` flag.
 private final class HardTimeoutCoordinator<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var finished = false

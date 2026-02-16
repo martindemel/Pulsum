@@ -9,12 +9,12 @@ final class Gate5_VectorIndexManagerActorTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let vectorIndex = VectorIndex(name: "gate5-manager", directory: directory, shardCount: 4)
+        let store = VectorStore(fileURL: directory.appendingPathComponent("manager.vecstore"))
         let provider = MockEmbeddingProvider()
         let embeddingService = EmbeddingService.debugInstance(primary: provider, fallback: provider)
-        let manager = VectorIndexManager(embeddingService: embeddingService, microMomentsIndex: vectorIndex)
+        let manager = VectorIndexManager(embeddingService: embeddingService, store: store)
 
-        let identifiers = (0..<12).map { "moment-\($0)" }
+        let identifiers = (0 ..< 12).map { "moment-\($0)" }
         try await withThrowingTaskGroup(of: Void.self) { group in
             for id in identifiers {
                 group.addTask {

@@ -1,43 +1,45 @@
 @testable import PulsumAgents
 @testable import PulsumData
 @testable import PulsumML
+import SwiftData
 import XCTest
 
 @MainActor
 // swiftlint:disable:next type_name
 final class Gate6_EmbeddingAvailabilityDegradationTests: XCTestCase {
     func testRecommendationsFallbackWhenEmbeddingsUnavailable() async throws {
-        let container = TestCoreDataStack.makeContainer()
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
 
         // Seed one MicroMoment so keyword fallback has content.
-        let viewContext = container.viewContext
-        viewContext.performAndWait {
-            let moment = MicroMoment(context: viewContext)
-            moment.id = "fallback-1"
-            moment.title = "Wellbeing reset walk"
-            moment.shortDescription = "Take a gentle 10-minute walk to reset."
-            moment.detail = "A simple outdoor walk to refresh energy."
-            moment.tags = ["wellbeing", "movement"]
-            moment.evidenceBadge = "Medium"
-            try? viewContext.save()
-        }
+        let context = ModelContext(container)
 
-        let vector = FeatureVector(context: viewContext)
-        vector.date = Date()
-        try viewContext.save()
+        let moment = MicroMoment(id: "fallback-1",
+                                 title: "Wellbeing reset walk",
+                                 shortDescription: "Take a gentle 10-minute walk to reset.",
+                                 detail: "A simple outdoor walk to refresh energy.",
+                                 tags: "[\"wellbeing\", \"movement\"]",
+                                 evidenceBadge: "Medium")
+        context.insert(moment)
+
+        let vector = FeatureVector(date: Date())
+        context.insert(vector)
+        try context.save()
 
         let snapshot = FeatureVectorSnapshot(date: Date(),
                                              wellbeingScore: 0.2,
                                              contributions: ["z_hrv": 0.5],
                                              imputedFlags: [:],
-                                             featureVectorObjectID: vector.objectID,
+                                             featureVectorObjectID: vector.persistentModelID,
                                              features: ["z_hrv": 0.5])
 
         let index = UnavailableIndexStub()
-        let importer = LibraryImporter(configuration: LibraryImporterConfiguration(bundle: Bundle.pulsumDataResources,
+        let importer = LibraryImporter(configuration: LibraryImporterConfiguration(bundle: .module,
                                                                                   subdirectory: "PulsumDataTests/Resources"),
-                                       vectorIndex: index)
+                                       vectorIndex: index,
+                                       modelContainer: container)
         let coach = try CoachAgent(container: container,
+                                   storagePaths: storagePaths,
                                    vectorIndex: index,
                                    libraryImporter: importer,
                                    shouldIngestLibrary: false)

@@ -5,7 +5,8 @@ import os.log
 
 /// Reliable on-device fallback embedding provider backed by the bundled Core ML model.
 @available(iOS 17.0, macOS 13.0, *)
-final class CoreMLEmbeddingFallbackProvider: TextEmbeddingProviding {
+// SAFETY: NLEmbedding and Logger are set once in init and never mutated — safe for concurrent reads.
+final class CoreMLEmbeddingFallbackProvider: TextEmbeddingProviding, @unchecked Sendable {
     private let embedding: NLEmbedding?
     private let targetDimension = 384
     private let logger = Logger(subsystem: "com.pulsum", category: "EmbeddingService")

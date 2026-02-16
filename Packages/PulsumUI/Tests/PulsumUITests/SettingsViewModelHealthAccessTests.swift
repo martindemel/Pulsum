@@ -4,7 +4,10 @@
 import PulsumData
 import PulsumML
 import PulsumTypes
+import SwiftData
+import Testing
 import XCTest
+
 
 @MainActor
 final class SettingsViewModelHealthAccessTests: XCTestCase {
@@ -26,7 +29,7 @@ final class SettingsViewModelHealthAccessTests: XCTestCase {
 
         let dataAgent = HealthStatusDataAgentStub(statuses: [pending, granted])
         let orchestrator = try makeOrchestrator(dataAgent: dataAgent)
-        let viewModel = SettingsViewModel(initialConsent: false)
+        let viewModel = HealthSettingsViewModel()
 
         viewModel.bind(orchestrator: orchestrator)
         viewModel.refreshHealthAccessStatus()
@@ -57,9 +60,13 @@ final class SettingsViewModelHealthAccessTests: XCTestCase {
     }
 
     private func makeOrchestrator(dataAgent: any DataAgentProviding) throws -> AgentOrchestrator {
-        let coachAgent = try CoachAgent(container: TestCoreDataStack.makeContainer(),
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let coachAgent = try CoachAgent(container: container,
+                                        storagePaths: storagePaths,
                                         vectorIndex: VectorIndexStub(),
-                                        libraryImporter: LibraryImporter(),
+                                        libraryImporter: LibraryImporter(vectorIndex: VectorIndexStub(),
+                                                                         modelContainer: container),
                                         llmGateway: LLMGateway(),
                                         shouldIngestLibrary: false)
         return AgentOrchestrator(
@@ -83,7 +90,7 @@ private actor HealthStatusDataAgentStub: DataAgentProviding {
 
     func start() async throws {}
     func setDiagnosticsTraceId(_ traceId: UUID?) async {}
-    func latestFeatureVector() async throws -> FeatureVectorSnapshot? { nil }
+    func latestFeatureVector() async throws -> AgentSnapshot? { nil }
     func recordSubjectiveInputs(date: Date, stress: Double, energy: Double, sleepQuality: Double) async throws {}
     func scoreBreakdown() async throws -> ScoreBreakdown? { nil }
     func reprocessDay(date: Date) async throws {}
@@ -141,8 +148,51 @@ private struct TopicGateStub: TopicGateProviding {
     }
 }
 
+// Test-only: stateless stub — no mutable state, safe for concurrent use.
 private final class VectorIndexStub: VectorIndexProviding, @unchecked Sendable {
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] { [] }
     func removeMicroMoment(id: String) async throws {}
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] { [] }
+}
+
+// MARK: - B7-10 | TC-17: HealthSettingsViewModel Swift Testing additions
+
+@MainActor
+struct HealthSettingsViewModelPartialAccessTests {
+    @Test("Partial health access shows correct granted/total counts")
+    func test_partialHealthAccess_showsCorrectCounts() throws {
+        let requiredTypes = HealthKitService.orderedReadSampleTypes
+        try #require(requiredTypes.count >= 2, "Need at least 2 HealthKit sample types")
+
+        let grantedTypes = Set(requiredTypes.prefix(2))
+        let deniedTypes = Set(requiredTypes.dropFirst(2))
+
+        let status = HealthAccessStatus(
+            required: requiredTypes,
+            granted: grantedTypes,
+            denied: deniedTypes,
+            notDetermined: [],
+            availability: .available
+        )
+
+        let vm = HealthSettingsViewModel()
+        vm.applyHealthStatus(status)
+
+        #expect(vm.healthKitSummary == "2/\(requiredTypes.count) granted")
+        #expect(vm.missingHealthKitDetail != nil)
+        #expect(vm.showHealthKitUnavailableBanner == false)
+    }
+
+    @Test("Health toast auto-dismisses after delay")
+    func test_healthToast_autoDismisses() async throws {
+        let vm = HealthSettingsViewModel()
+
+        vm.emitHealthKitSuccessToast()
+        #expect(vm.healthKitSuccessMessage == "Health data connected")
+
+        // Wait for auto-dismiss (2.5s toast + 0.5s buffer)
+        try await Task.sleep(nanoseconds: 3_000_000_000)
+
+        #expect(vm.healthKitSuccessMessage == nil)
+    }
 }

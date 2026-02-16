@@ -1,30 +1,29 @@
 import Foundation
 import os.log
-import PulsumData
 import PulsumML
 
 public protocol RecRankerStateStoring: Sendable {
-    func loadState() -> RecRankerState?
-    func saveState(_ state: RecRankerState)
+    func loadState() async -> RecRankerState?
+    func saveState(_ state: RecRankerState) async
 }
 
-public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendable {
+public actor RecRankerStateStore: RecRankerStateStoring {
     public static let schemaVersion = 1
 
     private let fileURL: URL
     private let fileManager: FileManager
-    private let logger = Logger(subsystem: "ai.pulsum", category: "RecRankerStateStore")
-    private func logError(_ message: String, error: Error) {
+    private nonisolated let logger = Logger(subsystem: "ai.pulsum", category: "RecRankerStateStore")
+    private nonisolated func logError(_ message: String, error: Error) {
         let nsError = error as NSError
         logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
     }
 
-    public init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
+    public init(baseDirectory: URL,
                 fileManager: FileManager = .default) {
         self.fileManager = fileManager
         let directory = baseDirectory.appendingPathComponent("RecRankerState", isDirectory: true)
         self.fileURL = directory.appendingPathComponent("state_v\(Self.schemaVersion).json")
-        prepareDirectory(at: directory)
+        Self.prepareDirectory(at: directory, fileManager: fileManager, logger: logger)
     }
 
     public func loadState() -> RecRankerState? {
@@ -58,7 +57,7 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
         }
     }
 
-    private func prepareDirectory(at url: URL) {
+    private static func prepareDirectory(at url: URL, fileManager: FileManager, logger: Logger) {
         if !fileManager.fileExists(atPath: url.path) {
             do {
                 #if os(iOS)
@@ -67,14 +66,16 @@ public final class RecRankerStateStore: RecRankerStateStoring, @unchecked Sendab
                 try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
                 #endif
             } catch {
-                logError("Failed to prepare RecRanker state directory.", error: error)
+                let nsError = error as NSError
+                logger.error("Failed to prepare RecRanker state directory. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
             }
         } else {
             #if os(iOS)
             do {
                 try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
             } catch {
-                logError("Failed to update RecRanker state directory protection.", error: error)
+                let nsError = error as NSError
+                logger.error("Failed to update RecRanker state directory protection. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
             }
             #endif
         }

@@ -1,6 +1,5 @@
 import Foundation
 import HealthKit
-import PulsumData
 import PulsumTypes
 
 /// Persists HealthKit query anchors on-device with complete file protection.
@@ -9,7 +8,7 @@ public final class HealthKitAnchorStore {
     private let fileManager: FileManager
     private let queue = DispatchQueue(label: "ai.pulsum.healthkit.anchorstore")
 
-    public init(directory: URL = PulsumData.healthAnchorsDirectory, fileManager: FileManager = .default) {
+    public init(directory: URL, fileManager: FileManager = .default) {
         self.directory = directory
         self.fileManager = fileManager
     }

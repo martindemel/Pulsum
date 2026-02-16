@@ -35,7 +35,7 @@ public struct SafetyLocalConfig {
     }
 }
 
-public final class SafetyLocal {
+public actor SafetyLocal {
     private enum Label: String { case safe, caution, crisis }
 
     private struct Prototype {
@@ -46,7 +46,6 @@ public final class SafetyLocal {
 
     private let config: SafetyLocalConfig
     private let embeddingService: EmbeddingService
-    private let prototypeQueue = DispatchQueue(label: "ai.pulsum.safetyLocal.prototypes", qos: .userInitiated)
     private var prototypes: [Prototype]
     private var degraded: Bool
     private let logger = Logger(subsystem: "com.pulsum", category: "SafetyLocal")
@@ -61,12 +60,12 @@ public final class SafetyLocal {
     }
 
     public var isDegraded: Bool {
-        prototypeQueue.sync { degraded || prototypes.isEmpty }
+        degraded || prototypes.isEmpty
     }
 
     public func classify(text: String) -> SafetyClassification {
         refreshPrototypesIfNeeded()
-        let (localPrototypes, _) = prototypeQueue.sync { (prototypes, degraded) }
+        let localPrototypes = prototypes
         let normalized = text.lowercased()
         #if DEBUG
         logger.debug("SafetyLocal classify lengthBucket=\(self.lengthBucket(for: normalized), privacy: .public)")
@@ -80,7 +79,7 @@ public final class SafetyLocal {
         }
 
         guard !localPrototypes.isEmpty else {
-            prototypeQueue.sync { degraded = true }
+            degraded = true
             logger.warning("SafetyLocal degraded: prototypes missing; using keyword-only fallback classification.")
             return fallbackClassification(for: normalized)
         }
@@ -97,7 +96,10 @@ public final class SafetyLocal {
 
         var scores: [Label: (similarity: Float, prototype: Prototype)] = [:]
         for prototype in localPrototypes {
-            let similarity = cosineSimilarity(embedding, prototype.embedding)
+            let similarity = CosineSimilarity.compute(embedding, prototype.embedding)
+            if similarity.isNaN {
+                return .caution(reason: "Classification unavailable — embedding error")
+            }
             if let current = scores[prototype.label], current.similarity >= similarity { continue }
             scores[prototype.label] = (similarity, prototype)
         }
@@ -189,13 +191,10 @@ public final class SafetyLocal {
     // MARK: - Helpers
 
     private func refreshPrototypesIfNeeded() {
-        let needsRefresh = prototypeQueue.sync { degraded || prototypes.isEmpty }
-        guard needsRefresh else { return }
+        guard degraded || prototypes.isEmpty else { return }
         let build = SafetyLocal.makePrototypes(using: embeddingService, logger: logger)
-        prototypeQueue.sync {
-            prototypes = build.prototypes
-            degraded = build.degraded
-        }
+        prototypes = build.prototypes
+        degraded = build.degraded
     }
 
     private func containsKeyword(from keywords: [String], in text: String) -> Bool {
@@ -210,21 +209,6 @@ public final class SafetyLocal {
             return .caution(reason: "Sensitive language detected")
         }
         return .safe
-    }
-
-    private func cosineSimilarity(_ lhs: [Float], _ rhs: [Float]) -> Float {
-        guard lhs.count == rhs.count else { return 0 }
-        var dot: Float = 0
-        var lhsNorm: Float = 0
-        var rhsNorm: Float = 0
-        for index in 0 ..< lhs.count {
-            dot += lhs[index] * rhs[index]
-            lhsNorm += lhs[index] * lhs[index]
-            rhsNorm += rhs[index] * rhs[index]
-        }
-        let denominator = sqrt(lhsNorm) * sqrt(rhsNorm)
-        guard denominator > 0 else { return 0 }
-        return dot / denominator
     }
 
     private func lengthBucket(for text: String) -> String {

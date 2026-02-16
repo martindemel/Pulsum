@@ -83,11 +83,13 @@ import re
 import subprocess
 
 preferred = [
+    "iPhone 17 Pro",
+    "iPhone 17 Pro Max",
+    "iPhone Air",
+    "iPhone 17",
     "iPhone 16 Pro",
     "iPhone 16",
-    "iPhone 16 Plus",
     "iPhone 15 Pro",
-    "iPhone 15",
     "iPhone SE (3rd generation)"
 ]
 

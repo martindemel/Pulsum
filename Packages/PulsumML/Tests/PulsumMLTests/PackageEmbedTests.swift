@@ -82,9 +82,9 @@ final class PackageEmbedTests: XCTestCase {
         XCTAssertEqual(ranked.first?.id, "strong")
     }
 
-    func testSafetyLocalDetectsCrisisLanguage() {
+    func testSafetyLocalDetectsCrisisLanguage() async {
         let safety = SafetyLocal()
-        let classification = safety.classify(text: "I am thinking about suicide tonight")
+        let classification = await safety.classify(text: "I am thinking about suicide tonight")
         switch classification {
         case .crisis:
             XCTAssertTrue(true)
@@ -93,14 +93,15 @@ final class PackageEmbedTests: XCTestCase {
         }
     }
 
-    func testAvailabilityModeReportsUnavailableWhenProvidersFail() {
+    func testAvailabilityModeReportsUnavailableWhenProvidersFail() async {
         let provider = FailingEmbeddingProvider()
         let service = EmbeddingService.debugInstance(primary: provider,
                                                      fallback: nil,
                                                      dimension: 384,
                                                      reprobeInterval: 0,
-                                                     dateProvider: Date.init)
-        XCTAssertEqual(service.availabilityMode(), .unavailable)
+                                                     dateProvider: { Date() })
+        let mode = await service.availabilityMode()
+        XCTAssertEqual(mode, .unavailable)
     }
 }
 

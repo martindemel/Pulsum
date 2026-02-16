@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PulsumServices
 import PulsumUI
 import PulsumTypes
 
@@ -16,6 +17,9 @@ struct PulsumApp: App {
         if AppRuntimeConfig.disableAnimations {
             UIView.setAnimationsEnabled(false)
         }
+        #endif
+        #if canImport(MetricKit)
+        CrashDiagnosticsSubscriber.shared.register()
         #endif
     }
 

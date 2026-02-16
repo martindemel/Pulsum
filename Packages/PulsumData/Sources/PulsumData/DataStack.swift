@@ -1,11 +1,10 @@
 import Foundation
-import CoreData
+import SwiftData
 import os.log
 
-public enum PulsumDataError: LocalizedError {
+public enum DataStackError: LocalizedError {
     case storeInitializationFailed(underlying: Error)
     case directoryCreationFailed(url: URL, underlying: Error)
-    case modelNotFound
 
     public var errorDescription: String? {
         switch self {
@@ -13,8 +12,6 @@ public enum PulsumDataError: LocalizedError {
             return "Failed to initialize persistent stores: \(underlying.localizedDescription)"
         case let .directoryCreationFailed(url, underlying):
             return "Unable to create directory at \(url.path): \(underlying.localizedDescription)"
-        case .modelNotFound:
-            return "Core Data model 'Pulsum' could not be found in bundle resources."
         }
     }
 }
@@ -24,20 +21,21 @@ public struct BackupSecurityIssue: Equatable, Sendable {
     public let reason: String
 }
 
-public struct StoragePaths {
+public struct StoragePaths: Sendable {
     public let applicationSupport: URL
     public let sqliteStoreURL: URL
     public let vectorIndexDirectory: URL
     public let healthAnchorsDirectory: URL
 
-    /// Package-internal fallback for degraded DataStack initialization.
-    init(degraded _: Void) {
-        let base = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("PulsumDegraded", isDirectory: true)
-        self.applicationSupport = base
-        self.sqliteStoreURL = base.appendingPathComponent("Pulsum.sqlite")
-        self.vectorIndexDirectory = base.appendingPathComponent("VectorIndex", isDirectory: true)
-        self.healthAnchorsDirectory = base.appendingPathComponent("Anchors", isDirectory: true)
+    /// Memberwise init for testing or custom paths.
+    public init(applicationSupport: URL,
+                sqliteStoreURL: URL,
+                vectorIndexDirectory: URL,
+                healthAnchorsDirectory: URL) {
+        self.applicationSupport = applicationSupport
+        self.sqliteStoreURL = sqliteStoreURL
+        self.vectorIndexDirectory = vectorIndexDirectory
+        self.healthAnchorsDirectory = healthAnchorsDirectory
     }
 
     public init(appGroup: String? = nil) throws {
@@ -48,13 +46,19 @@ public struct StoragePaths {
             baseURL = containerURL
         } else {
             guard let url = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-                throw PulsumDataError.directoryCreationFailed(url: URL(fileURLWithPath: "ApplicationSupport"), underlying: CocoaError(.fileNoSuchFile))
+                throw DataStackError.directoryCreationFailed(
+                    url: URL(fileURLWithPath: "ApplicationSupport"),
+                    underlying: CocoaError(.fileNoSuchFile)
+                )
             }
             baseURL = url
         }
         #else
         guard let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw PulsumDataError.directoryCreationFailed(url: URL(fileURLWithPath: "ApplicationSupport"), underlying: CocoaError(.fileNoSuchFile))
+            throw DataStackError.directoryCreationFailed(
+                url: URL(fileURLWithPath: "ApplicationSupport"),
+                underlying: CocoaError(.fileNoSuchFile)
+            )
         }
         #endif
 
@@ -65,92 +69,89 @@ public struct StoragePaths {
     }
 }
 
-public final class DataStack {
-    public static let shared: DataStack = DataStack._create()
-    public private(set) nonisolated(unsafe) static var initializationError: Error?
-
-    public let container: NSPersistentContainer
+/// SwiftData-backed persistent storage for Pulsum.
+///
+/// Created at the App layer and injected into the view hierarchy
+/// (via `.modelContainer()`) and into agents (via their init).
+public final class DataStack: Sendable {
+    public let container: ModelContainer
     public let storagePaths: StoragePaths
-    public private(set) var backupSecurityIssue: BackupSecurityIssue?
+    public let backupSecurityIssue: BackupSecurityIssue?
 
-    private let fileManager: FileManager
     private static let logger = Logger(subsystem: "ai.pulsum", category: "DataStack")
 
-    private static func _create() -> DataStack {
-        do {
-            return try DataStack()
-        } catch {
-            initializationError = error
-            logger.critical("DataStack initialization failed: \(error.localizedDescription, privacy: .public)")
-            return DataStack(degraded: error)
-        }
-    }
+    /// All SwiftData model types managed by Pulsum.
+    public static let modelTypes: [any PersistentModel.Type] = [
+        JournalEntry.self,
+        DailyMetrics.self,
+        Baseline.self,
+        FeatureVector.self,
+        MicroMoment.self,
+        RecommendationEvent.self,
+        LibraryIngest.self,
+        UserPrefs.self,
+        ConsentState.self,
+    ]
 
-    /// Degraded initializer used when the primary init fails.
-    /// The DataStack is non-functional; check `initializationError` at startup.
-    private init(degraded _: Error) {
-        self.fileManager = .default
-        self.storagePaths = StoragePaths(degraded: ())
-        self.container = NSPersistentContainer(name: "Pulsum-Degraded", managedObjectModel: NSManagedObjectModel())
-    }
+    public init(appGroupIdentifier: String? = nil) throws {
+        let paths = try StoragePaths(appGroup: appGroupIdentifier)
+        self.storagePaths = paths
 
-    public init(fileManager: FileManager = .default, appGroupIdentifier: String? = nil) throws {
-        self.fileManager = fileManager
-        self.storagePaths = try StoragePaths(appGroup: appGroupIdentifier)
+        try DataStack.prepareDirectories(paths: paths)
 
-        try DataStack.prepareDirectories(paths: storagePaths, fileManager: fileManager)
-
-        guard let managedObjectModel = DataStack.loadManagedObjectModel() else {
-            throw PulsumDataError.modelNotFound
-        }
-        container = NSPersistentContainer(name: "Pulsum", managedObjectModel: managedObjectModel)
-        let description = NSPersistentStoreDescription(url: storagePaths.sqliteStoreURL)
-        description.type = NSSQLiteStoreType
-        #if os(iOS)
-        description.setOption(FileProtectionType.completeUnlessOpen as NSObject, forKey: NSPersistentStoreFileProtectionKey)
-        #endif
-        description.shouldMigrateStoreAutomatically = true
-        description.shouldInferMappingModelAutomatically = true
-        description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-
-        // Exclude PHI from iCloud backups
-        backupSecurityIssue = DataStack.applyBackupExclusion(to: [
-            storagePaths.applicationSupport,
-            storagePaths.vectorIndexDirectory,
-            storagePaths.healthAnchorsDirectory
+        self.backupSecurityIssue = DataStack.applyBackupExclusion(to: [
+            paths.applicationSupport,
+            paths.vectorIndexDirectory,
+            paths.healthAnchorsDirectory,
         ])
 
-        container.persistentStoreDescriptions = [description]
+        let schema = Schema(DataStack.modelTypes)
+        let config = ModelConfiguration("Pulsum", schema: schema, url: paths.sqliteStoreURL)
 
-        var storeLoadError: Error?
-        container.loadPersistentStores { _, error in
-            storeLoadError = error
+        do {
+            self.container = try ModelContainer(for: schema, configurations: [config])
+        } catch let storeError where Self.isStoreIncompatibleError(storeError) {
+            // Schema mismatch (e.g. Core Data → SwiftData migration): delete and retry once.
+            Self.logger.warning("Store schema incompatible, creating fresh store: \(storeError.localizedDescription, privacy: .public)")
+            let fileManager = FileManager.default
+            for suffix in ["", "-wal", "-shm"] {
+                let path = paths.sqliteStoreURL.path + suffix
+                try? fileManager.removeItem(atPath: path)
+            }
+            do {
+                self.container = try ModelContainer(for: schema, configurations: [config])
+            } catch {
+                throw DataStackError.storeInitializationFailed(underlying: error)
+            }
+        } catch {
+            throw DataStackError.storeInitializationFailed(underlying: error)
         }
-        if let storeLoadError {
-            throw PulsumDataError.storeInitializationFailed(underlying: storeLoadError)
-        }
-
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        container.viewContext.transactionAuthor = "PulsumApp"
     }
 
-    public func newBackgroundContext(name: String = "Pulsum.Background") -> NSManagedObjectContext {
-        let context = container.newBackgroundContext()
-        context.name = name
-        context.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        context.transactionAuthor = name
-        return context
+    // MARK: - Error Classification
+
+    private static func isStoreIncompatibleError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSCocoaErrorDomain else { return false }
+        // Core Data / SwiftData store incompatibility codes
+        let incompatibleCodes: Set<Int> = [
+            134_100, // NSPersistentStoreIncompatibleVersionHashError
+            134_110, // NSMigrationError
+            134_130, // NSMigrationMissingSourceModelError
+            134_140, // NSMigrationMissingMappingModelError
+            134_150, // NSMigrationManagerSourceStoreError
+            134_160, // NSMigrationManagerDestinationStoreError
+        ]
+        return incompatibleCodes.contains(nsError.code)
     }
 
-    public func performBackgroundTask(_ block: @Sendable @escaping (NSManagedObjectContext) -> Void) {
-        container.performBackgroundTask(block)
-    }
+    // MARK: - Directory Preparation
 
-    private static func prepareDirectories(paths: StoragePaths, fileManager: FileManager) throws {
+    private static func prepareDirectories(paths: StoragePaths) throws {
+        let fileManager = FileManager.default
         #if os(iOS)
         let protectionAttributes: [FileAttributeKey: Any] = [
-            .protectionKey: FileProtectionType.completeUnlessOpen
+            .protectionKey: FileProtectionType.completeUnlessOpen,
         ]
         #else
         let protectionAttributes: [FileAttributeKey: Any] = [:]
@@ -162,13 +163,15 @@ public final class DataStack {
                     let attributes = protectionAttributes.isEmpty ? nil : protectionAttributes
                     try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: attributes)
                 } catch {
-                    throw PulsumDataError.directoryCreationFailed(url: directory, underlying: error)
+                    throw DataStackError.directoryCreationFailed(url: directory, underlying: error)
                 }
             } else if !protectionAttributes.isEmpty {
                 try fileManager.setAttributes(protectionAttributes, ofItemAtPath: directory.path)
             }
         }
     }
+
+    // MARK: - Backup Exclusion
 
     private static func applyBackupExclusion(to urls: [URL]) -> BackupSecurityIssue? {
         var issue: BackupSecurityIssue?
@@ -193,10 +196,4 @@ public final class DataStack {
         applyBackupExclusion(to: urls)
     }
     #endif
-
-    private static func loadManagedObjectModel() -> NSManagedObjectModel? {
-        PulsumManagedObjectModel.shared
-    }
 }
-
-extension DataStack: @unchecked Sendable {}

@@ -4,7 +4,7 @@ struct ConsentBannerView: View {
     let openSettings: () -> Void
     let dismiss: () -> Void
 
-    private let bannerCopy = "Pulsum can optionally use GPT‑5 to phrase brief coaching text. If you allow cloud processing, Pulsum sends only minimized context (no journals, no raw health data, no identifiers). PII is redacted. You can turn this off anytime in Settings ▸ Cloud Processing."
+    private let bannerCopy = String(localized: "consent.banner.body", defaultValue: "Pulsum can optionally use GPT‑5 to phrase brief coaching text. If you allow cloud processing, Pulsum sends only minimized context (no journals, no raw health data, no identifiers). PII is redacted. You can turn this off anytime in Settings ▸ Cloud Processing.")
 
     var body: some View {
         VStack(alignment: .leading, spacing: PulsumSpacing.md) {
@@ -23,7 +23,7 @@ struct ConsentBannerView: View {
                 .accessibilityLabel("Dismiss cloud processing banner")
             }
 
-            Text("Cloud processing is optional")
+            Text(String(localized: "consent.banner.title", defaultValue: "Cloud processing is optional"))
                 .font(.pulsumHeadline)
                 .foregroundStyle(Color.pulsumTextPrimary)
 
@@ -33,7 +33,7 @@ struct ConsentBannerView: View {
                 .lineSpacing(4)
 
             Button(action: openSettings) {
-                Text("Review Settings")
+                Text(String(localized: "consent.banner.reviewSettings", defaultValue: "Review Settings"))
                     .font(.pulsumCallout.weight(.semibold))
                     .foregroundStyle(Color.pulsumTextPrimary)
                     .frame(maxWidth: .infinity)

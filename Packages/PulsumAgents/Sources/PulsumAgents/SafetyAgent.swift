@@ -5,34 +5,18 @@ import FoundationModels
 import PulsumML
 import PulsumTypes
 
-@MainActor
-public final class SafetyAgent {
-    private let foundationModelsProvider: Any?
-    private let fallbackClassifier = SafetyLocal()
-    private let crisisKeywords: [String] = [
-        "suicide",
-        "kill myself",
-        "end my life",
-        "not worth living",
-        "better off dead",
-        "want to die",
-        "self-harm",
-        "cut myself",
-        "cutting myself",
-        "overdose",
-        "no reason to live",
-        "jump off",
-        "hang myself",
-        "hurt myself",
-        "don't want to be here",
-        "can't go on",
-        "take all the pills",
-        "ending my life",
-        "not want to live",
-        "ending it"
-    ]
+public protocol SafetyClassifying: Sendable {
+    func classify(text: String) async -> SafetyClassification
+}
+
+public struct SafetyAgent: SafetyClassifying, Sendable {
+    private let foundationModelsProvider: (any Sendable)?
+    private let fallbackClassifier: SafetyLocal
+    private let crisisKeywords: [String]
 
     public init() {
+        self.fallbackClassifier = SafetyLocal()
+        self.crisisKeywords = Self.defaultCrisisKeywords
         if #available(iOS 26.0, *) {
             self.foundationModelsProvider = FoundationModelsSafetyProvider()
         } else {
@@ -40,7 +24,15 @@ public final class SafetyAgent {
         }
     }
 
-    public func evaluate(text: String) async -> SafetyDecision {
+    init(fallbackClassifier: SafetyLocal = SafetyLocal(),
+         foundationModelsProvider: (any Sendable)? = nil,
+         crisisKeywords: [String] = SafetyAgent.defaultCrisisKeywords) {
+        self.fallbackClassifier = fallbackClassifier
+        self.foundationModelsProvider = foundationModelsProvider
+        self.crisisKeywords = crisisKeywords
+    }
+
+    public func classify(text: String) async -> SafetyClassification {
         // Try Foundation Models classification first
         if #available(iOS 26.0, *),
            let provider = foundationModelsProvider as? FoundationModelsSafetyProvider {
@@ -49,40 +41,38 @@ public final class SafetyAgent {
                     try await provider.classify(text: text)
                 }
                 let lowered = text.lowercased()
-                let adjusted: SafetyClassification
                 if case .crisis = result,
                    !crisisKeywords.contains(where: lowered.contains) {
-                    adjusted = .caution(reason: "Seeking help (no self-harm language)")
-                } else {
-                    adjusted = result
+                    return .caution(reason: "Seeking help (no self-harm language)")
                 }
-                let decision = makeDecision(from: adjusted)
-                Diagnostics.log(level: .info,
-                                category: .safety,
-                                name: "safety.fm.classification",
-                                fields: [
-                                    "classification": .safeString(.metadata("\(adjusted)")),
-                                    "allow_cloud": .bool(decision.allowCloud)
-                                ])
-                return decision
+                return result
             } catch {
                 Diagnostics.log(level: .warn,
                                 category: .safety,
                                 name: "safety.fm.error",
                                 fields: [:],
                                 error: error)
-                // Fall back to existing classifier
             }
         }
 
         // Use existing SafetyLocal as fallback
-        let result = fallbackClassifier.classify(text: text)
-        let decision = makeDecision(from: result)
+        return await fallbackClassifier.classify(text: text)
+    }
+
+    public func evaluate(text: String) async -> SafetyDecision {
+        let classification = await classify(text: text)
+        let decision = makeDecision(from: classification)
+        let eventName: String
+        if #available(iOS 26.0, *), foundationModelsProvider is FoundationModelsSafetyProvider {
+            eventName = "safety.fm.classification"
+        } else {
+            eventName = "safety.local.classification"
+        }
         Diagnostics.log(level: .info,
                         category: .safety,
-                        name: "safety.local.classification",
+                        name: eventName,
                         fields: [
-                            "classification": .safeString(.metadata("\(result)")),
+                            "classification": .safeString(.metadata("\(classification)")),
                             "allow_cloud": .bool(decision.allowCloud)
                         ])
         return decision
@@ -91,19 +81,52 @@ public final class SafetyAgent {
     private func makeDecision(from classification: SafetyClassification) -> SafetyDecision {
         let allowCloud: Bool
         let crisisMessage: String?
+        let crisisResources: CrisisResourceInfo?
         switch classification {
         case .safe:
             allowCloud = true
             crisisMessage = nil
+            crisisResources = nil
         case .caution:
             allowCloud = false
             crisisMessage = nil
+            crisisResources = nil
         case .crisis:
             allowCloud = false
+            let resources = Self.localizedCrisisResources()
+            crisisResources = resources
             crisisMessage = Self.localizedCrisisMessage()
         }
-        return SafetyDecision(classification: classification, allowCloud: allowCloud, crisisMessage: crisisMessage)
+        return SafetyDecision(classification: classification, allowCloud: allowCloud, crisisMessage: crisisMessage, crisisResources: crisisResources)
     }
+
+    static func localizedCrisisResources() -> CrisisResourceInfo {
+        let regionCode = Locale.current.region?.identifier ?? ""
+        if let resource = crisisResourcesByRegion[regionCode] {
+            return CrisisResourceInfo(
+                emergencyNumber: resource.emergencyNumber,
+                crisisLineName: resource.crisisLineName,
+                crisisLineNumber: resource.crisisLine
+            )
+        }
+        // Fallback for unsupported locales — 112 is the international emergency number
+        return CrisisResourceInfo(
+            emergencyNumber: "112",
+            crisisLineName: nil,
+            crisisLineNumber: nil
+        )
+    }
+
+    // MARK: - Crisis Keywords
+
+    private static let defaultCrisisKeywords: [String] = [
+        "suicide", "kill myself", "end my life", "not worth living",
+        "better off dead", "want to die", "self-harm", "cut myself",
+        "cutting myself", "overdose", "no reason to live", "jump off",
+        "hang myself", "hurt myself", "don't want to be here",
+        "can't go on", "take all the pills", "ending my life",
+        "not want to live", "ending it",
+    ]
 
     // MARK: - Locale-Aware Crisis Resources
 
@@ -135,7 +158,6 @@ public final class SafetyAgent {
             }
             return "If you are in immediate danger, call \(resource.emergencyNumber)."
         }
-        // Fallback: recommend 112 (international emergency) and a web resource
         return "If you are in immediate danger, call your local emergency number (112 in many countries). Visit findahelpline.com for crisis support in your region."
     }
 }

@@ -31,12 +31,24 @@ import sys
 import plistlib
 
 REQUIRED = {
-    "Pulsum/PrivacyInfo.xcprivacy": {},
-    "Packages/PulsumAgents/Sources/PulsumAgents/PrivacyInfo.xcprivacy": {},
-    "Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy": {},
-    "Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy": {},
-    "Packages/PulsumML/Sources/PulsumML/PrivacyInfo.xcprivacy": {},
-    "Packages/PulsumUI/Sources/PulsumUI/PrivacyInfo.xcprivacy": {},
+    "Pulsum/PrivacyInfo.xcprivacy": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+    },
+    "Packages/PulsumAgents/Sources/PulsumAgents/PrivacyInfo.xcprivacy": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+    },
+    "Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+    },
+    "Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+    },
+    "Packages/PulsumML/Sources/PulsumML/PrivacyInfo.xcprivacy": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+    },
+    "Packages/PulsumUI/Sources/PulsumUI/PrivacyInfo.xcprivacy": {
+        "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+    },
 }
 
 errors = []

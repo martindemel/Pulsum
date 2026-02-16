@@ -4,27 +4,28 @@ import XCTest
 import PulsumTypes
 
 final class Gate2_JournalSessionTests: XCTestCase {
-    func testBeginRejectsDuplicateSessions() throws {
+    func testBeginRejectsDuplicateSessions() async throws {
         let state = JournalSessionState()
-        try state.begin(with: makeSession())
-        XCTAssertThrowsError(try state.begin(with: makeSession())) { error in
-            guard let sentimentError = error as? SentimentAgentError else {
-                return XCTFail("Expected SentimentAgentError, got \(error)")
-            }
-            XCTAssertEqual(sentimentError, .sessionAlreadyActive)
+        try await state.begin(with: makeSession())
+        do {
+            try await state.begin(with: makeSession())
+            XCTFail("Expected SentimentAgentError.sessionAlreadyActive")
+        } catch let error as SentimentAgentError {
+            XCTAssertEqual(error, .sessionAlreadyActive)
         }
     }
 
-    func testTakeSessionClearsState() throws {
+    func testTakeSessionClearsState() async throws {
         let state = JournalSessionState()
-        try state.begin(with: makeSession())
-        state.updateTranscript("hello world")
+        try await state.begin(with: makeSession())
+        await state.updateTranscript("hello world")
 
-        let result = state.takeSession()
+        let result = await state.takeSession()
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.1, "hello world")
 
-        XCTAssertNil(state.takeSession())
+        let nextResult = await state.takeSession()
+        XCTAssertNil(nextResult)
     }
 
     private func makeSession() -> SpeechService.Session {

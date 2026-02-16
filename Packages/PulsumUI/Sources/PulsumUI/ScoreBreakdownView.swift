@@ -1,9 +1,14 @@
+import StoreKit
 import SwiftUI
 import PulsumAgents
+import PulsumTypes
 
 struct ScoreBreakdownScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.requestReview) private var requestReview
     @State private var viewModel: ScoreBreakdownViewModel
+    @AppStorage(PulsumDefaultsKey.scoreViewCount) private var scoreViewCount = 0
+    @AppStorage(PulsumDefaultsKey.lastRatingPromptVersion) private var lastRatingPromptVersion = ""
 
     init(viewModel: ScoreBreakdownViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -80,6 +85,12 @@ struct ScoreBreakdownScreen: View {
             #endif
                 .task {
                     await viewModel.refresh()
+                    scoreViewCount += 1
+                    let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+                    if scoreViewCount >= 5, lastRatingPromptVersion != currentVersion {
+                        lastRatingPromptVersion = currentVersion
+                        requestReview()
+                    }
                 }
         }
     }

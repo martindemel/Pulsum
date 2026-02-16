@@ -1,29 +1,18 @@
 import XCTest
-import CoreData
+import SwiftData
 @testable import PulsumData
 
 final class PulsumDataBootstrapTests: XCTestCase {
-    func testPersistentContainerLoadsPulsumModel() {
-        let container = PulsumData.container
-        XCTAssertEqual(container.name, "Pulsum")
-        XCTAssertNotNil(container.managedObjectModel.entitiesByName["JournalEntry"])
+    func testDataStackCreatesModelContainer() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let schema = Schema(DataStack.modelTypes)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        XCTAssertNotNil(container)
     }
 
-    func testBackgroundContextCreation() {
-        let context = PulsumData.newBackgroundContext(name: "Pulsum.Test")
-        XCTAssertEqual(context.name, "Pulsum.Test")
-        XCTAssertEqual(context.persistentStoreCoordinator, PulsumData.container.persistentStoreCoordinator)
-    }
-
-    func testVectorIndexDirectoryIsInsideApplicationSupport() {
-        let vectorDirectory = PulsumData.vectorIndexDirectory
-        XCTAssertTrue(vectorDirectory.path.contains("Pulsum"))
-        XCTAssertTrue(vectorDirectory.path.contains("VectorIndex"))
-    }
-
-    func testHealthAnchorsDirectoryIsInsideApplicationSupport() {
-        let anchorsDirectory = PulsumData.healthAnchorsDirectory
-        XCTAssertTrue(anchorsDirectory.path.contains("Pulsum"))
-        XCTAssertTrue(anchorsDirectory.path.contains("Anchors"))
+    func testStoragePathsContainExpectedSubdirectories() throws {
+        let paths = try StoragePaths()
+        XCTAssertTrue(paths.vectorIndexDirectory.path.contains("VectorIndex"))
+        XCTAssertTrue(paths.healthAnchorsDirectory.path.contains("Anchors"))
     }
 }

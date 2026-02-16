@@ -2,13 +2,13 @@ import Foundation
 import PulsumData
 import PulsumTypes
 
-public enum CoveragePassKind {
+public enum CoveragePassKind: Sendable {
     case strong
     case soft
     case fail
 }
 
-public struct CoverageDecision {
+public struct CoverageDecision: Sendable {
     public let kind: CoveragePassKind
     public let reason: String
     public let count: Int
@@ -99,13 +99,22 @@ public func decideCoverage(_ input: CoverageInputs) -> CoverageDecision {
 
     // Sparse data fallback: when health metrics are imputed or missing, relax thresholds
     // to avoid blocking coaching entirely during the user's first days of data collection.
+    // Still reject clearly off-topic queries (top similarity < 0.30).
     if sparse {
+        if top < 0.30 {
+            return CoverageDecision(kind: .fail,
+                                    reason: "data-sparse-off-topic",
+                                    count: count,
+                                    top: top,
+                                    median: med,
+                                    thresholdUsed: 0.30)
+        }
         return CoverageDecision(kind: .soft,
                                 reason: "data-sparse-soft",
                                 count: count,
                                 top: top,
                                 median: med,
-                                thresholdUsed: 0.35)
+                                thresholdUsed: 0.30)
     }
 
     // Fail: none of the above gates passed. The 0.40 threshold is recorded for diagnostics.

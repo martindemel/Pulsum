@@ -1,12 +1,13 @@
 import Foundation
 import os.log
-import PulsumData
 
 protocol BackfillStateStoring: Sendable {
     func loadState() -> BackfillProgress?
     func saveState(_ state: BackfillProgress)
 }
 
+// SAFETY: FileManager is not formally Sendable. Wrapping in a struct allows passing to
+// Sendable-constrained contexts. FileManager.default is documented as thread-safe.
 private struct SendableFileManager: @unchecked Sendable {
     let value: FileManager
 }
@@ -64,7 +65,7 @@ final class BackfillStateStore: BackfillStateStoring, Sendable {
         logger.error("\(message) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
     }
 
-    init(baseDirectory: URL = PulsumData.applicationSupportDirectory,
+    init(baseDirectory: URL,
          fileManager: FileManager = .default) {
         self.fileManager = SendableFileManager(value: fileManager)
         let directory = baseDirectory.appendingPathComponent("BackfillState", isDirectory: true)

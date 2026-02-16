@@ -1,48 +1,45 @@
 @testable import PulsumAgents
 @testable import PulsumData
 @testable import PulsumML
+import SwiftData
 import XCTest
 
 @MainActor
 final class CoachAgentKeywordFallbackTests: XCTestCase {
     func testKeywordFallbackMatchesTitleAndTagsWhenEmbeddingsUnavailable() async throws {
-        let container = TestCoreDataStack.makeContainer()
-        let viewContext = container.viewContext
+        let container = try TestCoreDataStack.makeContainer()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let context = ModelContext(container)
 
-        viewContext.performAndWait {
-            let titleMatch = MicroMoment(context: viewContext)
-            titleMatch.id = "energy-walk"
-            titleMatch.title = "Energy Reset Walk"
-            titleMatch.shortDescription = "Take a short walk to restore energy."
-            titleMatch.detail = "A quick walk outside can raise energy without overexertion."
+        let titleMatch = MicroMoment(id: "energy-walk",
+                                     title: "Energy Reset Walk",
+                                     shortDescription: "Take a short walk to restore energy.",
+                                     detail: "A quick walk outside can raise energy without overexertion.")
+        context.insert(titleMatch)
 
-            let tagMatch = MicroMoment(context: viewContext)
-            tagMatch.id = "focus-routine"
-            tagMatch.title = "Focus Routine"
-            tagMatch.shortDescription = "Tighten focus with a brief cadence."
-            tagMatch.detail = "Alternate between short breathing drills and light movement."
-            tagMatch.tags = ["ENERGY boost", "focus"]
+        let tagMatch = MicroMoment(id: "focus-routine",
+                                   title: "Focus Routine",
+                                   shortDescription: "Tighten focus with a brief cadence.",
+                                   detail: "Alternate between short breathing drills and light movement.",
+                                   tags: "[\"ENERGY boost\", \"focus\"]")
+        context.insert(tagMatch)
 
-            let nonMatch = MicroMoment(context: viewContext)
-            nonMatch.id = "calm-breath"
-            nonMatch.title = "Calm Breathing"
-            nonMatch.shortDescription = "Slow breathing to reduce stress."
-            nonMatch.detail = "A calming pattern for winding down."
-            nonMatch.tags = ["calm"]
+        let nonMatch = MicroMoment(id: "calm-breath",
+                                   title: "Calm Breathing",
+                                   shortDescription: "Slow breathing to reduce stress.",
+                                   detail: "A calming pattern for winding down.",
+                                   tags: "[\"calm\"]")
+        context.insert(nonMatch)
 
-            do {
-                try viewContext.save()
-            } catch {
-                XCTFail("Failed to save test data: \(error)")
-            }
-        }
+        try context.save()
 
         let coach = try CoachAgent(container: container,
+                                   storagePaths: storagePaths,
                                    vectorIndex: UnavailableKeywordIndexStub(),
                                    shouldIngestLibrary: false)
 
         let moments = await coach.candidateMoments(for: "energy", limit: 3)
-        let ids = moments.map(\.id)
+        let ids = moments.map { $0.id }
 
         XCTAssertEqual(ids, ["energy-walk", "focus-routine"])
         XCTAssertFalse(ids.contains("calm-breath"), "Non-matching moments should not be returned.")

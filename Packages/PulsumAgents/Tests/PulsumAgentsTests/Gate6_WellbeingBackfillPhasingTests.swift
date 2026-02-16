@@ -1,7 +1,7 @@
 @testable import PulsumAgents
 @testable import PulsumData
 @testable import PulsumServices
-import CoreData
+import SwiftData
 import HealthKit
 import XCTest
 
@@ -25,10 +25,12 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
                                                   calendar: calendar,
                                                   timeZone: timeZone)
         let store = BackfillStateStoreSpy()
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
 
         try await agent.start()
@@ -68,11 +70,13 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
                                                   calendar: calendar,
                                                   timeZone: timeZone)
         let store = BackfillStateStoreSpy()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
 
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
 
         try await agent.start()
@@ -93,11 +97,13 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
                                                   calendar: calendar,
                                                   timeZone: timeZone)
         let store = BackfillStateStoreSpy()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
 
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
 
         _ = try await agent.requestHealthAccess()
@@ -128,11 +134,13 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
                                                   calendar: calendar,
                                                   timeZone: timeZone)
         let store = BackfillStateStoreSpy()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
 
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
         try await agent.start()
 
@@ -158,10 +166,11 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         let fetchesAfterFullBackfill = totalRequests(for: stub)
 
         // Simulate app restart; backfill progress should prevent re-running warm start.
-        let restartedAgent = DataAgent(healthKit: stub,
-                                       container: TestCoreDataStack.makeContainer(),
+        let restartedAgent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                                       storagePaths: storagePaths,
+                                       healthKit: stub,
                                        calendar: calendar,
-                                       estimatorStore: EstimatorStateStore(),
+                                       estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                                        backfillStore: store)
         try await restartedAgent.start()
 
@@ -187,10 +196,12 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         }
 
         let store = BackfillStateStoreSpy()
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
 
         try await agent.start()
@@ -212,11 +223,13 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
                                                   timeZone: timeZone)
         stub.fetchedSamples[HKCategoryTypeIdentifier.sleepAnalysis.rawValue] = []
         let store = BackfillStateStoreSpy()
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
 
-        let agent = DataAgent(healthKit: stub,
-                              container: TestCoreDataStack.makeContainer(),
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(),
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
         try await agent.start()
 
@@ -229,12 +242,14 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     func testOverlappingBackfillDoesNotInflateSleepTotals() async throws {
         let stub = HealthKitServiceStub()
         TestHealthKitSampleSeeder.authorizeAllTypes(stub)
-        let container = TestCoreDataStack.makeContainer()
+        let container = try TestCoreDataStack.makeContainer()
         let store = BackfillStateStoreSpy()
-        let agent = DataAgent(healthKit: stub,
-                              container: container,
+        let storagePaths = TestCoreDataStack.makeTestStoragePaths()
+        let agent = DataAgent(modelContainer: container,
+                              storagePaths: storagePaths,
+                              healthKit: stub,
                               calendar: calendar,
-                              estimatorStore: EstimatorStateStore(),
+                              estimatorStore: EstimatorStateStore(baseDirectory: storagePaths.applicationSupport),
                               backfillStore: store)
 
         let day = calendar.startOfDay(for: referenceDate)
@@ -270,11 +285,11 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
         XCTAssertEqual(Set(firstFlags.sleepSegments.map(\.id)).count, 1)
         XCTAssertEqual(Set(secondFlags.sleepSegments.map(\.id)).count, 1)
 
-        let firstTotal = try XCTUnwrap(firstMetrics.totalSleepTime?.doubleValue)
-        let secondTotal = try XCTUnwrap(secondMetrics.totalSleepTime?.doubleValue)
+        let firstTotal = try XCTUnwrap(firstMetrics.totalSleepTime)
+        let secondTotal = try XCTUnwrap(secondMetrics.totalSleepTime)
         XCTAssertEqual(firstTotal, expectedDuration, accuracy: 0.5)
         XCTAssertEqual(secondTotal, expectedDuration, accuracy: 0.5)
-        XCTAssertEqual(firstMetrics.sleepDebt?.doubleValue, secondMetrics.sleepDebt?.doubleValue)
+        XCTAssertEqual(firstMetrics.sleepDebt, secondMetrics.sleepDebt)
         XCTAssertEqual(firstSnapshot.features, secondSnapshot.features)
         XCTAssertEqual(firstSnapshot.wellbeingScore, secondSnapshot.wellbeingScore, accuracy: 0.0001)
     }
@@ -282,11 +297,11 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     // MARK: - Helpers
 
     @MainActor
-    private func fetchMetrics(for day: Date, container: NSPersistentContainer) throws -> DailyMetrics? {
-        let request = DailyMetrics.fetchRequest()
-        request.predicate = NSPredicate(format: "date == %@", day as NSDate)
-        request.fetchLimit = 1
-        return try container.viewContext.fetch(request).first
+    private func fetchMetrics(for day: Date, container: ModelContainer) throws -> DailyMetrics? {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<DailyMetrics>(predicate: #Predicate { $0.date == day })
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 
     private func decodeFlags(from metrics: DailyMetrics) -> TestDailyFlags? {
@@ -322,6 +337,7 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     }
 }
 
+// Test-only: mutable spy — lock-protected for safe concurrent access in tests.
 final class BackfillStateStoreSpy: BackfillStateStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var _savedState: BackfillProgress?

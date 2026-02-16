@@ -260,4 +260,5 @@ private final class InMemoryKeychain: KeychainStoring {
     }
 }
 
+// Test-only: mutable stub — lock-protected for safe concurrent access in tests.
 extension InMemoryKeychain: @unchecked Sendable {}

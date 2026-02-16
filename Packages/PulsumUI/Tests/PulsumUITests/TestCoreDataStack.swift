@@ -1,25 +1,26 @@
-import CoreData
+import Foundation
+import SwiftData
 import PulsumData
 
 final class TestCoreDataStack {
-    static func makeContainer() -> NSPersistentContainer {
-        guard let model = PulsumManagedObjectModel.shared else {
-            fatalError("Test setup: PulsumManagedObjectModel not found")
-        }
-        let container = NSPersistentContainer(name: "Pulsum", managedObjectModel: model)
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        description.shouldAddStoreAsynchronously = false
-        container.persistentStoreDescriptions = [description]
+    static func makeContainer() throws -> ModelContainer {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let schema = Schema(DataStack.modelTypes)
+        return try ModelContainer(
+            for: schema,
+            configurations: [config]
+        )
+    }
 
-        container.loadPersistentStores { _, error in
-            if let error {
-                fatalError("Test Core Data store error: \(error)")
-            }
-        }
-
-        container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
-        return container
+    static func makeTestStoragePaths() -> StoragePaths {
+        let tempBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PulsumTests-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: tempBase, withIntermediateDirectories: true)
+        return StoragePaths(
+            applicationSupport: tempBase,
+            sqliteStoreURL: tempBase.appendingPathComponent("test.sqlite"),
+            vectorIndexDirectory: tempBase.appendingPathComponent("VectorIndex", isDirectory: true),
+            healthAnchorsDirectory: tempBase.appendingPathComponent("Anchors", isDirectory: true)
+        )
     }
 }

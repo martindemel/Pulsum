@@ -11,7 +11,7 @@ final class Gate3_IngestionIdempotenceTests: XCTestCase {
             stub.authorizationStatuses[$0] = .sharingAuthorized
             stub.readProbeResults[$0] = .authorized
         }
-        let agent = DataAgent(healthKit: stub, container: TestCoreDataStack.makeContainer())
+        let agent = DataAgent(modelContainer: try TestCoreDataStack.makeContainer(), storagePaths: TestCoreDataStack.makeTestStoragePaths(), healthKit: stub)
 
         try await agent.startIngestionIfAuthorized()
 

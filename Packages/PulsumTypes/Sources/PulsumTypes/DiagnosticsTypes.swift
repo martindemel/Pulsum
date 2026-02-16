@@ -215,7 +215,7 @@ public struct DiagnosticsConfig: Codable, Equatable, Sendable {
 }
 
 public enum DiagnosticsConfigStore {
-    private static let defaultsKey = "ai.pulsum.diagnostics.config"
+    private static let defaultsKey = PulsumDefaultsKey.diagnosticsConfig
 
     public static var current: DiagnosticsConfig {
         loadFromDefaults() ?? DiagnosticsConfig.default()

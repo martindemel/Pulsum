@@ -26,6 +26,7 @@ final class Gate4_LLMKeyTests: XCTestCase {
     }
 }
 
+// Test-only: mutable stub — lock-protected for safe concurrent access in tests.
 private final class EphemeralKeychain: KeychainStoring, @unchecked Sendable {
     fileprivate var storage: [String: Data] = [:]
     private let lock = NSLock()

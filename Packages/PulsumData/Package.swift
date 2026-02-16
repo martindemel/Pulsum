@@ -5,7 +5,7 @@ let package = Package(
     name: "PulsumData",
     platforms: [
         .iOS("26.0"),
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .library(
@@ -26,8 +26,7 @@ let package = Package(
             ],
             path: "Sources",
             resources: [
-                .process("PulsumData/PrivacyInfo.xcprivacy"),
-                .process("PulsumData/Resources/Pulsum.xcdatamodeld")
+                .process("PulsumData/PrivacyInfo.xcprivacy")
             ]
         ),
         .testTarget(

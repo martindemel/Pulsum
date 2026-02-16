@@ -1,5 +1,5 @@
 import Foundation
-import CoreData
+import SwiftData
 import PulsumData
 import PulsumServices
 import PulsumTypes
@@ -14,36 +14,31 @@ extension SettingsViewModel {
         defer { isDeletingAllData = false }
 
         do {
-            // 1. Delete all Core Data entities
-            let context = PulsumData.newBackgroundContext(name: "Pulsum.DeleteAll")
-            let entityNames = [
-                "JournalEntry", "DailyMetrics", "Baseline", "FeatureVector",
-                "MicroMoment", "RecommendationEvent", "LibraryIngest",
-                "UserPrefs", "ConsentState"
-            ]
-            try await context.perform {
-                for entityName in entityNames {
-                    let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
-                    let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-                    deleteRequest.resultType = .resultTypeObjectIDs
-                    let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
-                    if let objectIDs = result?.result as? [NSManagedObjectID] {
-                        let changes = [NSDeletedObjectsKey: objectIDs]
-                        NSManagedObjectContext.mergeChanges(
-                            fromRemoteContextSave: changes,
-                            into: [PulsumData.viewContext]
-                        )
-                    }
-                }
+            // 1. Delete all SwiftData entities
+            guard let container = modelContainer else {
+                deleteAllDataMessage = "Data store not available."
+                return
             }
+            let context = ModelContext(container)
+            try context.delete(model: JournalEntry.self)
+            try context.delete(model: DailyMetrics.self)
+            try context.delete(model: Baseline.self)
+            try context.delete(model: FeatureVector.self)
+            try context.delete(model: MicroMoment.self)
+            try context.delete(model: RecommendationEvent.self)
+            try context.delete(model: LibraryIngest.self)
+            try context.delete(model: UserPrefs.self)
+            try context.delete(model: ConsentState.self)
+            try context.save()
 
             // 2. Clear vector index directory
-            let vectorDir = PulsumData.vectorIndexDirectory
-            let fileManager = FileManager.default
-            if fileManager.fileExists(atPath: vectorDir.path) {
-                let contents = try fileManager.contentsOfDirectory(at: vectorDir, includingPropertiesForKeys: nil)
-                for file in contents {
-                    try fileManager.removeItem(at: file)
+            if let vectorDir = vectorIndexDirectory {
+                let fileManager = FileManager.default
+                if fileManager.fileExists(atPath: vectorDir.path) {
+                    let contents = try fileManager.contentsOfDirectory(at: vectorDir, includingPropertiesForKeys: nil)
+                    for file in contents {
+                        try fileManager.removeItem(at: file)
+                    }
                 }
             }
 
@@ -55,9 +50,9 @@ extension SettingsViewModel {
             if let bundleId = Bundle.main.bundleIdentifier {
                 defaults.removePersistentDomain(forName: bundleId)
             }
-            defaults.removeObject(forKey: "ai.pulsum.hasLaunched")
-            defaults.removeObject(forKey: "ai.pulsum.cloudConsent")
-            defaults.removeObject(forKey: "ai.pulsum.hasCompletedOnboarding")
+            defaults.removeObject(forKey: PulsumDefaultsKey.hasLaunched)
+            defaults.removeObject(forKey: PulsumDefaultsKey.cloudConsent)
+            defaults.removeObject(forKey: PulsumDefaultsKey.hasCompletedOnboarding)
 
             // 5. Clear diagnostics
             await Diagnostics.clearDiagnostics()
@@ -67,8 +62,6 @@ extension SettingsViewModel {
             gptAPIStatus = "Missing API key"
             isGPTAPIWorking = false
             consentGranted = false
-            debugLogSnapshot = ""
-            diagnosticsExportURL = nil
 
             deleteAllDataMessage = "All data has been deleted."
 
@@ -76,8 +69,8 @@ extension SettingsViewModel {
                             category: .app,
                             name: "app.data.deleteAll.success")
 
-            // Notify parent to reset to onboarding
-            onDataDeleted?()
+            // Signal data deletion via observable property (P0-26)
+            dataDidDelete.toggle()
         } catch {
             deleteAllDataMessage = "Failed to delete data: \(error.localizedDescription)"
             Diagnostics.log(level: .error,

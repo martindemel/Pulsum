@@ -13,6 +13,8 @@ struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Bindable var viewModel: SettingsViewModel
+    var healthViewModel: HealthSettingsViewModel
+    var diagnosticsViewModel: DiagnosticsViewModel
     let wellbeingState: WellbeingScoreState
     let snapshotKind: WellbeingSnapshotKind
     @State private var lastOpenedURLForUITest: String = ""
@@ -172,7 +174,7 @@ struct SettingsScreen: View {
                                             Text("Health Data Access")
                                                 .font(.pulsumHeadline)
                                                 .foregroundStyle(Color.pulsumTextPrimary)
-                                            Text(viewModel.healthKitSummary)
+                                            Text(healthViewModel.healthKitSummary)
                                                 .font(.pulsumCallout)
                                                 .foregroundStyle(Color.pulsumTextSecondary)
                                                 .lineSpacing(2)
@@ -180,7 +182,7 @@ struct SettingsScreen: View {
                                         }
                                     }
 
-                                    if let detail = viewModel.missingHealthKitDetail {
+                                    if let detail = healthViewModel.missingHealthKitDetail {
                                         Text(detail)
                                             .font(.pulsumCaption)
                                             .foregroundStyle(Color.pulsumTextSecondary)
@@ -191,7 +193,7 @@ struct SettingsScreen: View {
                                             .accessibilityIdentifier("HealthAccessMissingLabel")
                                     }
 
-                                    if viewModel.showHealthKitUnavailableBanner {
+                                    if healthViewModel.showHealthKitUnavailableBanner {
                                         HStack(spacing: PulsumSpacing.xs) {
                                             Image(systemName: "exclamationmark.triangle.fill")
                                                 .font(.pulsumCaption)
@@ -206,7 +208,7 @@ struct SettingsScreen: View {
                                         .cornerRadius(PulsumRadius.sm)
                                     }
 
-                                    if let success = viewModel.healthKitSuccessMessage {
+                                    if let success = healthViewModel.healthKitSuccessMessage {
                                         HStack {
                                             Image(systemName: "checkmark.seal.fill")
                                                 .foregroundStyle(Color.pulsumGreenSoft)
@@ -226,7 +228,7 @@ struct SettingsScreen: View {
                                         .padding(.vertical, PulsumSpacing.xs)
 
                                     VStack(spacing: PulsumSpacing.sm) {
-                                        ForEach(viewModel.healthAccessRows) { row in
+                                        ForEach(healthViewModel.healthAccessRows) { row in
                                             HStack(spacing: PulsumSpacing.sm) {
                                                 Image(systemName: row.iconName)
                                                     .font(.pulsumTitle3)
@@ -247,7 +249,7 @@ struct SettingsScreen: View {
                                         }
                                     }
 
-                                    if let error = viewModel.healthKitError {
+                                    if let error = healthViewModel.healthKitError {
                                         HStack(spacing: PulsumSpacing.xs) {
                                             Image(systemName: "exclamationmark.triangle.fill")
                                                 .font(.pulsumCaption)
@@ -267,11 +269,11 @@ struct SettingsScreen: View {
 
                                     Button {
                                         Task {
-                                            await viewModel.requestHealthKitAuthorization()
+                                            await healthViewModel.requestHealthKitAuthorization()
                                         }
                                     } label: {
                                         HStack {
-                                            if viewModel.isRequestingHealthKitAuthorization {
+                                            if healthViewModel.isRequestingHealthKitAuthorization {
                                                 ProgressView()
                                                     .progressViewStyle(.circular)
                                                     .tint(Color.pulsumTextPrimary)
@@ -288,8 +290,8 @@ struct SettingsScreen: View {
                                         .padding(.vertical, PulsumSpacing.sm)
                                     }
                                     .glassEffect(.regular.tint(Color.pulsumPinkSoft.opacity(0.6)).interactive())
-                                    .disabled(viewModel.isRequestingHealthKitAuthorization ||
-                                        (!viewModel.canRequestHealthKitAccess && !AppRuntimeConfig.isUITesting))
+                                    .disabled(healthViewModel.isRequestingHealthKitAuthorization ||
+                                        (!healthViewModel.canRequestHealthKitAccess && !AppRuntimeConfig.isUITesting))
                                     .accessibilityIdentifier("HealthAccessRequestButton")
 
                                     Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
@@ -304,20 +306,20 @@ struct SettingsScreen: View {
                                         Text("Health access status")
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextSecondary)
-                                        Text(viewModel.healthKitDebugSummary.isEmpty ? "Tap Refresh to fetch status" : viewModel.healthKitDebugSummary)
+                                        Text(healthViewModel.healthKitDebugSummary.isEmpty ? "Tap Refresh to fetch status" : healthViewModel.healthKitDebugSummary)
                                             .font(.system(.footnote, design: .monospaced))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .textSelection(.enabled)
                                             .accessibilityIdentifier("HealthAccessDebugSummaryLabel")
                                         HStack(spacing: PulsumSpacing.sm) {
                                             Button("Refresh Status") {
-                                                viewModel.refreshHealthAccessStatus()
+                                                healthViewModel.refreshHealthAccessStatus()
                                             }
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
                                             Button("Copy") {
-                                                copyToClipboard(viewModel.healthKitDebugSummary)
+                                                copyToClipboard(healthViewModel.healthKitDebugSummary)
                                             }
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
@@ -333,7 +335,7 @@ struct SettingsScreen: View {
                                         Text("App debug log")
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextSecondary)
-                                        Text(viewModel.debugLogSnapshot.isEmpty ? "Tap Refresh Log to capture recent events" : viewModel.debugLogSnapshot)
+                                        Text(healthViewModel.debugLogSnapshot.isEmpty ? "Tap Refresh Log to capture recent events" : healthViewModel.debugLogSnapshot)
                                             .font(.system(.footnote, design: .monospaced))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .textSelection(.enabled)
@@ -342,13 +344,13 @@ struct SettingsScreen: View {
                                             .lineLimit(nil)
                                         HStack(spacing: PulsumSpacing.sm) {
                                             Button("Refresh Log") {
-                                                Task { await viewModel.refreshDebugLog() }
+                                                Task { await healthViewModel.refreshDebugLog() }
                                             }
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
                                             Button("Copy Log") {
-                                                copyToClipboard(viewModel.debugLogSnapshot)
+                                                copyToClipboard(healthViewModel.debugLogSnapshot)
                                             }
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
@@ -385,17 +387,19 @@ struct SettingsScreen: View {
                                             Text("Apple Intelligence")
                                                 .font(.pulsumHeadline)
                                                 .foregroundStyle(Color.pulsumTextPrimary)
-                                            Text(viewModel.foundationModelsStatus)
+                                            Text(diagnosticsViewModel.foundationModelsStatus)
                                                 .font(.pulsumCallout)
                                                 .foregroundStyle(Color.pulsumTextSecondary)
                                                 .lineSpacing(2)
                                         }
                                     }
 
-                                    if needsEnableLink(status: viewModel.foundationModelsStatus) {
+                                    if needsEnableLink(status: diagnosticsViewModel.foundationModelsStatus) {
                                         #if os(macOS)
-                                        Link(destination: URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings")!) {
-                                            appleIntelligenceLinkContent()
+                                        if let url = URL(string: "x-apple.systempreferences:com.apple.AppleIntelligence-Settings") {
+                                            Link(destination: url) {
+                                                appleIntelligenceLinkContent()
+                                            }
                                         }
                                         #else
                                         Button {
@@ -427,27 +431,31 @@ struct SettingsScreen: View {
                                     .padding(.horizontal, PulsumSpacing.lg)
 
                                 VStack(spacing: PulsumSpacing.sm) {
-                                    Link(destination: URL(string: "tel://911")!) {
-                                        HStack {
-                                            Text("If you're in crisis, dial 911")
-                                                .font(.pulsumBody)
-                                                .foregroundStyle(Color.pulsumError)
-                                            Spacer()
-                                            Image(systemName: "phone.fill")
-                                                .foregroundStyle(Color.pulsumError)
+                                    if let url = URL(string: "tel://911") {
+                                        Link(destination: url) {
+                                            HStack {
+                                                Text("If you're in crisis, dial 911")
+                                                    .font(.pulsumBody)
+                                                    .foregroundStyle(Color.pulsumError)
+                                                Spacer()
+                                                Image(systemName: "phone.fill")
+                                                    .foregroundStyle(Color.pulsumError)
+                                            }
                                         }
                                     }
 
                                     Divider()
 
-                                    Link(destination: URL(string: "tel://988")!) {
-                                        HStack {
-                                            Text("988 Suicide & Crisis Lifeline")
-                                                .font(.pulsumBody)
-                                                .foregroundStyle(Color.pulsumTextPrimary)
-                                            Spacer()
-                                            Image(systemName: "phone.fill")
-                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                    if let url = URL(string: "tel://988") {
+                                        Link(destination: url) {
+                                            HStack {
+                                                Text("988 Suicide & Crisis Lifeline")
+                                                    .font(.pulsumBody)
+                                                    .foregroundStyle(Color.pulsumTextPrimary)
+                                                Spacer()
+                                                Image(systemName: "phone.fill")
+                                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                            }
                                         }
                                     }
                                 }
@@ -470,19 +478,21 @@ struct SettingsScreen: View {
                                     .padding(.horizontal, PulsumSpacing.lg)
 
                                 VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                                    Link(destination: URL(string: "https://pulsum.ai/privacy")!) {
-                                        HStack {
-                                            Text("Privacy policy")
-                                                .font(.pulsumBody)
-                                                .foregroundStyle(Color.pulsumBlueSoft)
-                                            Spacer()
-                                            Image(systemName: "arrow.up.right")
-                                                .font(.pulsumCaption)
-                                                .foregroundStyle(Color.pulsumTextSecondary)
+                                    if let url = URL(string: "https://pulsum.ai/privacy") {
+                                        Link(destination: url) {
+                                            HStack {
+                                                Text("Privacy policy")
+                                                    .font(.pulsumBody)
+                                                    .foregroundStyle(Color.pulsumBlueSoft)
+                                                Spacer()
+                                                Image(systemName: "arrow.up.right")
+                                                    .font(.pulsumCaption)
+                                                    .foregroundStyle(Color.pulsumTextSecondary)
+                                            }
                                         }
                                     }
 
-                                    Text("Pulsum stores all health data on-device with NSFileProtectionComplete and never uploads your journals.")
+                                    Text("Pulsum stores all health data on-device with NSFileProtectionCompleteUnlessOpen. Data is encrypted at rest and accessible only while the device is unlocked or during authorized background health syncs. Journals are never uploaded.")
                                         .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(3)
@@ -510,11 +520,11 @@ struct SettingsScreen: View {
                             diagnosticsSection
 
                             #if DEBUG
-                            if viewModel.diagnosticsVisible {
-                                DiagnosticsPanel(routeHistory: viewModel.routeHistory,
-                                                 coverageSummary: viewModel.lastCoverageSummary,
-                                                 cloudError: viewModel.lastCloudError,
-                                                 healthStatusSummary: viewModel.healthKitDebugSummary)
+                            if diagnosticsViewModel.diagnosticsVisible {
+                                DiagnosticsPanel(routeHistory: diagnosticsViewModel.routeHistory,
+                                                 coverageSummary: diagnosticsViewModel.lastCoverageSummary,
+                                                 cloudError: diagnosticsViewModel.lastCloudError,
+                                                 healthStatusSummary: healthViewModel.healthKitDebugSummary)
                                     .transition(.opacity)
                             }
                             #endif
@@ -545,7 +555,7 @@ struct SettingsScreen: View {
                                     .font(.pulsumHeadline)
                                     .foregroundStyle(Color.pulsumTextPrimary)
                                     .onTapGesture(count: 3) {
-                                        viewModel.toggleDiagnosticsVisibility()
+                                        diagnosticsViewModel.toggleDiagnosticsVisibility()
                                     }
                             }
                             ToolbarItem(placement: .cancellationAction) {
@@ -588,8 +598,8 @@ struct SettingsScreen: View {
                     #endif
                     #endif
                         .task {
-                        viewModel.refreshFoundationStatus()
-                        viewModel.refreshHealthAccessStatus()
+                        diagnosticsViewModel.refreshFoundationStatus()
+                        healthViewModel.refreshHealthAccessStatus()
                         if !AppRuntimeConfig.isUITesting {
                             await viewModel.testCurrentAPIKey()
                         }
@@ -601,7 +611,7 @@ struct SettingsScreen: View {
                     .accessibilityElement(children: .contain)
                 }
             }
-            if AppRuntimeConfig.isUITesting, let success = viewModel.healthKitSuccessMessage {
+            if AppRuntimeConfig.isUITesting, let success = healthViewModel.healthKitSuccessMessage {
                 Text(success)
                     .font(.pulsumCaption)
                     .opacity(0.01)
@@ -718,45 +728,45 @@ struct SettingsScreen: View {
                     .font(.pulsumHeadline)
                     .foregroundStyle(Color.pulsumTextPrimary)
                 Spacer()
-                Text(viewModel.diagnosticsConfig.enabled ? "On" : "Off")
+                Text(diagnosticsViewModel.diagnosticsConfig.enabled ? "On" : "Off")
                     .font(.pulsumCaption)
                     .foregroundStyle(Color.pulsumTextSecondary)
             }
 
-            Text("Session ID: \(viewModel.diagnosticsSessionId.uuidString)")
+            Text("Session ID: \(diagnosticsViewModel.diagnosticsSessionId.uuidString)")
                 .font(.pulsumCaption2)
                 .foregroundStyle(Color.pulsumTextSecondary)
                 .textSelection(.enabled)
 
             Toggle("Enable diagnostics", isOn: Binding(get: {
-                viewModel.diagnosticsConfig.enabled
+                diagnosticsViewModel.diagnosticsConfig.enabled
             }, set: { enabled in
-                viewModel.updateDiagnosticsEnabled(enabled)
+                diagnosticsViewModel.updateDiagnosticsEnabled(enabled)
             }))
 
             Toggle("Persist to disk", isOn: Binding(get: {
-                viewModel.diagnosticsConfig.persistToDisk
+                diagnosticsViewModel.diagnosticsConfig.persistToDisk
             }, set: { persist in
-                viewModel.updateDiagnosticsPersistence(persist)
+                diagnosticsViewModel.updateDiagnosticsPersistence(persist)
             }))
 
             Toggle("Mirror to OSLog", isOn: Binding(get: {
-                viewModel.diagnosticsConfig.mirrorToOSLog
+                diagnosticsViewModel.diagnosticsConfig.mirrorToOSLog
             }, set: { mirror in
-                viewModel.updateDiagnosticsOSLog(mirror)
+                diagnosticsViewModel.updateDiagnosticsOSLog(mirror)
             }))
 
             Toggle("Enable signposts", isOn: Binding(get: {
-                viewModel.diagnosticsConfig.enableSignposts
+                diagnosticsViewModel.diagnosticsConfig.enableSignposts
             }, set: { enable in
-                viewModel.updateDiagnosticsSignposts(enable)
+                diagnosticsViewModel.updateDiagnosticsSignposts(enable)
             }))
 
             HStack(spacing: PulsumSpacing.md) {
                 Button {
-                    Task { await viewModel.exportDiagnosticsReport() }
+                    Task { await diagnosticsViewModel.exportDiagnosticsReport() }
                 } label: {
-                    if viewModel.isExportingDiagnostics {
+                    if diagnosticsViewModel.isExportingDiagnostics {
                         ProgressView()
                     } else {
                         Text("Export diagnostics report")
@@ -764,14 +774,14 @@ struct SettingsScreen: View {
                 }
                 .buttonStyle(.borderedProminent)
 
-                if let url = viewModel.diagnosticsExportURL {
+                if let url = diagnosticsViewModel.diagnosticsExportURL {
                     ShareLink("Share", item: url)
                         .buttonStyle(.bordered)
                 }
             }
 
             Button(role: .destructive) {
-                Task { await viewModel.clearDiagnostics() }
+                Task { await diagnosticsViewModel.clearDiagnostics() }
             } label: {
                 Text("Clear diagnostics")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -793,35 +803,18 @@ struct SettingsScreen: View {
         )
     }
 
-    @ViewBuilder
     private var wellbeingScoreSection: some View {
-        switch wellbeingState {
-        case let .ready(score, _):
-            if let detailViewModel = viewModel.makeScoreBreakdownViewModel() {
-                NavigationLink {
-                    ScoreBreakdownScreen(viewModel: detailViewModel)
-                } label: {
-                    WellbeingScoreCard(score: score)
-                }
-                .buttonStyle(.plain)
-            } else {
-                WellbeingScoreCard(score: score)
+        WellbeingStateCardView(
+            wellbeingState: wellbeingState,
+            snapshotKind: snapshotKind,
+            makeDetailViewModel: { viewModel.makeScoreBreakdownViewModel() },
+            requestHealthAccess: {
+                Task { await healthViewModel.requestHealthKitAuthorization() }
+            },
+            retryAction: {
+                Task { await healthViewModel.requestHealthKitAuthorization() }
             }
-        case .loading:
-            WellbeingScoreLoadingCard()
-        case let .noData(reason):
-            if snapshotKind == .placeholder, reason == .insufficientSamples {
-                WellbeingPlaceholderCard()
-            } else {
-                WellbeingNoDataCard(reason: reason) {
-                    Task { await viewModel.requestHealthKitAuthorization() }
-                }
-            }
-        case let .error(message):
-            WellbeingErrorCard(message: message) {
-                Task { await viewModel.requestHealthKitAuthorization() }
-            }
-        }
+        )
     }
 
     private static let relativeDateFormatter: RelativeDateTimeFormatter = {

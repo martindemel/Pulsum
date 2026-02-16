@@ -3,6 +3,7 @@ import os.log
 import PulsumData
 import PulsumML
 import PulsumTypes
+import Synchronization
 
 /// Candidate micro-moment snippet for context (privacy-safe; no PHI)
 public struct CandidateMoment: Codable, Sendable, Equatable {
@@ -291,16 +292,15 @@ public final class LLMGateway {
     private let session: URLSession
     private let usesUITestStub: Bool
 
-    private let apiKeyLock = NSLock()
-    private var _inMemoryAPIKey: String?
+    // Mutex protects the in-memory API key cache. All stored properties are now `let`,
+    // making LLMGateway effectively immutable after init (see B10-06 audit).
+    private let apiKeyCache = Mutex<String?>(nil)
     private var inMemoryAPIKey: String? {
-        get { apiKeyLock.withLock { _inMemoryAPIKey } }
-        set { apiKeyLock.withLock { _inMemoryAPIKey = newValue } }
+        get { apiKeyCache.withLock { $0 } }
+        set { apiKeyCache.withLock { $0 = newValue } }
     }
 
-    private let rateLimitLock = NSLock()
-    private var _lastRequestTime: Date = .distantPast
-    private static let minimumRequestInterval: TimeInterval = 3.0
+    private let rateLimiter = RateLimiter(minimumInterval: 3.0)
 
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway")
 
@@ -464,16 +464,7 @@ public final class LLMGateway {
     }
 
     private func enforceRateLimit() async throws {
-        let now = Date()
-        let elapsed: TimeInterval = rateLimitLock.withLock {
-            now.timeIntervalSince(_lastRequestTime)
-        }
-        let delay = Self.minimumRequestInterval - elapsed
-        if delay > 0 {
-            logger.debug("Rate limiting: waiting \(String(format: "%.1f", delay), privacy: .public)s before next API call.")
-            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-        }
-        rateLimitLock.withLock { _lastRequestTime = Date() }
+        try await rateLimiter.acquire()
     }
 
     private func keySourceDescriptor() -> String {
@@ -586,11 +577,6 @@ private func validateChatPayload(body: [String: Any],
     }
 
     if !(128 ... 1024).contains(maxTokens) { return false }
-
-    guard let input = body["input"] as? [[String: Any]], input.count == 2,
-          (input.first? ["role"] as? String) == "system",
-          (input.last? ["role"] as? String) == "user"
-    else { return false }
 
     guard let input = body["input"] as? [[String: Any]],
           input.count == 2,
@@ -754,7 +740,7 @@ public final class GPT5Client: CloudLLMClient {
     private func parseAndValidateStructuredResponse(data: Data) throws -> CoachPhrasing {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-            logger.error("Failed to parse GPT response: \(errorMsg.prefix(280), privacy: .public)")
+            logger.error("Failed to parse GPT response: \(errorMsg.prefix(280), privacy: .private)")
             throw LLMGatewayError.cloudGenerationFailed("Invalid JSON structure")
         }
 
@@ -809,7 +795,7 @@ public final class GPT5Client: CloudLLMClient {
         guard let jsonString = textPayload,
               let jsonData = jsonString.data(using: .utf8) else {
             let snippet = String(data: data, encoding: .utf8) ?? "<non-utf8>"
-            logger.error("Failed to locate structured content in GPT response (snippet: \(snippet.prefix(280)), privacy: .public)")
+            logger.error("Failed to locate structured content in GPT response (snippet: \(snippet.prefix(280), privacy: .private))")
             throw LLMGatewayError.cloudGenerationFailed("Missing structured output")
         }
 
@@ -952,14 +938,16 @@ extension LLMGateway {
     }
 }
 
+// SAFETY: All stored properties are `let`. The only mutable state (`apiKeyCache`) uses
+// Mutex<String?> for synchronization. NSObject subclass (URLSessionDelegate) prevents actor.
 extension LLMGateway: @unchecked Sendable {}
 
-// MARK: - Certificate Pinning
+// MARK: - TLS Trust Evaluation
 
-/// Validates that connections to api.openai.com use certificates from expected CAs.
-/// Uses SPKI (Subject Public Key Info) pinning against the Let's Encrypt and DigiCert root CAs
-/// commonly used by OpenAI's Cloudflare-fronted API. Falls back to default validation for
-/// non-OpenAI hosts or if pinning setup fails.
+/// Standard TLS trust evaluation for api.openai.com connections.
+/// Does NOT perform SPKI pinning — uses the OS trust store to validate the certificate chain.
+/// Falls back to default handling for non-OpenAI hosts.
+// TODO: Actual SPKI pinning with hardcoded key hashes deferred to v1.1
 private final class OpenAICertificatePinningDelegate: NSObject, URLSessionDelegate {
     private let pinnedHost = "api.openai.com"
     private let logger = Logger(subsystem: "ai.pulsum", category: "LLMGateway.CertPin")
@@ -994,6 +982,7 @@ private final class OpenAICertificatePinningDelegate: NSObject, URLSessionDelega
     }
 }
 
+// SAFETY: NSObject subclass — cannot be an actor. All properties are immutable `let` values.
 extension OpenAICertificatePinningDelegate: @unchecked Sendable {}
 
 // Small helper

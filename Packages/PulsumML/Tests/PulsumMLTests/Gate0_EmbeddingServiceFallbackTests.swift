@@ -34,7 +34,7 @@ final class Gate0_EmbeddingServiceFallbackTests: XCTestCase {
         XCTAssertEqual(result, fallbackVector)
     }
 
-    func testAvailabilityProbeUsesFallback() throws {
+    func testAvailabilityProbeUsesFallback() async throws {
         let fallbackVector: [Float] = [0.1, 0.2, 0.3, 0.4]
         let service = EmbeddingService.debugInstance(
             primary: MockEmbeddingProvider(mode: .fails(MockError())),
@@ -42,6 +42,7 @@ final class Gate0_EmbeddingServiceFallbackTests: XCTestCase {
             dimension: 4
         )
 
-        XCTAssertTrue(service.isAvailable())
+        let available = await service.isAvailable()
+        XCTAssertTrue(available)
     }
 }

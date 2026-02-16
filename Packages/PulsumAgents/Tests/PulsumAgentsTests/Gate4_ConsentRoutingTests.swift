@@ -50,6 +50,7 @@ struct Gate4_ConsentRoutingTests {
 }
 
 /// Hermetic API key store so consent routing never depends on macOS keychain or HOME.
+// Test-only: mutable stub — serial test execution, no concurrent access.
 private final class InMemoryAPIKeyStoreStub: APIKeyProviding, @unchecked Sendable {
     private var storedKey = Data("test-key".utf8)
 
