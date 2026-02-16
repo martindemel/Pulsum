@@ -17,11 +17,6 @@ import PulsumTypes
 @available(iOS 17.0, macOS 13.0, *)
 final class AFMTextEmbeddingProvider: TextEmbeddingProviding {
     private let targetDimension = 384
-    private let availability: @Sendable () -> AFMStatus
-
-    init(availability: @escaping @Sendable () -> AFMStatus = FoundationModelsAvailability.checkAvailability) {
-        self.availability = availability
-    }
 
     func embedding(for text: String) throws -> [Float] {
         let language = resolveLanguage()

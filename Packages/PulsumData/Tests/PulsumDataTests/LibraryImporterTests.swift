@@ -11,6 +11,12 @@ final actor HappyPathIndexStub: VectorIndexProviding {
         return Array(repeating: 0.1, count: 384)
     }
 
+    func bulkUpsertMicroMoments(_ items: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {
+        for item in items {
+            _ = try await upsertMicroMoment(id: item.id, title: item.title, detail: item.detail, tags: item.tags)
+        }
+    }
+
     func removeMicroMoment(id: String) async throws {
         // no-op
     }

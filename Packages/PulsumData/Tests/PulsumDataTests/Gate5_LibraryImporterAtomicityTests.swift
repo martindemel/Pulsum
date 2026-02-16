@@ -179,6 +179,12 @@ private actor FlakyIndex: VectorIndexProviding {
         return []
     }
 
+    func bulkUpsertMicroMoments(_ items: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {
+        for item in items {
+            _ = try await upsertMicroMoment(id: item.id, title: item.title, detail: item.detail, tags: item.tags)
+        }
+    }
+
     func removeMicroMoment(id: String) async throws {}
 
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] { [] }
@@ -202,6 +208,12 @@ private actor SpyIndex: VectorIndexProviding {
         return []
     }
 
+    func bulkUpsertMicroMoments(_ items: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {
+        for item in items {
+            _ = try await upsertMicroMoment(id: item.id, title: item.title, detail: item.detail, tags: item.tags)
+        }
+    }
+
     func removeMicroMoment(id: String) async throws {}
 
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch] { [] }
@@ -212,6 +224,12 @@ private actor SpyIndex: VectorIndexProviding {
 private actor UnavailableEmbeddingIndex: VectorIndexProviding {
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] {
         throw EmbeddingError.generatorUnavailable
+    }
+
+    func bulkUpsertMicroMoments(_ items: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {
+        for item in items {
+            _ = try await upsertMicroMoment(id: item.id, title: item.title, detail: item.detail, tags: item.tags)
+        }
     }
 
     func removeMicroMoment(id: String) async throws {}

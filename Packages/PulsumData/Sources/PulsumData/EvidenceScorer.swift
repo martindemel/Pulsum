@@ -18,8 +18,7 @@ struct EvidenceScorer {
     private static let mediumDomains: [String] = [
         "nature.com",
         "sciencedirect.com",
-        "mayoclinic.org",
-        "harvard.edu"
+        "mayoclinic.org"
     ]
 
     static func badge(for urlString: String?) -> EvidenceBadge {

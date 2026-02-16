@@ -5,6 +5,7 @@ import SwiftData
 public final class DailyMetrics {
     #Index<DailyMetrics>([\.date])
 
+    /// Callers must normalize to midnight (start of day) before setting.
     @Attribute(.unique) public var date: Date
     public var hrvMedian: Double?
     public var nocturnalHRPercentile10: Double?

@@ -5,6 +5,7 @@ import SwiftData
 public final class FeatureVector {
     #Index<FeatureVector>([\.date])
 
+    /// Callers must normalize to midnight (start of day) before setting.
     @Attribute(.unique) public var date: Date
     public var zHrv: Double?
     public var zNocturnalHR: Double?

@@ -80,6 +80,27 @@ public extension MicroMoment {
     }
 }
 
+public extension UserPrefs {
+    var snapshot: UserPrefsSnapshot {
+        UserPrefsSnapshot(
+            id: id,
+            consentCloud: consentCloud,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+public extension ConsentState {
+    var snapshot: ConsentStateSnapshot {
+        ConsentStateSnapshot(
+            id: id,
+            version: version,
+            grantedAt: grantedAt,
+            revokedAt: revokedAt
+        )
+    }
+}
+
 public extension RecommendationEvent {
     var snapshot: RecommendationEventSnapshot {
         RecommendationEventSnapshot(

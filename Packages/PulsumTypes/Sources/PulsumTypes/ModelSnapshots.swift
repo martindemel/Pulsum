@@ -192,6 +192,45 @@ public struct MicroMomentSnapshot: Sendable, Codable {
     }
 }
 
+// MARK: - UserPrefsSnapshot
+
+public struct UserPrefsSnapshot: Sendable, Codable {
+    public let id: String
+    public let consentCloud: Bool
+    public let updatedAt: Date
+
+    public init(
+        id: String,
+        consentCloud: Bool,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.consentCloud = consentCloud
+        self.updatedAt = updatedAt
+    }
+}
+
+// MARK: - ConsentStateSnapshot
+
+public struct ConsentStateSnapshot: Sendable, Codable {
+    public let id: UUID
+    public let version: String
+    public let grantedAt: Date?
+    public let revokedAt: Date?
+
+    public init(
+        id: UUID,
+        version: String,
+        grantedAt: Date? = nil,
+        revokedAt: Date? = nil
+    ) {
+        self.id = id
+        self.version = version
+        self.grantedAt = grantedAt
+        self.revokedAt = revokedAt
+    }
+}
+
 // MARK: - RecommendationEventSnapshot
 
 public struct RecommendationEventSnapshot: Sendable, Codable {

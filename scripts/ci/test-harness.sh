@@ -22,12 +22,14 @@ select_simulator() {
   selection="$(python3 - <<'PY'
 import json, os, re, subprocess, sys
 preferred = [
-    "iPhone SE (3rd generation)",
+    "iPhone 17 Pro",
+    "iPhone 17 Pro Max",
+    "iPhone Air",
+    "iPhone 17",
     "iPhone 16 Pro",
     "iPhone 16",
-    "iPhone 16 Plus",
     "iPhone 15 Pro",
-    "iPhone 15"
+    "iPhone SE (3rd generation)"
 ]
 desired = os.environ.get("PULSUM_SIM_OS", "26.0.1")
 major = desired.split(".")[0]

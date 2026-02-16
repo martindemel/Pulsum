@@ -353,17 +353,8 @@ public final class LibraryImporter {
     }
 
     private func upsertIndexEntries(_ payloads: [MicroMomentIndexPayload]) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for payload in payloads {
-                group.addTask { [vectorIndex] in
-                    _ = try await vectorIndex.upsertMicroMoment(id: payload.id,
-                                                                title: payload.title,
-                                                                detail: payload.detail,
-                                                                tags: payload.tags)
-                }
-            }
-            try await group.waitForAll()
-        }
+        let items = payloads.map { (id: $0.id, title: $0.title, detail: $0.detail, tags: $0.tags) }
+        try await vectorIndex.bulkUpsertMicroMoments(items)
     }
 
     private static func sha256Hex(for data: Data) -> String {

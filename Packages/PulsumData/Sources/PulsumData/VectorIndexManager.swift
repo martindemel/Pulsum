@@ -4,12 +4,14 @@ import PulsumML
 public protocol VectorIndexProviding: AnyObject, Sendable {
     @discardableResult
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float]
+    func bulkUpsertMicroMoments(_ items: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws
     func removeMicroMoment(id: String) async throws
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch]
     func stats() async -> (shards: Int, items: Int)
 }
 
 public extension VectorIndexProviding {
+    func bulkUpsertMicroMoments(_: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {}
     func stats() async -> (shards: Int, items: Int) { (0, 0) }
 }
 
@@ -35,6 +37,19 @@ public actor VectorIndexManager: VectorIndexProviding {
         try await store.upsert(id: id, vector: embedding)
         try await store.persist()
         return embedding
+    }
+
+    public func bulkUpsertMicroMoments(_ items: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {
+        guard !items.isEmpty else { return }
+        var vectors: [(id: String, vector: [Float])] = []
+        vectors.reserveCapacity(items.count)
+        for item in items {
+            let segments = [item.title, item.detail ?? "", item.tags?.joined(separator: " ") ?? ""].filter { !$0.isEmpty }
+            let embedding = try embeddingService.embedding(forSegments: segments)
+            vectors.append((id: item.id, vector: embedding))
+        }
+        try await store.bulkUpsert(vectors)
+        try await store.persist()
     }
 
     public func removeMicroMoment(id: String) async throws {
