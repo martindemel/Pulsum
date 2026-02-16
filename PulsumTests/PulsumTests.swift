@@ -1,10 +1,21 @@
 import Testing
 @testable import Pulsum
+import PulsumData
+import PulsumTypes
 
 struct PulsumTests {
-    @Test("App target can be imported and types are accessible")
-    func appTargetImport() {
-        // Smoke test: verify the Pulsum app target compiles and key types are reachable.
-        #expect(true, "Pulsum app target imported successfully")
+    @Test("AppRuntimeConfig defaults are sensible in test environment")
+    func runtimeConfigDefaults() {
+        // These env-gated flags should all be false in the unit test runner
+        #expect(!AppRuntimeConfig.skipHeavyStartupWork)
+        #expect(!AppRuntimeConfig.hideConsentBanner)
+        #expect(!AppRuntimeConfig.settingsHookEnabled)
+        #expect(!AppRuntimeConfig.forceSettingsFallback)
+        #expect(!AppRuntimeConfig.captureSettingsURLs)
+    }
+
+    @Test("DataStack registers all 9 model types")
+    func dataStackModelTypes() {
+        #expect(DataStack.modelTypes.count == 9)
     }
 }

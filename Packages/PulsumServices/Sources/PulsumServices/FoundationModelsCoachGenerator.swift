@@ -81,9 +81,9 @@ public final class FoundationModelsCoachGenerator: OnDeviceCoachGenerator {
 
     private func topicFromSignal(_ signal: String) -> String? {
         guard let range = signal.range(of: "topic=") else { return nil }
-        let suffix = signal[range.upperBound...]
-        let components = suffix.split(separator: " ", maxSplits: 1)
-        return components.first.map { String($0) }
+        let value = String(signal[range.upperBound...].split(separator: " ", maxSplits: 1).first ?? "")
+        guard !value.isEmpty else { return nil }
+        return value
     }
 
     private func sanitizeResponse(_ response: String) -> String {

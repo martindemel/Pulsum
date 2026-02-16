@@ -797,7 +797,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
             }
 
             let candidateMoments = await coachAgent.candidateMoments(for: topic ?? "goals", limit: 2)
-            if let dominantFromCandidates = dominantTopic(from: candidateMoments, coachAgent: coachAgent) {
+            if let dominantFromCandidates = dominantTopic(from: candidateMoments) {
                 topic = dominantFromCandidates
             }
 
@@ -971,7 +971,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
     // MARK: - Intent Mapping Helpers
 
     /// Extract dominant topic from candidate moments (Step 3 of intent mapping)
-    private func dominantTopic(from candidates: [CandidateMoment], coachAgent _: CoachAgent) -> String? {
+    private func dominantTopic(from candidates: [CandidateMoment]) -> String? {
         // Use embedding similarity to infer dominant topic from candidate titles
         let topicKeywords: [String: [String]] = [
             "sleep": ["sleep", "rest", "recovery", "insomnia", "tired"],

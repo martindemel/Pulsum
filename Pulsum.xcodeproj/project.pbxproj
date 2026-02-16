@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		910D1C8BDF7B4BE0A79330B5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 163A3F3C451B4A0D810BEBDC /* PrivacyInfo.xcprivacy */; };
 		94293E602E8CD700003E5840 /* streak_low_poly_copy.splineswift in Resources */ = {isa = PBXBuildFile; fileRef = 94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */; };
-		9429413D2E8E32C7003E5840 /* podcastrecommendations 2.json in Resources */ = {isa = PBXBuildFile; fileRef = 9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */; };
+		9429413D2E8E32C7003E5840 /* podcastrecommendations.json in Resources */ = {isa = PBXBuildFile; fileRef = 9429413C2E8E32C7003E5840 /* podcastrecommendations.json */; };
 		945EC8922E8AD321001CCF2E /* PulsumUI in Frameworks */ = {isa = PBXBuildFile; productRef = C9EBA0CEFE7A4C389A2E4FB8 /* PulsumUI */; };
 		945EC8932E8AD321001CCF2E /* PulsumAgents in Frameworks */ = {isa = PBXBuildFile; productRef = A95AA2EDA6C84DD4AFB06BA9 /* PulsumAgents */; };
 		945EC8942E8AD321001CCF2E /* PulsumData in Frameworks */ = {isa = PBXBuildFile; productRef = A53933ECCEA4440495B0FCB3 /* PulsumData */; };
@@ -52,7 +52,7 @@
 		941192922E8A01FF0078B278 /* PulsumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PulsumUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		94293E5F2E8CD700003E5840 /* streak_low_poly_copy.splineswift */ = {isa = PBXFileReference; lastKnownFileType = file; path = streak_low_poly_copy.splineswift; sourceTree = "<group>"; };
-		9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "podcastrecommendations 2.json"; sourceTree = "<group>"; };
+		9429413C2E8E32C7003E5840 /* podcastrecommendations.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "podcastrecommendations.json"; sourceTree = "<group>"; };
 		PULSUM_CONFIG_XCCONFIG /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -137,7 +137,7 @@
 		941192772E8A01FF0078B278 = {
 			isa = PBXGroup;
 			children = (
-				9429413C2E8E32C7003E5840 /* podcastrecommendations 2.json */,
+				9429413C2E8E32C7003E5840 /* podcastrecommendations.json */,
 				941192822E8A01FF0078B278 /* Pulsum */,
 				941192952E8A01FF0078B278 /* PulsumTests */,
 				9411929F2E8A01FF0078B278 /* PulsumUITests */,
@@ -315,7 +315,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				910D1C8BDF7B4BE0A79330B5 /* PrivacyInfo.xcprivacy in Resources */,
-				9429413D2E8E32C7003E5840 /* podcastrecommendations 2.json in Resources */,
+				9429413D2E8E32C7003E5840 /* podcastrecommendations.json in Resources */,
 				94293E602E8CD700003E5840 /* streak_low_poly_copy.splineswift in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
