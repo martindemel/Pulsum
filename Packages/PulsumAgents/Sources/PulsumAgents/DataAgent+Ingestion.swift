@@ -181,13 +181,17 @@ extension DataAgent {
             if hkError.errorCode == HKError.errorInvalidArgument.rawValue {
                 return false
             }
+            // HKError domain — assume background delivery entitlement issue
+            return true
         }
         let nsError = error as NSError
-        if nsError.domain == HKError.errorDomain,
-           nsError.code == HKError.errorInvalidArgument.rawValue {
-            return false
+        if nsError.domain == HKError.errorDomain {
+            if nsError.code == HKError.errorInvalidArgument.rawValue {
+                return false
+            }
+            return true
         }
-        return nsError.localizedDescription.localizedCaseInsensitiveContains("background-delivery")
+        return false
     }
 
     func observationTypes(for status: HealthAccessStatus) -> Set<HKSampleType> {

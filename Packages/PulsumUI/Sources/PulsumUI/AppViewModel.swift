@@ -434,9 +434,18 @@ private final class NotificationObserverBag {
     }
 }
 
+#if canImport(HealthKit)
 private func shouldIgnoreBackgroundDeliveryError(_ error: Error) -> Bool {
-    (error as NSError).localizedDescription.contains("Missing com.apple.developer.healthkit.background-delivery")
+    let nsError = error as NSError
+    guard nsError.domain == HKError.errorDomain else { return false }
+    // HKError.errorInvalidArgument is a real error, not a missing entitlement
+    return nsError.code != HKError.errorInvalidArgument.rawValue
 }
+#else
+private func shouldIgnoreBackgroundDeliveryError(_: Error) -> Bool {
+    false
+}
+#endif
 
 private extension AppViewModel {
     func logSessionStart() {
@@ -611,9 +620,8 @@ struct ConsentStore {
             record.grantedAt = timestamp
             record.revokedAt = nil
         } else {
-            if record.grantedAt == nil {
-                record.grantedAt = timestamp
-            }
+            // Only record revocation if consent was previously granted
+            guard record.grantedAt != nil else { return }
             record.revokedAt = timestamp
         }
     }
