@@ -328,7 +328,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
             await refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: traceId)
             refreshSpan.end(error: nil)
             let healthStatus = await dataAgent.currentHealthAccessStatus()
-            let embeddingsAvailable = embeddingService.availabilityMode(trigger: "start") == .available
+            let embeddingsAvailable = await embeddingService.availabilityMode(trigger: "start") == .available
             let pendingJournals = await sentimentAgent.pendingEmbeddingCount()
             let backfillCounts = await dataAgent.diagnosticsBackfillCounts()
             let libraryDeferred = await MainActor.run { self.coachAgent.libraryImportDeferred }
@@ -381,7 +381,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
     /// Re-probes on-device embedding availability and retries any deferred work (pending journal embeddings, library
     /// indexing).
     public func refreshOnDeviceModelAvailabilityAndRetryDeferredWork(traceId: UUID? = nil) async {
-        embeddingService.invalidateAvailabilityCache()
+        await embeddingService.invalidateAvailabilityCache()
         let mode = await embeddingService.refreshAvailability(force: true, trigger: "retry_deferred")
         Diagnostics.log(level: .info,
                         category: .embeddings,
@@ -651,7 +651,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
 
     public func diagnosticsSnapshot() async -> DiagnosticsSnapshot {
         let healthStatus = await dataAgent.currentHealthAccessStatus()
-        let embeddingsAvailable = embeddingService.availabilityMode(trigger: "snapshot") == .available
+        let embeddingsAvailable = await embeddingService.availabilityMode(trigger: "snapshot") == .available
         let pendingJournals = await sentimentAgent.pendingEmbeddingCount()
         let backfillCounts = await dataAgent.diagnosticsBackfillCounts()
         let latest = await dataAgent.latestSnapshotMetadata()
@@ -816,7 +816,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
         }
 
         // Embedding availability gate: if no on-device embeddings are available, fail closed and respond on-device.
-        if !embeddingService.isAvailable() {
+        if await !embeddingService.isAvailable() {
             logger.error("Embeddings unavailable; skipping coverage and routing to on-device response.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unavailable → on-device",
                                  decision: nil,

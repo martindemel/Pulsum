@@ -80,7 +80,7 @@ final class ChatHarness {
                                                           fallback: nil,
                                                           dimension: 16,
                                                           reprobeInterval: 0,
-                                                          dateProvider: Date.init)
+                                                          dateProvider: { Date() })
 
         cloudClient = AcceptanceCloudClient()
         localGenerator = AcceptanceLocalGenerator()

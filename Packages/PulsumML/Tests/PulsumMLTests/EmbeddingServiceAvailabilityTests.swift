@@ -2,7 +2,7 @@ import XCTest
 @testable import PulsumML
 
 final class EmbeddingServiceAvailabilityTests: XCTestCase {
-    func testReprobesAfterCooldown() {
+    func testReprobesAfterCooldown() async {
         let provider = MutableEmbeddingProvider(response: .failure(EmbeddingError.generatorUnavailable))
         let clock = StubClock()
         let service = EmbeddingService.debugInstance(primary: provider,
@@ -11,21 +11,24 @@ final class EmbeddingServiceAvailabilityTests: XCTestCase {
                                                      reprobeInterval: 10,
                                                      dateProvider: { clock.now })
 
-        XCTAssertFalse(service.isAvailable())
+        let first = await service.isAvailable()
+        XCTAssertFalse(first)
         XCTAssertEqual(provider.callCount, 1)
 
         provider.response = .success([Float](repeating: 0.5, count: 4))
 
         // Within cooldown, should not probe again even though provider is now healthy.
-        XCTAssertFalse(service.isAvailable())
+        let second = await service.isAvailable()
+        XCTAssertFalse(second)
         XCTAssertEqual(provider.callCount, 1)
 
         clock.advance(by: 11)
-        XCTAssertTrue(service.isAvailable())
+        let third = await service.isAvailable()
+        XCTAssertTrue(third)
         XCTAssertEqual(provider.callCount, 2)
     }
 
-    func testAvailabilityStaysTrueAfterSuccess() {
+    func testAvailabilityStaysTrueAfterSuccess() async {
         let provider = MutableEmbeddingProvider(response: .success([Float](repeating: 0.3, count: 4)))
         let clock = StubClock()
         let service = EmbeddingService.debugInstance(primary: provider,
@@ -34,12 +37,14 @@ final class EmbeddingServiceAvailabilityTests: XCTestCase {
                                                      reprobeInterval: 10,
                                                      dateProvider: { clock.now })
 
-        XCTAssertTrue(service.isAvailable())
+        let first = await service.isAvailable()
+        XCTAssertTrue(first)
 
         provider.response = .failure(EmbeddingError.generatorUnavailable)
 
         // No reprobe needed while cached as available.
-        XCTAssertTrue(service.isAvailable())
+        let second = await service.isAvailable()
+        XCTAssertTrue(second)
         XCTAssertEqual(provider.callCount, 1)
     }
 }
@@ -58,7 +63,7 @@ private final class MutableEmbeddingProvider: TextEmbeddingProviding, @unchecked
     }
 }
 
-private final class StubClock {
+private final class StubClock: @unchecked Sendable {
     private var current: Date
 
     init(now: Date = Date()) {

@@ -3,7 +3,9 @@ import os
 import PulsumTypes
 
 /// Central access point for on-device embeddings with AFM primary and hash fallback.
-public final class EmbeddingService {
+/// Actor isolation protects mutable availability state; embedding methods are nonisolated
+/// since they only access immutable (Sendable) provider references.
+public actor EmbeddingService {
     public static let shared = EmbeddingService()
 
     public enum AvailabilityMode: Sendable {
@@ -11,10 +13,9 @@ public final class EmbeddingService {
         case unavailable
     }
 
-    private let primaryProvider: TextEmbeddingProviding?
-    private let fallbackProvider: TextEmbeddingProviding?
+    private let primaryProvider: (any TextEmbeddingProviding)?
+    private let fallbackProvider: (any TextEmbeddingProviding)?
     private let dimension: Int
-    private let availabilityQueue = DispatchQueue(label: "ai.pulsum.embedding.availability", qos: .utility)
     private enum AvailabilityState {
         case unknown
         case available
@@ -26,17 +27,17 @@ public final class EmbeddingService {
     private var lastReportedAvailability: AvailabilityMode?
     private let availabilityProbeText = "pulsum-availability-check"
     private let reprobeInterval: TimeInterval
-    private let dateProvider: () -> Date
+    private let dateProvider: @Sendable () -> Date
     private let logger = Logger(subsystem: "com.pulsum", category: "EmbeddingService")
     #if DEBUG
     private let debugAvailabilityOverride: Bool?
     #endif
 
-    private init(primary: TextEmbeddingProviding? = nil,
-                 fallback: TextEmbeddingProviding? = nil,
+    private init(primary: (any TextEmbeddingProviding)? = nil,
+                 fallback: (any TextEmbeddingProviding)? = nil,
                  dimension: Int = 384,
                  reprobeInterval: TimeInterval = 3600,
-                 dateProvider: @escaping () -> Date = Date.init) {
+                 dateProvider: @Sendable @escaping () -> Date = { Date() }) {
         self.dimension = dimension
         self.reprobeInterval = reprobeInterval
         self.dateProvider = dateProvider
@@ -60,116 +61,86 @@ public final class EmbeddingService {
         }
     }
 
+    // MARK: - Availability (actor-isolated — accesses mutable state)
+
     /// Availability probe with self-healing. Re-probes after a cooldown or once Apple Intelligence reports ready.
     public func isAvailable(trigger: String = "cache_check") -> Bool {
         let now = dateProvider()
-        var shouldProbe = true
-        var cachedResult: Bool?
 
-        availabilityQueue.sync {
-            #if DEBUG
-            if let override = debugAvailabilityOverride {
-                availabilityState = override ? .available : .unavailable(lastChecked: now)
-                shouldProbe = false
-                cachedResult = override
-                return
-            }
-            #endif
-            switch availabilityState {
-            case .available:
-                shouldProbe = false
-                cachedResult = true
-            case .unavailable(let lastChecked):
-                let fmReady = FoundationModelsAvailability.checkAvailability() == .ready
-                if fmReady || now.timeIntervalSince(lastChecked) >= reprobeInterval {
-                    availabilityState = .probing(previous: false)
-                    shouldProbe = true
-                    cachedResult = false
-                } else {
-                    shouldProbe = false
-                    cachedResult = false
-                }
-            case .probing(let previous):
-                shouldProbe = false
-                cachedResult = previous
-            case .unknown:
-                availabilityState = .probing(previous: nil)
-                shouldProbe = true
-                cachedResult = nil
-            }
+        #if DEBUG
+        if let override = debugAvailabilityOverride {
+            availabilityState = override ? .available : .unavailable(lastChecked: now)
+            return override
         }
+        #endif
 
-        if !shouldProbe {
-            return cachedResult ?? false
+        switch availabilityState {
+        case .available:
+            return true
+        case .unavailable(let lastChecked):
+            let fmReady = FoundationModelsAvailability.checkAvailability() == .ready
+            if fmReady || now.timeIntervalSince(lastChecked) >= reprobeInterval {
+                availabilityState = .probing(previous: false)
+            } else {
+                return false
+            }
+        case .probing(let previous):
+            return previous ?? false
+        case .unknown:
+            availabilityState = .probing(previous: nil)
         }
 
         let result = probeAvailability(trigger: trigger)
         let completion = dateProvider()
-
-        availabilityQueue.sync {
-            availabilityState = result ? .available : .unavailable(lastChecked: completion)
-            logAvailabilityChangeIfNeeded(newMode: result ? .available : .unavailable, trigger: trigger)
-        }
+        availabilityState = result ? .available : .unavailable(lastChecked: completion)
+        logAvailabilityChangeIfNeeded(newMode: result ? .available : .unavailable, trigger: trigger)
         return result
     }
 
     /// Clears any cached availability decision so a subsequent probe re-evaluates providers.
     public func invalidateAvailabilityCache() {
-        availabilityQueue.sync {
-            availabilityState = .unknown
-        }
+        availabilityState = .unknown
     }
 
-    /// Refreshes availability off the caller's thread, optionally forcing a probe even if cached unavailable.
+    /// Refreshes availability, optionally forcing a probe even if cached unavailable.
     @discardableResult
     public func refreshAvailability(force: Bool = false, trigger: String = "manual") async -> AvailabilityMode {
-        await withCheckedContinuation { continuation in
-            availabilityQueue.async {
-                let now = self.dateProvider()
+        let now = dateProvider()
 
-                #if DEBUG
-                if let override = self.debugAvailabilityOverride {
-                    self.availabilityState = override ? .available : .unavailable(lastChecked: now)
-                    continuation.resume(returning: override ? .available : .unavailable)
-                    return
-                }
-                #endif
-
-                var shouldProbe = force
-                var cached: AvailabilityMode = .unavailable
-                switch self.availabilityState {
-                case .available:
-                    cached = .available
-                case .unavailable(let lastChecked):
-                    cached = .unavailable
-                    let fmReady = FoundationModelsAvailability.checkAvailability() == .ready
-                    if fmReady || now.timeIntervalSince(lastChecked) >= self.reprobeInterval {
-                        shouldProbe = true
-                    }
-                case .probing(let previous):
-                    cached = (previous ?? false) ? .available : .unavailable
-                case .unknown:
-                    shouldProbe = true
-                }
-
-                guard shouldProbe else {
-                    continuation.resume(returning: cached)
-                    return
-                }
-
-                self.availabilityState = .probing(previous: cached == .available)
-                Task.detached(priority: .utility) { [self] in
-                    let result = probeAvailability(trigger: trigger)
-                    let mode: AvailabilityMode = result ? .available : .unavailable
-                    availabilityQueue.async {
-                        let completionDate = self.dateProvider()
-                        self.availabilityState = mode == .available ? .available : .unavailable(lastChecked: completionDate)
-                        self.logAvailabilityChangeIfNeeded(newMode: mode, trigger: trigger)
-                        continuation.resume(returning: mode)
-                    }
-                }
-            }
+        #if DEBUG
+        if let override = debugAvailabilityOverride {
+            availabilityState = override ? .available : .unavailable(lastChecked: now)
+            return override ? .available : .unavailable
         }
+        #endif
+
+        var shouldProbe = force
+        var cached: AvailabilityMode = .unavailable
+
+        switch availabilityState {
+        case .available:
+            cached = .available
+        case .unavailable(let lastChecked):
+            cached = .unavailable
+            let fmReady = FoundationModelsAvailability.checkAvailability() == .ready
+            if fmReady || now.timeIntervalSince(lastChecked) >= reprobeInterval {
+                shouldProbe = true
+            }
+        case .probing(let previous):
+            cached = (previous ?? false) ? .available : .unavailable
+        case .unknown:
+            shouldProbe = true
+        }
+
+        guard shouldProbe else { return cached }
+
+        availabilityState = .probing(previous: cached == .available)
+        let result = probeAvailability(trigger: trigger)
+        let mode: AvailabilityMode = result ? .available : .unavailable
+        let completionDate = dateProvider()
+        availabilityState = mode == .available ? .available : .unavailable(lastChecked: completionDate)
+        logAvailabilityChangeIfNeeded(newMode: mode, trigger: trigger)
+        return mode
     }
 
     /// Lightweight availability probe without invoking caller text; callers can branch without throwing.
@@ -177,8 +148,10 @@ public final class EmbeddingService {
         isAvailable(trigger: trigger) ? .available : .unavailable
     }
 
+    // MARK: - Embedding (nonisolated — only accesses immutable Sendable properties)
+
     /// Generates an embedding for the supplied text, padding or truncating to 384 dimensions.
-    public func embedding(for text: String) throws -> [Float] {
+    public nonisolated func embedding(for text: String) throws -> [Float] {
         var lastError: Error?
         var lastProvider: DiagnosticsSafeString?
 
@@ -215,7 +188,7 @@ public final class EmbeddingService {
     }
 
     /// Generates a combined embedding for multiple text segments (averaged element-wise).
-    public func embedding(forSegments segments: [String]) throws -> [Float] {
+    public nonisolated func embedding(forSegments segments: [String]) throws -> [Float] {
         guard !segments.isEmpty else { throw EmbeddingError.emptyResult }
         var accumulator = [Float](repeating: 0, count: dimension)
         var count: Float = 0
@@ -243,7 +216,9 @@ public final class EmbeddingService {
         return accumulator
     }
 
-    private func validated(_ vector: [Float]) throws -> [Float] {
+    // MARK: - Private Helpers
+
+    private nonisolated func validated(_ vector: [Float]) throws -> [Float] {
         guard !vector.isEmpty else { throw EmbeddingError.emptyResult }
         guard !vector.contains(where: { $0.isNaN }) else { throw EmbeddingError.emptyResult }
         if vector.count == dimension {
@@ -265,7 +240,7 @@ public final class EmbeddingService {
         return adjusted
     }
 
-    private func probeAvailability(trigger: String) -> Bool {
+    private nonisolated func probeAvailability(trigger: String) -> Bool {
         let triggerSafe = DiagnosticsSafeString.stage(trigger, allowed: Set(["cache_check", "manual", "startup", "foreground", "retry_deferred"]))
         let span = Diagnostics.span(category: .embeddings,
                                     name: "embeddings.availability.probe",
@@ -357,11 +332,11 @@ public final class EmbeddingService {
 
 #if DEBUG
 public extension EmbeddingService {
-    static func debugInstance(primary: TextEmbeddingProviding? = nil,
-                              fallback: TextEmbeddingProviding? = nil,
+    static func debugInstance(primary: (any TextEmbeddingProviding)? = nil,
+                              fallback: (any TextEmbeddingProviding)? = nil,
                               dimension: Int = 384,
                               reprobeInterval: TimeInterval = 3600,
-                              dateProvider: @escaping () -> Date = Date.init) -> EmbeddingService {
+                              dateProvider: @Sendable @escaping () -> Date = { Date() }) -> EmbeddingService {
         EmbeddingService(primary: primary,
                          fallback: fallback,
                          dimension: dimension,
@@ -370,8 +345,3 @@ public extension EmbeddingService {
     }
 }
 #endif
-
-// SAFETY: Mutable state (`availabilityState`, `lastReportedAvailability`) is exclusively
-// accessed under `availabilityQueue`. Immutable properties (`primaryProvider`, `fallbackProvider`,
-// `dimension`, `reprobeInterval`, `dateProvider`) are set once in init and never mutated.
-extension EmbeddingService: @unchecked Sendable {}

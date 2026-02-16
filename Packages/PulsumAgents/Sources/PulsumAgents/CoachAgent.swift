@@ -55,8 +55,9 @@ public final class CoachAgent {
             return
         }
         if hasPreparedLibrary && !libraryEmbeddingsDeferred { return }
-        if libraryEmbeddingsDeferred && EmbeddingService.shared.availabilityMode() == .unavailable {
-            return
+        if libraryEmbeddingsDeferred {
+            let mode = await EmbeddingService.shared.availabilityMode()
+            if mode == .unavailable { return }
         }
         let task = Task { @MainActor [weak self] in
             guard let self else { return }

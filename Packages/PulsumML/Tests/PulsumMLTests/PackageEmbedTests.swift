@@ -93,14 +93,15 @@ final class PackageEmbedTests: XCTestCase {
         }
     }
 
-    func testAvailabilityModeReportsUnavailableWhenProvidersFail() {
+    func testAvailabilityModeReportsUnavailableWhenProvidersFail() async {
         let provider = FailingEmbeddingProvider()
         let service = EmbeddingService.debugInstance(primary: provider,
                                                      fallback: nil,
                                                      dimension: 384,
                                                      reprobeInterval: 0,
-                                                     dateProvider: Date.init)
-        XCTAssertEqual(service.availabilityMode(), .unavailable)
+                                                     dateProvider: { Date() })
+        let mode = await service.availabilityMode()
+        XCTAssertEqual(mode, .unavailable)
     }
 }
 
