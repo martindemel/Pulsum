@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import PulsumServices
 
+// Test-only: mutable stub — serial test execution, no concurrent access.
 private final class InMemoryKeychainStore: KeychainStoring, @unchecked Sendable {
     private var storage: [String: Data] = [:]
 

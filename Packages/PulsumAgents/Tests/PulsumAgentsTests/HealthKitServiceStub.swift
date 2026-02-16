@@ -2,6 +2,7 @@ import Foundation
 import HealthKit
 @testable import PulsumServices
 
+// Test-only: mutable stub — serial test execution, no concurrent access.
 final class HealthKitServiceStub: HealthKitServicing, @unchecked Sendable {
     var isHealthDataAvailable: Bool = true
     private(set) var observedIdentifiers: [String] = []

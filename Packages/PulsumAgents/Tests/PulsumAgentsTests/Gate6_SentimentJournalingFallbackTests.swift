@@ -71,6 +71,7 @@ private struct StubSentimentProvider: SentimentProviding {
     }
 }
 
+// Test-only: mutable stub — lock-protected for safe concurrent access in tests.
 private final class FailOnceEmbeddingProvider: TextEmbeddingProviding, @unchecked Sendable {
     private let vector: [Float]
     private var didFail = false

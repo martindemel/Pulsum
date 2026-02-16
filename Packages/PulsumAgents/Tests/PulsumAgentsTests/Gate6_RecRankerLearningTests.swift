@@ -57,6 +57,7 @@ final class Gate6_RecRankerLearningTests: XCTestCase {
     }
 }
 
+// Test-only: mutable stub — serial test execution, no concurrent access.
 private final class Gate6VectorIndexStub: VectorIndexProviding, @unchecked Sendable {
     var matches: [VectorMatch]
 

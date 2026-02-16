@@ -49,6 +49,7 @@ final class EmbeddingServiceAvailabilityTests: XCTestCase {
     }
 }
 
+// Test-only: mutable stub — serial test execution, no concurrent access.
 private final class MutableEmbeddingProvider: TextEmbeddingProviding, @unchecked Sendable {
     var response: Result<[Float], Error>
     private(set) var callCount = 0
@@ -63,6 +64,7 @@ private final class MutableEmbeddingProvider: TextEmbeddingProviding, @unchecked
     }
 }
 
+// Test-only: mutable stub — serial test execution, no concurrent access.
 private final class StubClock: @unchecked Sendable {
     private var current: Date
 

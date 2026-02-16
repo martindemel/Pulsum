@@ -54,6 +54,7 @@ final class FoundationModelsSentimentProvider: SentimentProviding {
     }
 }
 
+// SAFETY: Immutable after init — `model` is a `let` set once. No mutable state.
 @available(iOS 26.0, *)
 extension FoundationModelsSentimentProvider: @unchecked Sendable {}
 
@@ -67,6 +68,7 @@ final class FoundationModelsSentimentProvider: SentimentProviding {
     }
 }
 
+// SAFETY: Immutable after init — `local` is a `let` set once. No mutable state.
 extension FoundationModelsSentimentProvider: @unchecked Sendable {}
 
 #endif

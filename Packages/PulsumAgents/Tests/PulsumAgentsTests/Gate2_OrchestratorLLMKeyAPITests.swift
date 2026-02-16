@@ -128,6 +128,7 @@ private struct TopicGateStub: TopicGateProviding {
     }
 }
 
+// Test-only: mutable stub — lock-protected for safe concurrent access in tests.
 private final class InMemoryKeychain: KeychainStoring, @unchecked Sendable {
     private var storage: [String: Data] = [:]
     private let lock = NSLock()

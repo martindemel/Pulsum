@@ -6,6 +6,8 @@ protocol BackfillStateStoring: Sendable {
     func saveState(_ state: BackfillProgress)
 }
 
+// SAFETY: FileManager is not formally Sendable. Wrapping in a struct allows passing to
+// Sendable-constrained contexts. FileManager.default is documented as thread-safe.
 private struct SendableFileManager: @unchecked Sendable {
     let value: FileManager
 }

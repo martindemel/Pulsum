@@ -2,9 +2,9 @@ import XCTest
 @testable import PulsumML
 
 final class SafetyLocalTests: XCTestCase {
-    func testCrisisKeywordTriggersCrisisClassification() {
+    func testCrisisKeywordTriggersCrisisClassification() async {
         let safety = SafetyLocal()
-        let decision = safety.classify(text: "I am going to kill myself tonight")
+        let decision = await safety.classify(text: "I am going to kill myself tonight")
         switch decision {
         case .crisis:
             XCTAssertTrue(true)
@@ -13,9 +13,9 @@ final class SafetyLocalTests: XCTestCase {
         }
     }
 
-    func testSimilarityThresholdIdentifiesCautionTone() {
+    func testSimilarityThresholdIdentifiesCautionTone() async {
         let safety = SafetyLocal()
-        let decision = safety.classify(text: "I'm panicking right now and can't calm down")
+        let decision = await safety.classify(text: "I'm panicking right now and can't calm down")
         switch decision {
         case .caution:
             XCTAssertTrue(true)
@@ -24,9 +24,9 @@ final class SafetyLocalTests: XCTestCase {
         }
     }
 
-    func testSafeTextRemainsUnaffected() {
+    func testSafeTextRemainsUnaffected() async {
         let safety = SafetyLocal()
-        let result = safety.classify(text: "I finished a restorative stretch and feel balanced")
+        let result = await safety.classify(text: "I finished a restorative stretch and feel balanced")
         XCTAssertEqual(result, .safe)
     }
 }

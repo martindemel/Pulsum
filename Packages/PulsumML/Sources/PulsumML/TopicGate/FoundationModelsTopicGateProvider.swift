@@ -58,6 +58,8 @@ public final class FoundationModelsTopicGateProvider: TopicGateProviding {
     }
 }
 
+// SAFETY: Immutable after init — `session` is a `let` set once. LanguageModelSession is not
+// formally Sendable but is safe for concurrent use after initialization.
 @available(iOS 26.0, *)
 extension FoundationModelsTopicGateProvider: @unchecked Sendable {}
 #else
@@ -71,6 +73,7 @@ public final class FoundationModelsTopicGateProvider: TopicGateProviding {
     }
 }
 
+// SAFETY: Immutable after init — `local` is a `let` set once. No mutable state.
 extension FoundationModelsTopicGateProvider: @unchecked Sendable {}
 #endif
 

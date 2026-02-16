@@ -67,6 +67,7 @@ public final class FoundationModelsSafetyProvider {
     }
 }
 
+// SAFETY: Immutable after init — `model` is a `let` set once. No mutable state.
 @available(iOS 26.0, *)
 extension FoundationModelsSafetyProvider: @unchecked Sendable {}
 
@@ -78,10 +79,11 @@ public final class FoundationModelsSafetyProvider {
     public init() {}
 
     public func classify(text: String) async throws -> SafetyClassification {
-        local.classify(text: text)
+        await local.classify(text: text)
     }
 }
 
+// SAFETY: Immutable after init — `local` (SafetyLocal actor) is a `let` set once. No mutable state.
 extension FoundationModelsSafetyProvider: @unchecked Sendable {}
 
 #endif

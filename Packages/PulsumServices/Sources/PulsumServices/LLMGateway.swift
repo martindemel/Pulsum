@@ -3,6 +3,7 @@ import os.log
 import PulsumData
 import PulsumML
 import PulsumTypes
+import Synchronization
 
 /// Candidate micro-moment snippet for context (privacy-safe; no PHI)
 public struct CandidateMoment: Codable, Sendable, Equatable {
@@ -291,11 +292,12 @@ public final class LLMGateway {
     private let session: URLSession
     private let usesUITestStub: Bool
 
-    private let apiKeyLock = NSLock()
-    private var _inMemoryAPIKey: String?
+    // Mutex protects the in-memory API key cache. All stored properties are now `let`,
+    // making LLMGateway effectively immutable after init (see B10-06 audit).
+    private let apiKeyCache = Mutex<String?>(nil)
     private var inMemoryAPIKey: String? {
-        get { apiKeyLock.withLock { _inMemoryAPIKey } }
-        set { apiKeyLock.withLock { _inMemoryAPIKey = newValue } }
+        get { apiKeyCache.withLock { $0 } }
+        set { apiKeyCache.withLock { $0 = newValue } }
     }
 
     private let rateLimiter = RateLimiter(minimumInterval: 3.0)
@@ -936,6 +938,8 @@ extension LLMGateway {
     }
 }
 
+// SAFETY: All stored properties are `let`. The only mutable state (`apiKeyCache`) uses
+// Mutex<String?> for synchronization. NSObject subclass (URLSessionDelegate) prevents actor.
 extension LLMGateway: @unchecked Sendable {}
 
 // MARK: - TLS Trust Evaluation
@@ -978,6 +982,7 @@ private final class OpenAICertificatePinningDelegate: NSObject, URLSessionDelega
     }
 }
 
+// SAFETY: NSObject subclass — cannot be an actor. All properties are immutable `let` values.
 extension OpenAICertificatePinningDelegate: @unchecked Sendable {}
 
 // Small helper

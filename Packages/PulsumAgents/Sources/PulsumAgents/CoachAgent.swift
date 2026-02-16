@@ -13,7 +13,7 @@ import PulsumTypes
 public final class CoachAgent {
     private let modelContext: ModelContext
     private let vectorIndex: VectorIndexProviding
-    private let ranker: RecRanker
+    private var ranker: RecRanker
     private let rankerStore: RecRankerStateStoring
     private var lastRankedFeatures: [RecommendationFeatures] = []
     private let libraryImporter: LibraryImporter
@@ -41,7 +41,14 @@ public final class CoachAgent {
         self.shouldIngestLibrary = shouldIngestLibrary
         let store = rankerStore ?? RecRankerStateStore(baseDirectory: storagePaths.applicationSupport)
         self.rankerStore = store
-        self.ranker = RecRanker(state: store.loadState())
+        self.ranker = RecRanker(state: nil)
+    }
+
+    /// Restores persisted ranker state. Called during startup before the first ranking.
+    func restoreRankerState() async {
+        if let persisted = await rankerStore.loadState() {
+            ranker = RecRanker(state: persisted)
+        }
     }
 
     public var libraryImportDeferred: Bool {
@@ -49,6 +56,10 @@ public final class CoachAgent {
     }
 
     public func prepareLibraryIfNeeded() async throws {
+        // Restore persisted ranker state on first call (deferred from init because RecRankerStateStore is an actor)
+        if !hasPreparedLibrary {
+            await restoreRankerState()
+        }
         guard shouldIngestLibrary else { return }
         if let inFlight = libraryPreparationTask {
             try await inFlight.value
@@ -701,7 +712,7 @@ private struct MicroMomentSnapshot: Sendable {
 private extension CoachAgent {
     func persistRankerState() async {
         let state = await ranker.snapshotState()
-        rankerStore.saveState(state)
+        await rankerStore.saveState(state)
     }
 
     func fallbackRecommendations(snapshot: FeatureVectorSnapshot, topic: String?) async -> [RecommendationCard] {

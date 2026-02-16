@@ -303,7 +303,7 @@ extension DataAgent {
         let snapshot = await stateEstimator.update(features: modelFeatures, target: target)
         let dayString = DiagnosticsDayFormatter.dayString(from: day)
         await DebugLogBuffer.shared.append("Reprocessed day \(dayString) -> feature_count=\(computation.featureValues.count)")
-        persistEstimatorState(from: snapshot)
+        await persistEstimatorState(from: snapshot)
 
         guard let vector: FeatureVector = modelContext.registeredModel(for: computation.featureVectorObjectID) else { return }
         vector.imputedFlags = BaselineCalculator.encodeFeatureMetadata(imputed: computation.imputedFlags,
@@ -312,11 +312,11 @@ extension DataAgent {
         try modelContext.save()
     }
 
-    func persistEstimatorState(from snapshot: StateEstimatorSnapshot) {
+    func persistEstimatorState(from snapshot: StateEstimatorSnapshot) async {
         let state = StateEstimatorState(version: EstimatorStateStore.schemaVersion,
                                         weights: snapshot.weights,
                                         bias: snapshot.bias)
-        estimatorStore.saveState(state)
+        await estimatorStore.saveState(state)
     }
 
     func computeSummary(for metrics: DailyMetrics,

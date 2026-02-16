@@ -76,10 +76,6 @@ actor DataAgent: ModelActor {
         } else {
             self.backfillProgress = BackfillProgress()
         }
-
-        if let persisted = self.estimatorStore.loadState() {
-            self.stateEstimator = StateEstimator(state: persisted)
-        }
     }
 
     // MARK: - Lifecycle
@@ -88,7 +84,15 @@ actor DataAgent: ModelActor {
         diagnosticsTraceId = traceId
     }
 
+    func restoreEstimatorState() async {
+        if let persisted = await estimatorStore.loadState() {
+            stateEstimator = StateEstimator(state: persisted)
+        }
+    }
+
     func start() async throws {
+        await restoreEstimatorState()
+
         let span = Diagnostics.span(category: .dataAgent,
                                     name: "data.start",
                                     traceId: diagnosticsTraceId)
@@ -361,7 +365,7 @@ actor DataAgent: ModelActor {
         let normalized = WellbeingModeling.normalize(features: features, imputedFlags: imputed)
         let target = WellbeingModeling.target(for: normalized)
         let snapshot = await stateEstimator.update(features: normalized, target: target)
-        persistEstimatorState(from: snapshot)
+        await persistEstimatorState(from: snapshot)
         return snapshot
     }
 

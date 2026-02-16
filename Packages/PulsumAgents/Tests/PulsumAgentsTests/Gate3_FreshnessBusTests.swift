@@ -53,6 +53,7 @@ private struct PostedNotification {
     let userInfo: [AnyHashable: Any]?
 }
 
+// Test-only: NSObject subclass — cannot be actor. Lock-protected mutable state.
 private final class RecordingNotificationCenter: NotificationCenter, @unchecked Sendable {
     private let lock = NSLock()
     private(set) var postedNotifications: [PostedNotification] = []

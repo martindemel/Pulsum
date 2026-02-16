@@ -148,6 +148,7 @@ private struct TopicGateStub: TopicGateProviding {
     }
 }
 
+// Test-only: stateless stub — no mutable state, safe for concurrent use.
 private final class VectorIndexStub: VectorIndexProviding, @unchecked Sendable {
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] { [] }
     func removeMicroMoment(id: String) async throws {}

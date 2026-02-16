@@ -43,6 +43,7 @@ private enum HealthKitStatusOverrideBehavior: String {
     case grantAll
 }
 
+// SAFETY: Mutable state (`overrides`) is protected by `queue`. Remaining properties are immutable.
 private final class HealthKitAuthorizationOverrides: @unchecked Sendable {
     static let shared = HealthKitAuthorizationOverrides()
 
@@ -667,8 +668,11 @@ public protocol HealthKitServicing: AnyObject, Sendable {
 
 extension HealthKitService: HealthKitServicing {}
 
+// SAFETY: Contains HKSample/HKDeletedObject/HKQueryAnchor which are not formally Sendable
+// but are immutable value snapshots from HealthKit, safe to pass across isolation boundaries.
 extension HealthKitService.AnchoredUpdate: @unchecked Sendable {}
 
+// SAFETY: Mutable `coordinator` is protected by `lock` (NSLock).
 private final class HealthKitQueryHandle<Result: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var coordinator: HealthKitQueryCoordinator<Result>?
@@ -687,6 +691,8 @@ private final class HealthKitQueryHandle<Result: Sendable>: @unchecked Sendable 
     }
 }
 
+// SAFETY: Mutable state (`resumed`, `query`) is protected by `lock` (NSLock).
+// CheckedContinuation is resumed at most once, guarded by `resumed` flag.
 private final class HealthKitQueryCoordinator<Result: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var resumed = false
@@ -738,11 +744,14 @@ private final class HealthKitQueryCoordinator<Result: Sendable>: @unchecked Send
     }
 }
 
+// SAFETY: Wraps HKObserverQueryCompletionHandler which is not formally Sendable.
+// The handler is provided by HealthKit and is safe to call from any context.
 private struct CompletionBox: @unchecked Sendable {
     let handler: HKObserverQueryCompletionHandler
     func call() { handler() }
 }
 
+// SAFETY: NSPredicate is not formally Sendable but is immutable after creation.
 private struct PredicateBox: @unchecked Sendable {
     let value: NSPredicate?
 }

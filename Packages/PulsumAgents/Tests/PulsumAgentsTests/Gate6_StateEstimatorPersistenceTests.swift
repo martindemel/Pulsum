@@ -30,7 +30,7 @@ final class Gate6_StateEstimatorPersistenceTests: XCTestCase {
 
         let snapshot = await agent._testUpdateEstimator(features: featureInput)
 
-        guard let persisted = estimatorStore.loadState() else {
+        guard let persisted = await estimatorStore.loadState() else {
             XCTFail("Expected persisted estimator state")
             return
         }
@@ -42,6 +42,7 @@ final class Gate6_StateEstimatorPersistenceTests: XCTestCase {
                                   storagePaths: storagePaths,
                                   healthKit: HealthKitServiceStub(),
                                   estimatorStore: estimatorStore)
+        await restarted.restoreEstimatorState()
         let restartedState = await restarted._testEstimatorState()
         XCTAssertEqual(restartedState.weights, persisted.weights)
         XCTAssertEqual(restartedState.bias, persisted.bias)

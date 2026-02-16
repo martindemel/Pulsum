@@ -2,6 +2,7 @@ import Foundation
 import os
 
 /// Fallback topic gate using embedding similarity against wellbeing knowledge base
+// SAFETY: All stored properties are immutable `let` values set in init. No mutable state.
 public final class EmbeddingTopicGateProvider: TopicGateProviding, @unchecked Sendable {
     private let embeddingService: EmbeddingService
     private let wellbeingPrototypes: [WellbeingPrototype]

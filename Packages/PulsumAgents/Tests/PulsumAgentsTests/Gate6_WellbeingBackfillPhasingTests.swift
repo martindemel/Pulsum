@@ -337,6 +337,7 @@ final class Gate6_WellbeingBackfillPhasingTests: XCTestCase {
     }
 }
 
+// Test-only: mutable spy — lock-protected for safe concurrent access in tests.
 final class BackfillStateStoreSpy: BackfillStateStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var _savedState: BackfillProgress?

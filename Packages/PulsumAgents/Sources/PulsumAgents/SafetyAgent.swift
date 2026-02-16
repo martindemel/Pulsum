@@ -56,7 +56,7 @@ public struct SafetyAgent: SafetyClassifying, Sendable {
         }
 
         // Use existing SafetyLocal as fallback
-        return fallbackClassifier.classify(text: text)
+        return await fallbackClassifier.classify(text: text)
     }
 
     public func evaluate(text: String) async -> SafetyDecision {

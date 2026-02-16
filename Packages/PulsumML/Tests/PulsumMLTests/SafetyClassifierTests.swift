@@ -67,7 +67,7 @@ private func makeSafetyLocal(dimension: Int = 4) -> SafetyLocal {
 
 struct SafetyClassifierKeywordTests {
     @Test("Each crisis keyword triggers .crisis classification")
-    func eachCrisisKeywordTriggersCrisis() {
+    func eachCrisisKeywordTriggersCrisis() async {
         let safety = makeSafetyLocal()
         let crisisKeywords = [
             "suicide", "kill myself", "ending it", "overdose", "hurt myself",
@@ -78,7 +78,7 @@ struct SafetyClassifierKeywordTests {
         ]
 
         for keyword in crisisKeywords {
-            let result = safety.classify(text: "I feel like \(keyword) tonight")
+            let result = await safety.classify(text: "I feel like \(keyword) tonight")
             switch result {
             case .crisis:
                 break // expected
@@ -89,9 +89,9 @@ struct SafetyClassifierKeywordTests {
     }
 
     @Test("Crisis keyword in mixed content still returns .crisis")
-    func mixedContentWithCrisisKeyword() {
+    func mixedContentWithCrisisKeyword() async {
         let safety = makeSafetyLocal()
-        let result = safety.classify(text: "I had a nice walk but then I thought about ending it all")
+        let result = await safety.classify(text: "I had a nice walk but then I thought about ending it all")
         switch result {
         case .crisis:
             break
@@ -101,9 +101,9 @@ struct SafetyClassifierKeywordTests {
     }
 
     @Test("Crisis keyword is case-insensitive")
-    func crisisKeywordCaseInsensitive() {
+    func crisisKeywordCaseInsensitive() async {
         let safety = makeSafetyLocal()
-        let result = safety.classify(text: "KILL MYSELF")
+        let result = await safety.classify(text: "KILL MYSELF")
         switch result {
         case .crisis:
             break
@@ -117,12 +117,12 @@ struct SafetyClassifierKeywordTests {
 
 struct SafetyClassifierEmbeddingTests {
     @Test("High embedding similarity (>0.85) triggers .crisis without keyword match")
-    func highSimilarityCrisisWithoutKeyword() {
+    func highSimilarityCrisisWithoutKeyword() async {
         // "hurt myself" is a crisis prototype text, not a config crisis keyword phrase
         // in isolation (config keywords are multi-word phrases).
         // The embedding provider produces a crisis vector for this text.
         let safety = makeSafetyLocal()
-        let result = safety.classify(text: "I want to hurt myself deeply")
+        let result = await safety.classify(text: "I want to hurt myself deeply")
         // This should match crisis by keyword "hurt myself"
         switch result {
         case .crisis:
@@ -133,10 +133,10 @@ struct SafetyClassifierEmbeddingTests {
     }
 
     @Test("Medium similarity with crisis keyword returns .crisis")
-    func mediumSimilarityWithKeyword() {
+    func mediumSimilarityWithKeyword() async {
         let safety = makeSafetyLocal()
         // Contains keyword "want to die" AND has crisis embedding
-        let result = safety.classify(text: "I really want to die right now")
+        let result = await safety.classify(text: "I really want to die right now")
         switch result {
         case .crisis:
             break
@@ -146,10 +146,10 @@ struct SafetyClassifierEmbeddingTests {
     }
 
     @Test("Medium similarity without keyword returns .caution")
-    func mediumSimilarityWithoutKeyword() {
+    func mediumSimilarityWithoutKeyword() async {
         let safety = makeSafetyLocal()
         // "hopeless" is a caution keyword, not a crisis keyword
-        let result = safety.classify(text: "Feeling really hopeless today, everything is dark")
+        let result = await safety.classify(text: "Feeling really hopeless today, everything is dark")
         switch result {
         case .caution:
             break
@@ -159,9 +159,9 @@ struct SafetyClassifierEmbeddingTests {
     }
 
     @Test("Low similarity returns .safe")
-    func lowSimilarityReturnsSafe() {
+    func lowSimilarityReturnsSafe() async {
         let safety = makeSafetyLocal()
-        let result = safety.classify(text: "I just finished cooking dinner and watching TV")
+        let result = await safety.classify(text: "I just finished cooking dinner and watching TV")
         #expect(result == .safe)
     }
 }
@@ -170,14 +170,14 @@ struct SafetyClassifierEmbeddingTests {
 
 struct SafetyClassifierEdgeCaseTests {
     @Test("Empty input returns .safe")
-    func emptyInputReturnsSafe() {
+    func emptyInputReturnsSafe() async {
         let safety = makeSafetyLocal()
-        let result = safety.classify(text: "")
+        let result = await safety.classify(text: "")
         #expect(result == .safe)
     }
 
     @Test("Benign wellness content returns .safe")
-    func benignWellnessReturnsSafe() {
+    func benignWellnessReturnsSafe() async {
         let safety = makeSafetyLocal()
         let inputs = [
             "I did a great workout this morning",
@@ -186,7 +186,7 @@ struct SafetyClassifierEdgeCaseTests {
             "I feel grounded after my stretch routine",
         ]
         for input in inputs {
-            let result = safety.classify(text: input)
+            let result = await safety.classify(text: input)
             switch result {
             case .safe:
                 break
@@ -197,17 +197,17 @@ struct SafetyClassifierEdgeCaseTests {
     }
 
     @Test("Single whitespace returns .safe")
-    func whitespaceReturnsSafe() {
+    func whitespaceReturnsSafe() async {
         let safety = makeSafetyLocal()
-        let result = safety.classify(text: "   ")
+        let result = await safety.classify(text: "   ")
         #expect(result == .safe)
     }
 
     @Test("Very long benign text returns .safe")
-    func longBenignTextReturnsSafe() {
+    func longBenignTextReturnsSafe() async {
         let safety = makeSafetyLocal()
         let longText = String(repeating: "I had a great day at work today. ", count: 50)
-        let result = safety.classify(text: longText)
+        let result = await safety.classify(text: longText)
         #expect(result == .safe)
     }
 }
@@ -216,7 +216,7 @@ struct SafetyClassifierEdgeCaseTests {
 
 struct SafetyClassifierFallbackTests {
     @Test("Degraded mode falls back to keyword-only classification")
-    func degradedModeKeywordFallback() {
+    func degradedModeKeywordFallback() async {
         let embeddingService = EmbeddingService.debugInstance(
             primary: AlwaysFailProvider(),
             fallback: nil,
@@ -225,7 +225,7 @@ struct SafetyClassifierFallbackTests {
         let safety = SafetyLocal(embeddingService: embeddingService)
 
         // Crisis keyword should still trigger crisis even without embeddings
-        let crisisResult = safety.classify(text: "I want to kill myself")
+        let crisisResult = await safety.classify(text: "I want to kill myself")
         switch crisisResult {
         case .crisis:
             break
@@ -234,7 +234,7 @@ struct SafetyClassifierFallbackTests {
         }
 
         // Caution keyword should trigger caution in fallback
-        let cautionResult = safety.classify(text: "I feel so depressed")
+        let cautionResult = await safety.classify(text: "I feel so depressed")
         switch cautionResult {
         case .caution:
             break
@@ -243,22 +243,24 @@ struct SafetyClassifierFallbackTests {
         }
 
         // No keyword should return .safe in fallback
-        let safeResult = safety.classify(text: "I went for a nice walk")
+        let safeResult = await safety.classify(text: "I went for a nice walk")
         #expect(safeResult == .safe)
     }
 
     @Test("isDegraded flag reflects prototype availability")
-    func isDegradedReflectsState() {
+    func isDegradedReflectsState() async {
         let failService = EmbeddingService.debugInstance(
             primary: AlwaysFailProvider(),
             fallback: nil,
             dimension: 4
         )
         let degraded = SafetyLocal(embeddingService: failService)
-        #expect(degraded.isDegraded)
+        let isDegraded = await degraded.isDegraded
+        #expect(isDegraded)
 
         let healthy = makeSafetyLocal()
-        #expect(!healthy.isDegraded)
+        let isHealthy = await healthy.isDegraded
+        #expect(!isHealthy)
     }
 }
 
@@ -287,7 +289,7 @@ struct SafetyProviderGuardrailTests {
 
 struct SafetyClassifierConfigTests {
     @Test("Custom config thresholds are respected")
-    func customConfigThresholds() {
+    func customConfigThresholds() async {
         // Very high thresholds should make the classifier more permissive
         let config = SafetyLocalConfig(
             crisisKeywords: ["suicide"],
@@ -303,7 +305,7 @@ struct SafetyClassifierConfigTests {
         ))
 
         // Only exact keyword match should trigger crisis with very high thresholds
-        let crisisResult = safety.classify(text: "suicide")
+        let crisisResult = await safety.classify(text: "suicide")
         switch crisisResult {
         case .crisis:
             break
@@ -312,7 +314,7 @@ struct SafetyClassifierConfigTests {
         }
 
         // "hopeless" is not in the custom crisis keywords
-        let nonCrisis = safety.classify(text: "I feel hopeless and can't cope")
+        let nonCrisis = await safety.classify(text: "I feel hopeless and can't cope")
         switch nonCrisis {
         case .crisis:
             Issue.record("Expected non-crisis for text without custom crisis keyword")
@@ -326,7 +328,7 @@ struct SafetyClassifierConfigTests {
 
 struct SafetyClassifierNaNTests {
     @Test("NaN embedding for caution-level text returns .caution via fallback, not .safe")
-    func nanEmbeddingReturnsCautionViaFallback() {
+    func nanEmbeddingReturnsCautionViaFallback() async {
         // Provider returns NaN vectors for user text (simulating a malfunctioning provider).
         // EmbeddingService.validated() rejects NaN, so SafetyLocal falls back to keyword-only.
         // Text with caution keywords should still return .caution, not .safe.
@@ -340,7 +342,7 @@ struct SafetyClassifierNaNTests {
 
         // "depressed" is a caution keyword — even with broken embeddings,
         // the keyword fallback should catch it
-        let result = safety.classify(text: "I feel so depressed and everything is broken")
+        let result = await safety.classify(text: "I feel so depressed and everything is broken")
         switch result {
         case .caution:
             break // expected — keyword fallback catches it
@@ -352,7 +354,7 @@ struct SafetyClassifierNaNTests {
     }
 
     @Test("NaN embedding for crisis-keyword text returns .crisis")
-    func nanEmbeddingCrisisKeywordStillWorks() {
+    func nanEmbeddingCrisisKeywordStillWorks() async {
         // Even when embeddings are NaN, crisis keywords must trigger .crisis
         let nanProvider = NaNForUserInputProvider(dimension: 4)
         let embeddingService = EmbeddingService.debugInstance(
@@ -362,7 +364,7 @@ struct SafetyClassifierNaNTests {
         )
         let safety = SafetyLocal(embeddingService: embeddingService)
 
-        let result = safety.classify(text: "I want to kill myself")
+        let result = await safety.classify(text: "I want to kill myself")
         switch result {
         case .crisis:
             break // expected — keyword check runs before embedding

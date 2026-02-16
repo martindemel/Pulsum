@@ -35,9 +35,7 @@ public struct SafetyLocalConfig {
     }
 }
 
-// SAFETY: All mutable state is protected by `prototypeQueue` (serialized DispatchQueue).
-// Immutable properties (`config`, `embeddingService`) are set once in init.
-public final class SafetyLocal: @unchecked Sendable {
+public actor SafetyLocal {
     private enum Label: String { case safe, caution, crisis }
 
     private struct Prototype {
@@ -48,7 +46,6 @@ public final class SafetyLocal: @unchecked Sendable {
 
     private let config: SafetyLocalConfig
     private let embeddingService: EmbeddingService
-    private let prototypeQueue = DispatchQueue(label: "ai.pulsum.safetyLocal.prototypes", qos: .userInitiated)
     private var prototypes: [Prototype]
     private var degraded: Bool
     private let logger = Logger(subsystem: "com.pulsum", category: "SafetyLocal")
@@ -63,12 +60,12 @@ public final class SafetyLocal: @unchecked Sendable {
     }
 
     public var isDegraded: Bool {
-        prototypeQueue.sync { degraded || prototypes.isEmpty }
+        degraded || prototypes.isEmpty
     }
 
     public func classify(text: String) -> SafetyClassification {
         refreshPrototypesIfNeeded()
-        let (localPrototypes, _) = prototypeQueue.sync { (prototypes, degraded) }
+        let localPrototypes = prototypes
         let normalized = text.lowercased()
         #if DEBUG
         logger.debug("SafetyLocal classify lengthBucket=\(self.lengthBucket(for: normalized), privacy: .public)")
@@ -82,7 +79,7 @@ public final class SafetyLocal: @unchecked Sendable {
         }
 
         guard !localPrototypes.isEmpty else {
-            prototypeQueue.sync { degraded = true }
+            degraded = true
             logger.warning("SafetyLocal degraded: prototypes missing; using keyword-only fallback classification.")
             return fallbackClassification(for: normalized)
         }
@@ -194,13 +191,10 @@ public final class SafetyLocal: @unchecked Sendable {
     // MARK: - Helpers
 
     private func refreshPrototypesIfNeeded() {
-        let needsRefresh = prototypeQueue.sync { degraded || prototypes.isEmpty }
-        guard needsRefresh else { return }
+        guard degraded || prototypes.isEmpty else { return }
         let build = SafetyLocal.makePrototypes(using: embeddingService, logger: logger)
-        prototypeQueue.sync {
-            prototypes = build.prototypes
-            degraded = build.degraded
-        }
+        prototypes = build.prototypes
+        degraded = build.degraded
     }
 
     private func containsKeyword(from keywords: [String], in text: String) -> Bool {

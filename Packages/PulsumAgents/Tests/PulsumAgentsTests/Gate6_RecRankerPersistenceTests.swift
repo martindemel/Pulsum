@@ -45,6 +45,7 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
         XCTAssertNotEqual(updatedMetrics.weights, initialMetrics.weights, "Weights should update after feedback.")
 
         let restarted = try makeCoachAgent(container: container, storagePaths: storagePaths, rankerStore: rankerStore)
+        await restarted.restoreRankerState()
         let restoredMetrics = await restarted._testRankerMetrics()
 
         XCTAssertEqual(restoredMetrics.weights, updatedMetrics.weights)
@@ -64,6 +65,7 @@ final class Gate6_RecRankerPersistenceTests: XCTestCase {
     }
 }
 
+// Test-only: stateless stub — no mutable state, safe for concurrent use.
 private final class VectorIndexStub: VectorIndexProviding, @unchecked Sendable {
     func upsertMicroMoment(id: String, title: String, detail: String?, tags: [String]?) async throws -> [Float] {
         []
