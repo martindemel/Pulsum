@@ -71,78 +71,105 @@ ensure_writable_dir() {
   fi
 }
 
+# B6-11 | LOW-13: Pure shell simulator destination resolution (no Python dependency).
 resolve_simulator_destination() {
-  if ! command -v xcrun >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+  if ! command -v xcrun >/dev/null 2>&1; then
     printf "platform=iOS Simulator,OS=latest"
     return
   fi
 
-  python3 - <<'PY'
-import json
-import re
-import subprocess
+  local preferred="iPhone 17 Pro|iPhone 17 Pro Max|iPhone Air|iPhone 17|iPhone 16 Pro|iPhone 16|iPhone 15 Pro|iPhone SE (3rd generation)"
 
-preferred = [
-    "iPhone 17 Pro",
-    "iPhone 17 Pro Max",
-    "iPhone Air",
-    "iPhone 17",
-    "iPhone 16 Pro",
-    "iPhone 16",
-    "iPhone 15 Pro",
-    "iPhone SE (3rd generation)"
-]
+  local devices_json
+  devices_json="$(xcrun simctl list -j devices available 2>/dev/null)" || {
+    printf "platform=iOS Simulator,OS=latest"
+    return
+  }
 
-try:
-    raw = subprocess.check_output(
-        ["xcrun", "simctl", "list", "-j", "devices", "available"],
-        text=True
-    )
-    data = json.loads(raw)
-except (subprocess.CalledProcessError, json.JSONDecodeError):
-    print("platform=iOS Simulator,OS=latest")
-    raise SystemExit(0)
+  # Parse JSON with sed to extract device entries as "os_major.minor|name|udid" lines.
+  local entries=""
+  entries="$(printf '%s' "$devices_json" | sed -n '
+    /"devices"/,/^[[:space:]]*}[[:space:]]*$/ {
+      /com\.apple\.CoreSimulator\.SimRuntime\.iOS/,/]/ {
+        s/.*SimRuntime\.iOS-\([0-9]*\)-\([0-9]*\)\(-\([0-9]*\)\)\{0,1\}.*/OS_\1.\2.\4/p
+        /"name"/s/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/NAME_\1/p
+        /"udid"/s/.*"udid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/UDID_\1/p
+        /"isAvailable"/s/.*"isAvailable"[[:space:]]*:[[:space:]]*\(true\|false\).*/AVAIL_\1/p
+      }
+    }
+  ')"
 
-entries = []
-for runtime, devices in (data.get("devices") or {}).items():
-    match = re.search(r"iOS[-\.](\d+)-(\d+)(?:-(\d+))?", runtime or "")
-    if not match:
-        continue
-    parts = [int(match.group(1)), int(match.group(2))]
-    if match.group(3):
-        parts.append(int(match.group(3)))
-    version_tuple = tuple(parts)
-    for device in devices or []:
-        available = device.get("isAvailable")
-        availability = device.get("availability", "")
-        if available is False:
-            continue
-        if availability and availability != "(available)" and available is None:
-            continue
-        if device.get("udid"):
-            entries.append((version_tuple, device.get("name") or "", device["udid"]))
+  # Build "os_sortkey|name|udid" list from parsed entries.
+  local device_list=""
+  local current_os="" current_name="" current_udid="" current_avail=""
 
-if not entries:
-    print("platform=iOS Simulator,OS=latest")
-    raise SystemExit(0)
+  while IFS= read -r line; do
+    case "$line" in
+      OS_*)
+        current_os="${line#OS_}"
+        current_os="${current_os%.}"
+        ;;
+      NAME_*)
+        current_name="${line#NAME_}"
+        ;;
+      UDID_*)
+        current_udid="${line#UDID_}"
+        ;;
+      AVAIL_*)
+        current_avail="${line#AVAIL_}"
+        if [ "$current_avail" = "true" ] && [ -n "$current_name" ] && [ -n "$current_udid" ] && [ -n "$current_os" ]; then
+          device_list="$device_list
+$current_os|$current_name|$current_udid"
+        fi
+        current_name=""
+        current_udid=""
+        current_avail=""
+        ;;
+    esac
+  done <<EOF
+$entries
+EOF
 
-latest_version = max(entry[0] for entry in entries)
-latest_entries = [entry for entry in entries if entry[0] == latest_version]
+  if [ -z "$(printf '%s' "$device_list" | grep -v '^$')" ]; then
+    printf "platform=iOS Simulator,OS=latest"
+    return
+  fi
 
-selection = None
-for name in preferred:
-    for entry in latest_entries:
-        if entry[1] == name:
-            selection = entry
-            break
-    if selection:
-        break
-if selection is None:
-    selection = latest_entries[0]
+  # Sort by OS version descending (lexicographic works for major.minor format).
+  local sorted
+  sorted="$(printf '%s' "$device_list" | grep -v '^$' | sort -t'|' -k1 -rV)"
 
-_, _, udid = selection
-print(f"id={udid}")
-PY
+  # Get the latest OS version.
+  local latest_os
+  latest_os="$(printf '%s\n' "$sorted" | head -1 | cut -d'|' -f1)"
+
+  # Filter to only latest OS devices.
+  local latest_devices
+  latest_devices="$(printf '%s\n' "$sorted" | grep "^${latest_os}|")"
+
+  # Try preferred devices in order.
+  local selected_udid=""
+  IFS='|'
+  for pref in $preferred; do
+    local match
+    match="$(printf '%s\n' "$latest_devices" | grep "|${pref}|" | head -1)"
+    if [ -n "$match" ]; then
+      selected_udid="$(printf '%s' "$match" | cut -d'|' -f3)"
+      break
+    fi
+  done
+  unset IFS
+
+  # Fallback to first available device on latest OS.
+  if [ -z "$selected_udid" ]; then
+    selected_udid="$(printf '%s\n' "$latest_devices" | head -1 | cut -d'|' -f3)"
+  fi
+
+  if [ -n "$selected_udid" ]; then
+    printf "id=%s" "$selected_udid"
+  else
+    printf "platform=iOS Simulator,OS=latest"
+  fi
 }
 
 while [ "$#" -gt 0 ]; do

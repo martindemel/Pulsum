@@ -1,8 +1,51 @@
 import XCTest
 import Foundation
 
+/// Base class for all Pulsum UI tests.
+///
+/// Provides common infrastructure for launching the app with test environment
+/// variables, handling system permission alerts, and navigating to key screens.
+///
+/// ## Settings Sheet Detection Strategy (B6-07 | LOW-02)
+///
+/// Opening the settings sheet is challenging because the button's accessibility
+/// identity can vary between iOS versions and SwiftUI layout passes. The
+/// `openSettingsSheetOrSkip()` method uses a **multi-strategy approach**:
+///
+/// 1. **Direct button tap** — tries the primary `SettingsButton` identifier.
+/// 2. **Test hook fallback** — if no hittable settings button is found,
+///    tries `SettingsTestHookButton` (injected in UITEST mode).
+/// 3. **Retry on sheet absence** — if the sheet doesn't appear after the
+///    first tap, retries with the same button or hook.
+/// 4. **Sheet detection** — checks both `app.sheets.firstMatch` and
+///    `SettingsSheetRoot` (an `otherElements` identifier), because the
+///    sheet presentation style varies between compact and regular size classes.
+/// 5. **Diagnostic capture** — on failure, screenshots and debug descriptions
+///    are attached via `recordSettingsSheetFailure()` for post-mortem analysis.
+///
+/// ## Retry Configuration
+///
+/// Retry counts and timeouts are defined as static constants below.
+/// Adjust these when running on slower CI machines or different simulator hardware.
 class PulsumUITestCase: XCTestCase {
     var app: XCUIApplication!
+
+    // MARK: - Configurable Constants (B6-07 | LOW-02)
+
+    /// Maximum retries for triggering system alert interruption handlers.
+    static let maxInterruptionRetries = 3
+
+    /// Maximum retries for tapping a text field and waiting for keyboard focus.
+    static let maxKeyboardFocusRetries = 3
+
+    /// Default timeout (seconds) for waiting for the home screen after launch.
+    static let homeLaunchTimeout: TimeInterval = 15
+
+    /// Default timeout (seconds) for element existence checks.
+    static let defaultElementTimeout: TimeInterval = 6
+
+    /// Default timeout (seconds) for settings sheet appearance.
+    static let settingsSheetTimeout: TimeInterval = 6
 
     private let defaultEnvironment: [String: String] = [
         "UITEST": "1",
@@ -41,22 +84,26 @@ class PulsumUITestCase: XCTestCase {
         waitForHome()
     }
 
-    func waitForHome(timeout: TimeInterval = 15) {
-        let pulseButton = app.buttons["PulseButton"]
-        XCTAssertTrue(pulseButton.waitForExistence(timeout: timeout), "Pulse entry point did not appear.")
-        XCTAssertTrue(pulseButton.waitForHittable(timeout: timeout), "Pulse entry point is not hittable.")
+    func waitForHome(timeout: TimeInterval = homeLaunchTimeout) {
+        XCTContext.runActivity(named: "Wait for home screen") { _ in
+            let pulseButton = app.buttons["PulseButton"]
+            XCTAssertTrue(pulseButton.waitForExistence(timeout: timeout), "Pulse entry point did not appear.")
+            XCTAssertTrue(pulseButton.waitForHittable(timeout: timeout), "Pulse entry point is not hittable.")
+        }
     }
 
     func openPulseSheetOrSkip() throws {
-        let pulseButton = app.buttons["PulseButton"]
-        XCTAssertTrue(pulseButton.waitForExistence(timeout: 8), "Pulse button missing.")
-        pulseButton.tapWhenHittable(timeout: 6)
-        let sheetMarker = app.staticTexts["Voice journal"]
-        if !sheetMarker.waitForExistence(timeout: 6) {
-            pulseButton.tapWhenHittable(timeout: 6)
-        }
-        guard app.staticTexts["Voice journal"].waitForExistence(timeout: 6) else {
-            throw XCTSkip("Pulse sheet did not open.")
+        try XCTContext.runActivity(named: "Open pulse sheet") { _ in
+            let pulseButton = app.buttons["PulseButton"]
+            XCTAssertTrue(pulseButton.waitForExistence(timeout: 8), "Pulse button missing.")
+            pulseButton.tapWhenHittable(timeout: Self.defaultElementTimeout)
+            let sheetMarker = app.staticTexts["Voice journal"]
+            if !sheetMarker.waitForExistence(timeout: Self.defaultElementTimeout) {
+                pulseButton.tapWhenHittable(timeout: Self.defaultElementTimeout)
+            }
+            guard app.staticTexts["Voice journal"].waitForExistence(timeout: Self.defaultElementTimeout) else {
+                throw XCTSkip("Pulse sheet did not open.")
+            }
         }
     }
 
@@ -82,40 +129,58 @@ class PulsumUITestCase: XCTestCase {
         return transcript
     }
 
+    /// Opens the settings sheet using a multi-strategy detection approach.
+    ///
+    /// See the class-level documentation for a description of the detection strategies.
+    /// If all strategies fail, a screenshot and debug description are captured for
+    /// post-mortem analysis, and the test is skipped with `XCTSkip`.
     func openSettingsSheetOrSkip() throws {
-        let sheetMarker = app.otherElements["SettingsSheetRoot"]
-        if sheetMarker.exists {
-            return
-        }
-        let settingsButtons = app.buttons.matching(identifier: "SettingsButton")
-        let settingsButton = firstHittableElement(in: settingsButtons, timeout: 6)
-        if let settingsButton {
-            settingsButton.tapWhenHittable(timeout: 2)
-        } else {
-            let hookButton = firstHittableElement(in: app.buttons.matching(identifier: "SettingsTestHookButton"),
-                                                  timeout: 2)
-            hookButton?.tapWhenHittable(timeout: 2)
-        }
-        let sheet = app.sheets.firstMatch
-        let opened = sheet.waitForExistence(timeout: 6) || sheetMarker.waitForExistence(timeout: 2)
-        if !opened {
-            settingsButton?.tapWhenHittable(timeout: 2)
-        }
-        if !sheet.exists && !sheetMarker.exists {
-            let hookButton = firstHittableElement(in: app.buttons.matching(identifier: "SettingsTestHookButton"),
-                                                  timeout: 2)
-            hookButton?.tapWhenHittable(timeout: 2)
-        }
-        guard sheet.exists || sheetMarker.waitForExistence(timeout: 6) else {
-            recordSettingsSheetFailure()
-            throw XCTSkip("Settings sheet did not open.")
+        try XCTContext.runActivity(named: "Open settings sheet") { _ in
+            // Strategy 0: Already open — check for the sheet root marker.
+            let sheetMarker = app.otherElements["SettingsSheetRoot"]
+            if sheetMarker.exists {
+                return
+            }
+
+            // Strategy 1: Direct button tap via primary identifier.
+            let settingsButtons = app.buttons.matching(identifier: "SettingsButton")
+            let settingsButton = firstHittableElement(in: settingsButtons, timeout: Self.settingsSheetTimeout)
+            if let settingsButton {
+                settingsButton.tapWhenHittable(timeout: 2)
+            } else {
+                // Strategy 2: Test hook button fallback (injected in UITEST mode).
+                let hookButton = firstHittableElement(in: app.buttons.matching(identifier: "SettingsTestHookButton"),
+                                                      timeout: 2)
+                hookButton?.tapWhenHittable(timeout: 2)
+            }
+
+            // Wait for either sheet presentation style to appear.
+            let sheet = app.sheets.firstMatch
+            let opened = sheet.waitForExistence(timeout: Self.settingsSheetTimeout)
+                || sheetMarker.waitForExistence(timeout: 2)
+
+            // Strategy 3: Retry tap if sheet didn't appear on first attempt.
+            if !opened {
+                settingsButton?.tapWhenHittable(timeout: 2)
+            }
+            if !sheet.exists && !sheetMarker.exists {
+                let hookButton = firstHittableElement(in: app.buttons.matching(identifier: "SettingsTestHookButton"),
+                                                      timeout: 2)
+                hookButton?.tapWhenHittable(timeout: 2)
+            }
+
+            // Final check — capture diagnostics on failure.
+            guard sheet.exists || sheetMarker.waitForExistence(timeout: Self.settingsSheetTimeout) else {
+                recordSettingsSheetFailure()
+                throw XCTSkip("Settings sheet did not open.")
+            }
         }
     }
 
     /// Tap a text input and wait until the element is actually focused.
     /// Relying on keyboard existence alone can be flaky on simulator CI.
     @discardableResult
-    func tapAndWaitForKeyboard(_ element: XCUIElement, retries: Int = 3) -> Bool {
+    func tapAndWaitForKeyboard(_ element: XCUIElement, retries: Int = maxKeyboardFocusRetries) -> Bool {
         for attempt in 0 ..< retries {
             element.tapWhenHittable(timeout: 3)
             _ = app.keyboards.firstMatch.waitForExistence(timeout: attempt == 0 ? 2 : 3)
@@ -170,7 +235,7 @@ class PulsumUITestCase: XCTestCase {
         }
     }
 
-    private func triggerInterruptionHandlers(maxAttempts: Int = 3) {
+    private func triggerInterruptionHandlers(maxAttempts: Int = maxInterruptionRetries) {
         guard app != nil else { return }
         for _ in 0 ..< maxAttempts {
             if app.alerts.firstMatch.waitForExistence(timeout: 1) {

@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  B6-09 | LOW-10: PulsumUI package tests are decoupled from the app host.
+  Run them directly via: swift test -\-package-path Packages/PulsumUI
+  This scheme builds the Pulsum app target; PulsumUI SPM tests do NOT require it.
+  The tests use @MainActor for view model testing but run fine without an app host
+  because they operate on view models, not actual SwiftUI views.
+-->
 <Scheme
    LastUpgradeVersion = "2620"
    version = "1.7">

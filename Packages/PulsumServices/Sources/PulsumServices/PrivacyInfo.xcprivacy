@@ -56,8 +56,13 @@
 	<false/>
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
-	<!-- Note: PulsumServices uses Keychain (Security/SecItem*) for API key storage
-	     and NWPathMonitor (Network) for connectivity checks. As of iOS 18/26,
-	     neither requires a privacy manifest API category declaration. -->
+	<!-- B6-12 | LOW-14: Privacy API monitoring notes.
+	     PulsumServices uses Keychain (Security/SecItem*) for API key storage
+	     and NWPathMonitor (Network framework) for connectivity checks.
+	     As of iOS 26, neither requires an NSPrivacyAccessedAPITypes declaration.
+	     TODO: Check Apple WWDC announcements annually for new required API categories.
+	     If Keychain or Network are added to the required-reasons list, add entries here:
+	       - Keychain: NSPrivacyAccessedAPICategoryKeychain (hypothetical)
+	       - Network: NSPrivacyAccessedAPICategoryNetwork (hypothetical) -->
 </dict>
 </plist>

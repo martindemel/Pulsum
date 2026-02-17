@@ -10,19 +10,25 @@ info() { printf "\033[36m%s\033[0m\n" "$1"; }
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/ci/integrity.sh [--strict]
+Usage: scripts/ci/integrity.sh [--strict] [--lenient]
 
 Options:
-  --strict   Require HEAD == origin/main (default allows ahead commits).
+  --strict    Require HEAD == origin/main (default allows ahead commits).
+  --lenient   Warn instead of failing on tag position mismatch (for local dev).
 USAGE
 }
 
 STRICT="${PULSUM_INTEGRITY_STRICT:-0}"
+LENIENT="${PULSUM_INTEGRITY_LENIENT:-0}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --strict)
       STRICT=1
+      shift
+      ;;
+    --lenient)
+      LENIENT=1
       shift
       ;;
     -h|--help)
@@ -60,16 +66,27 @@ fi
 LOCAL_HEAD="$(git rev-parse HEAD)"
 
 info "Tag position (gate0-done-2025-11-09)"
-if [ "$STRICT" -eq 1 ] || { [ "$BEHIND" -eq 0 ] && [ "$AHEAD" -eq 0 ]; }; then
-  if git rev-parse -q --verify refs/tags/gate0-done-2025-11-09 >/dev/null; then
-    TAG_HEAD="$(git rev-parse gate0-done-2025-11-09^{})"
-    [ "$TAG_HEAD" = "$LOCAL_HEAD" ] || fail "tag gate0-done-2025-11-09 != HEAD"
+# B6-08 | LOW-09: Tag check is enforced by default. Use --lenient to warn only.
+if git rev-parse -q --verify refs/tags/gate0-done-2025-11-09 >/dev/null; then
+  TAG_HEAD="$(git rev-parse gate0-done-2025-11-09^{})"
+  if [ "$TAG_HEAD" = "$LOCAL_HEAD" ]; then
     pass "tag gate0-done-2025-11-09 points at HEAD"
+  elif git merge-base --is-ancestor "$TAG_HEAD" "$LOCAL_HEAD" 2>/dev/null; then
+    # Tag is an ancestor of HEAD — acceptable when ahead of origin/main
+    pass "tag gate0-done-2025-11-09 is an ancestor of HEAD (commits added since tag)"
   else
-    info "tag gate0-done-2025-11-09 not found (ok if not tagged)"
+    if [ "$LENIENT" -eq 1 ]; then
+      info "WARNING: tag gate0-done-2025-11-09 != HEAD and is not an ancestor (--lenient: continuing)"
+    else
+      fail "tag gate0-done-2025-11-09 != HEAD and is not an ancestor. Use --lenient for local dev."
+    fi
   fi
 else
-  info "tag check skipped (not on origin/main)"
+  if [ "$LENIENT" -eq 1 ]; then
+    info "WARNING: tag gate0-done-2025-11-09 not found (--lenient: continuing)"
+  else
+    fail "tag gate0-done-2025-11-09 not found. Create with: git tag gate0-done-2025-11-09 <commit>. Use --lenient for local dev."
+  fi
 fi
 
 info "Git integrity"
@@ -98,45 +115,35 @@ if [ -n "$BACKUPS" ]; then
 fi
 pass "no *.pbxproj.backup files tracked"
 
+# B6-11 | LOW-13: Pure shell PBX manifest check (no Python dependency).
 info "PBX manifest uniqueness"
-PBX_COUNTS="$(python3 - <<'PY'
-import re
-from pathlib import Path
-text = Path("Pulsum.xcodeproj/project.pbxproj").read_text()
-fr = len(re.findall(r'PBXFileReference[^\n]*PrivacyInfo\.xcprivacy', text))
-br = len(re.findall(r'PBXBuildFile[^\n]*PrivacyInfo\.xcprivacy', text))
-print(fr, br)
-PY
-)"
-FR="${PBX_COUNTS% *}"
-BR="${PBX_COUNTS#* }"
+PBX_FILE="Pulsum.xcodeproj/project.pbxproj"
+FR="$(grep -c 'PBXFileReference.*PrivacyInfo\.xcprivacy' "$PBX_FILE" || echo 0)"
+BR="$(grep -c 'PBXBuildFile.*PrivacyInfo\.xcprivacy' "$PBX_FILE" || echo 0)"
 [ "$FR" -eq 1 ] && [ "$BR" -eq 1 ] || fail "expected FR=1 BR=1 for PrivacyInfo.xcprivacy, got FR=$FR BR=$BR"
 pass "PrivacyInfo.xcprivacy counts FR=1 BR=1"
 
+# B6-11 | LOW-13: Pure shell dataset canonicality check (no Python dependency).
 info "Dataset canonicality"
-python3 - <<'PY' || fail "dataset hash check failed"
-import hashlib, json, subprocess, sys
-try:
-    raw = subprocess.check_output([
-        "git", "ls-files", "-z",
-        "podcastrecommendations*.json", "json database/podcastrecommendations*.json"
-    ], text=True)
-except subprocess.CalledProcessError:
-    raw = ""
-paths = [p for p in raw.split("\x00") if p]
-if not paths:
-    print("no podcast dataset JSON found")
-    sys.exit(1)
-hashes = {}
-for path in paths:
-    with open(path, "rb") as fh:
-        digest = hashlib.sha256(fh.read()).hexdigest()
-    hashes.setdefault(digest, []).append(path)
-print("dataset_hashes:", json.dumps(hashes, indent=2))
-if len(hashes) != 1:
-    print(f"expected single canonical dataset hash, found {len(hashes)}")
-    sys.exit(1)
-PY
+DATASET_RAW="$(git ls-files -z 'podcastrecommendations*.json' 'json database/podcastrecommendations*.json' 2>/dev/null)" || DATASET_RAW=""
+if [ -z "$DATASET_RAW" ]; then
+  fail "no podcast dataset JSON found"
+fi
+DATASET_HASHES=""
+DATASET_COUNT=0
+while IFS= read -r -d '' dpath; do
+  [ -z "$dpath" ] && continue
+  dhash="$(shasum -a 256 "$dpath" | cut -d' ' -f1)"
+  info "  $dpath -> $dhash"
+  DATASET_HASHES="$DATASET_HASHES
+$dhash"
+  DATASET_COUNT=$((DATASET_COUNT + 1))
+done <<< "$DATASET_RAW"
+if [ "$DATASET_COUNT" -eq 0 ]; then
+  fail "no podcast dataset JSON found"
+fi
+UNIQUE_HASHES="$(printf '%s' "$DATASET_HASHES" | sort -u | grep -c -v '^$')"
+[ "$UNIQUE_HASHES" -eq 1 ] || fail "expected single canonical dataset hash, found $UNIQUE_HASHES"
 pass "podcast dataset hash unique"
 
 info "Secret scan (repo)"

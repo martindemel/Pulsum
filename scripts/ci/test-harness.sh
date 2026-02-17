@@ -11,131 +11,167 @@ info() { printf '\033[36m%s\033[0m\n' "$1"; }
 pass() { printf '\033[32m%s\033[0m\n' "$1"; }
 fail() { printf '\033[31m%s\033[0m\n' "$1"; exit 1; }
 
+# B6-11 | LOW-13: Pure shell simulator selection (no Python dependency).
+# Uses plutil to parse JSON from xcrun simctl.
 select_simulator() {
   local desired_os="${PULSUM_SIM_OS:-26.0.1}"
-  if ! command -v xcrun >/dev/null || ! command -v python3 >/dev/null; then
+  local major="${desired_os%%.*}"
+
+  if ! command -v xcrun >/dev/null; then
     printf "iPhone SE (3rd generation)\n%s\nplatform=iOS Simulator,name=iPhone SE (3rd generation),OS=%s\n" "$desired_os" "$desired_os"
     return
   fi
 
-  local selection
-  selection="$(python3 - <<'PY'
-import json, os, re, subprocess, sys
-preferred = [
-    "iPhone 17 Pro",
-    "iPhone 17 Pro Max",
-    "iPhone Air",
-    "iPhone 17",
-    "iPhone 16 Pro",
-    "iPhone 16",
-    "iPhone 15 Pro",
-    "iPhone SE (3rd generation)"
-]
-desired = os.environ.get("PULSUM_SIM_OS", "26.0.1")
-major = desired.split(".")[0]
-try:
-    raw = subprocess.check_output(
-        ["xcrun", "simctl", "list", "-j", "devices", "available"],
-        text=True
-    )
-    data = json.loads(raw)
-except (subprocess.CalledProcessError, json.JSONDecodeError):
-    data = {}
+  local preferred="iPhone 17 Pro|iPhone 17 Pro Max|iPhone Air|iPhone 17|iPhone 16 Pro|iPhone 16|iPhone 15 Pro|iPhone SE (3rd generation)"
 
-entries = []
-for runtime, devices in (data.get("devices") or {}).items():
-    match = re.search(r"iOS[-\.](\d+)-(\d+)(?:-(\d+))?", runtime)
-    if not match:
-        continue
-    parts = [match.group(1), match.group(2)]
-    if match.group(3):
-        parts.append(match.group(3))
-    os_version = ".".join(parts)
-    for device in devices or []:
-        if device.get("isAvailable") and device.get("udid"):
-            entries.append((device["name"], os_version, device["udid"]))
+  # Extract available devices as "name|os_version|udid" lines.
+  local devices_json
+  devices_json="$(xcrun simctl list -j devices available 2>/dev/null)" || {
+    printf "iPhone SE (3rd generation)\n%s\nplatform=iOS Simulator,name=iPhone SE (3rd generation),OS=%s\n" "$desired_os" "$desired_os"
+    return
+  }
 
-def pick(names, prefix=None):
-    for name in names:
-        for entry in entries:
-            if entry[0] == name and (prefix is None or entry[1].startswith(prefix)):
-                return entry
-    return None
+  # Parse JSON with plutil (available on all macOS) to extract device entries.
+  local entries=""
+  entries="$(printf '%s' "$devices_json" | plutil -extract devices raw -o - - 2>/dev/null | while IFS= read -r runtime; do
+    # plutil raw output for dict just lists keys, but we need structured access.
+    # Fall back to grep/sed parsing of the JSON text.
+    :
+  done 2>/dev/null || true)"
 
-def pick_any(prefix):
-    for entry in entries:
-        if entry[1].startswith(prefix):
-            return entry
-    return None
+  # Robust JSON parsing using sed/grep (no external dependencies beyond coreutils).
+  # Extract lines of form: runtime_key, device_name, udid, isAvailable
+  entries="$(printf '%s' "$devices_json" | sed -n '
+    /"devices"/,/^[[:space:]]*}[[:space:]]*$/ {
+      /com\.apple\.CoreSimulator\.SimRuntime\.iOS/,/]/ {
+        s/.*SimRuntime\.iOS-\([0-9]*\)-\([0-9]*\)\(-\([0-9]*\)\)\{0,1\}.*/OS_\1.\2.\4/p
+        /"name"/s/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/NAME_\1/p
+        /"udid"/s/.*"udid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/UDID_\1/p
+        /"isAvailable"/s/.*"isAvailable"[[:space:]]*:[[:space:]]*\(true\|false\).*/AVAIL_\1/p
+      }
+    }
+  ')"
 
-selection = pick(preferred, prefix=desired)
-if selection is None:
-    selection = pick(preferred, prefix=major)
-if selection is None:
-    selection = pick_any(desired)
-if selection is None:
-    selection = pick_any(major)
-if selection is None:
-    selection = pick_any("26")
-if selection is None:
-    selection = pick_any("18")
-if selection is None:
-    selection = pick(preferred)
-if selection is None and entries:
-    selection = entries[0]
+  # Build device list as "name|os_version|udid" entries.
+  local device_list=""
+  local current_os="" current_name="" current_udid="" current_avail=""
 
-if selection:
-    print(selection[0] or "")
-    print(selection[1] or "")
-    print(selection[2] or "")
-PY)"
+  while IFS= read -r line; do
+    case "$line" in
+      OS_*)
+        current_os="${line#OS_}"
+        # Clean trailing dot if no patch version
+        current_os="${current_os%.}"
+        ;;
+      NAME_*)
+        current_name="${line#NAME_}"
+        ;;
+      UDID_*)
+        current_udid="${line#UDID_}"
+        ;;
+      AVAIL_*)
+        current_avail="${line#AVAIL_}"
+        if [ "$current_avail" = "true" ] && [ -n "$current_name" ] && [ -n "$current_udid" ] && [ -n "$current_os" ]; then
+          device_list="$device_list
+$current_name|$current_os|$current_udid"
+        fi
+        current_name=""
+        current_udid=""
+        current_avail=""
+        ;;
+    esac
+  done <<EOF
+$entries
+EOF
 
-  local name os udid destination
-  name="$(printf '%s' "$selection" | sed -n '1p')"
-  os="$(printf '%s' "$selection" | sed -n '2p')"
-  udid="$(printf '%s' "$selection" | sed -n '3p')"
+  # Selection logic: try preferred devices with desired OS, then major, then any.
+  local selected=""
+  local IFS_OLD="$IFS"
+
+  # Helper: find first preferred device matching OS prefix
+  _find_preferred() {
+    local os_prefix="$1"
+    local pref
+    IFS='|'
+    for pref in $preferred; do
+      local match
+      match="$(printf '%s' "$device_list" | grep "^${pref}|${os_prefix}" | head -1)"
+      if [ -n "$match" ]; then
+        printf '%s' "$match"
+        return 0
+      fi
+    done
+    IFS="$IFS_OLD"
+    return 1
+  }
+
+  # Helper: find any device matching OS prefix
+  _find_any() {
+    local os_prefix="$1"
+    printf '%s' "$device_list" | grep "|${os_prefix}" | head -1
+  }
+
+  selected="$(_find_preferred "$desired_os" 2>/dev/null)" \
+    || selected="$(_find_preferred "$major\." 2>/dev/null)" \
+    || selected="$(_find_any "$desired_os" 2>/dev/null)" \
+    || selected="$(_find_any "${major}\." 2>/dev/null)" \
+    || selected="$(_find_any "26\." 2>/dev/null)" \
+    || selected="$(_find_any "18\." 2>/dev/null)" \
+    || selected="$(_find_preferred "" 2>/dev/null)" \
+    || selected="$(printf '%s' "$device_list" | grep -v '^$' | head -1)" \
+    || selected=""
+
+  local name os_ver udid destination
+  IFS='|' read -r name os_ver udid <<EOF2
+$selected
+EOF2
 
   if [ -z "$name" ]; then
     name="iPhone SE (3rd generation)"
   fi
-  if [ -z "$os" ]; then
-    os="$desired_os"
+  if [ -z "$os_ver" ]; then
+    os_ver="$desired_os"
   fi
 
   if [ -n "$udid" ]; then
     destination="id=$udid"
   else
-    destination="platform=iOS Simulator,name=$name,OS=$os"
+    destination="platform=iOS Simulator,name=$name,OS=$os_ver"
   fi
 
-  printf "%s\n%s\n%s\n" "$name" "$os" "$destination"
+  printf "%s\n%s\n%s\n" "$name" "$os_ver" "$destination"
 }
 
+# B6-11 | LOW-13: Pure shell dataset uniqueness check (no Python dependency).
 check_podcast_dataset_uniqueness() {
   info "[gate-ci] Checking podcast dataset uniqueness"
-  python3 - <<'PY' || fail "[gate-ci] Dataset hash check failed"
-import hashlib, json, subprocess, sys
-try:
-    raw = subprocess.check_output([
-        "git", "ls-files", "-z",
-        "podcastrecommendations*.json", "json database/podcastrecommendations*.json"
-    ], text=True)
-except subprocess.CalledProcessError:
-    raw = ""
-paths = [p for p in raw.split("\x00") if p]
-if not paths:
-    print("[gate-ci] No podcast dataset JSON found")
-    sys.exit(1)
-hashes = {}
-for path in paths:
-    with open(path, "rb") as fh:
-        digest = hashlib.sha256(fh.read()).hexdigest()
-    hashes.setdefault(digest, []).append(path)
-print("[gate-ci] dataset hashes:", json.dumps(hashes, indent=2))
-if len(hashes) != 1:
-    print(f"[gate-ci] Expected single canonical dataset hash, found {len(hashes)}")
-    sys.exit(1)
-PY
+  local raw
+  raw="$(git ls-files -z 'podcastrecommendations*.json' 'json database/podcastrecommendations*.json' 2>/dev/null)" || raw=""
+  if [ -z "$raw" ]; then
+    fail "[gate-ci] No podcast dataset JSON found"
+  fi
+
+  local hash_list=""
+  local count=0
+  while IFS= read -r -d '' path; do
+    [ -z "$path" ] && continue
+    local digest
+    digest="$(shasum -a 256 "$path" | cut -d' ' -f1)"
+    info "[gate-ci]   $path -> $digest"
+    hash_list="$hash_list
+$digest"
+    count=$((count + 1))
+  done <<< "$raw"
+
+  if [ "$count" -eq 0 ]; then
+    fail "[gate-ci] No podcast dataset JSON found"
+  fi
+
+  local unique_hashes
+  unique_hashes="$(printf '%s' "$hash_list" | sort -u | grep -c -v '^$')"
+  if [ "$unique_hashes" -ne 1 ]; then
+    fail "[gate-ci] Expected single canonical dataset hash, found $unique_hashes"
+  fi
   pass "[gate-ci] dataset hash unique"
 }
 
