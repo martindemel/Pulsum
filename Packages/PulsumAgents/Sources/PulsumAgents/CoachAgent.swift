@@ -748,7 +748,7 @@ private extension CoachAgent {
     func performLibraryPreparation() async throws {
         do {
             try await libraryImporter.ingestIfNeeded()
-            libraryEmbeddingsDeferred = libraryImporter.lastImportHadDeferredEmbeddings
+            libraryEmbeddingsDeferred = await libraryImporter.lastImportHadDeferredEmbeddings
             hasPreparedLibrary = !libraryEmbeddingsDeferred
         } catch {
             hasPreparedLibrary = false

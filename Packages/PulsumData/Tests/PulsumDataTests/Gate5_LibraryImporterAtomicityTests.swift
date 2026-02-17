@@ -104,7 +104,8 @@ final class Gate5_LibraryImporterAtomicityTests: XCTestCase {
 
         try await importer.ingestIfNeeded()
 
-        XCTAssertTrue(importer.lastImportHadDeferredEmbeddings)
+        let hadDeferred = await importer.lastImportHadDeferredEmbeddings
+        XCTAssertTrue(hadDeferred)
         XCTAssertNil(fetchLibraryIngest(source: metadata.filename), "Checksum should not be saved when embeddings are unavailable")
         let (count, uniqueCount) = fetchMicroMomentCounts()
         XCTAssertGreaterThan(count, 0)

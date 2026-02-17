@@ -8,11 +8,14 @@ public protocol VectorIndexProviding: AnyObject, Sendable {
     func removeMicroMoment(id: String) async throws
     func searchMicroMoments(query: String, topK: Int) async throws -> [VectorMatch]
     func stats() async -> (shards: Int, items: Int)
+    /// True if the underlying store recovered from a corrupt persistence file on load.
+    func didRecoverFromCorruption() async -> Bool
 }
 
 public extension VectorIndexProviding {
     func bulkUpsertMicroMoments(_: [(id: String, title: String, detail: String?, tags: [String]?)]) async throws {}
     func stats() async -> (shards: Int, items: Int) { (0, 0) }
+    func didRecoverFromCorruption() async -> Bool { false }
 }
 
 public actor VectorIndexManager: VectorIndexProviding {
@@ -64,5 +67,9 @@ public actor VectorIndexManager: VectorIndexProviding {
 
     public func stats() async -> (shards: Int, items: Int) {
         await store.stats()
+    }
+
+    public func didRecoverFromCorruption() async -> Bool {
+        store.didRecoverFromCorruption
     }
 }

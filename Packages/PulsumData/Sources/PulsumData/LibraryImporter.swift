@@ -4,7 +4,8 @@ import CryptoKit
 import PulsumML
 import PulsumTypes
 
-public struct LibraryImporterConfiguration {
+// SAFETY: Bundle is thread-safe for resource access; String properties are immutable lets.
+public struct LibraryImporterConfiguration: @unchecked Sendable {
     public let bundle: Bundle
     public let subdirectory: String?
     public let fileExtension: String
@@ -33,23 +34,11 @@ public enum LibraryImporterError: LocalizedError {
     }
 }
 
-public final class LibraryImporter {
+public actor LibraryImporter {
     private let configuration: LibraryImporterConfiguration
     private let vectorIndex: VectorIndexProviding
     private let modelContainer: ModelContainer
-    private let stateLock = NSLock()
-    private var _lastImportHadDeferredEmbeddings = false
-    public var lastImportHadDeferredEmbeddings: Bool {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        return _lastImportHadDeferredEmbeddings
-    }
-
-    private func setLastImportHadDeferredEmbeddings(_ value: Bool) {
-        stateLock.lock()
-        _lastImportHadDeferredEmbeddings = value
-        stateLock.unlock()
-    }
+    public private(set) var lastImportHadDeferredEmbeddings = false
 
     public init(configuration: LibraryImporterConfiguration = LibraryImporterConfiguration(),
                 vectorIndex: VectorIndexProviding,
@@ -60,7 +49,14 @@ public final class LibraryImporter {
     }
 
     public func ingestIfNeeded() async throws {
-        setLastImportHadDeferredEmbeddings(false)
+        lastImportHadDeferredEmbeddings = false
+
+        // If the vector store recovered from a corrupt file, invalidate all
+        // ingest checksums so the library is fully re-imported.
+        if await vectorIndex.didRecoverFromCorruption() {
+            try invalidateIngestChecksums()
+        }
+
         let urls = discoverLibraryURLs()
         guard !urls.isEmpty else {
             Diagnostics.log(level: .info,
@@ -129,7 +125,7 @@ public final class LibraryImporter {
                     indexedCount = payloadCount
                 } catch {
                     if let embeddingError = error as? EmbeddingError, case .generatorUnavailable = embeddingError {
-                        setLastImportHadDeferredEmbeddings(true)
+                        lastImportHadDeferredEmbeddings = true
                         // MicroMoments already saved in Phase 2; no ingest records
                         // so they will be re-indexed on next launch
                         Diagnostics.log(level: .warn,
@@ -214,6 +210,20 @@ public final class LibraryImporter {
             ], error: error)
             throw error
         }
+    }
+
+    private func invalidateIngestChecksums() throws {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<LibraryIngest>()
+        let records = try context.fetch(descriptor)
+        for record in records {
+            record.checksum = ""
+        }
+        if context.hasChanges { try context.save() }
+        Diagnostics.log(level: .warn,
+                        category: .library,
+                        name: "library.ingest.checksumInvalidated",
+                        fields: ["records": .int(records.count)])
     }
 
     private func process(resource: LibraryResourcePayload, context: ModelContext) throws -> LibraryProcessOutcome {
@@ -405,7 +415,3 @@ private struct PodcastRecommendation: Decodable {
     let category: String?
     let cooldownSec: Int?
 }
-
-// SAFETY: Mutable state (`_lastImportHadDeferredEmbeddings`) is protected by `stateLock`.
-// Immutable properties (`configuration`, `vectorIndex`, `modelContainer`) are set once in init.
-extension LibraryImporter: @unchecked Sendable {}

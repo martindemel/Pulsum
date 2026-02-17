@@ -1,6 +1,7 @@
 import Accelerate
 import Foundation
 import os.log
+import PulsumTypes
 
 /// In-memory vector store with file-backed binary persistence.
 ///
@@ -15,11 +16,15 @@ public actor VectorStore {
     private var entries: [String: [Float]] = [:]
     private var isDirty = false
     private let logger = Logger(subsystem: "ai.pulsum", category: "VectorStore")
+    /// True if a corrupt persistence file was detected and removed on load.
+    public nonisolated let didRecoverFromCorruption: Bool
 
     public init(fileURL: URL, dimension: Int = 384) {
         self.fileURL = fileURL
         self.dimension = dimension
-        self.entries = Self.loadFromDisk(fileURL: fileURL, dimension: dimension)
+        let (loaded, wasCorrupt) = Self.loadFromDisk(fileURL: fileURL, dimension: dimension)
+        self.entries = loaded
+        self.didRecoverFromCorruption = wasCorrupt
     }
 
     // MARK: - Mutations
@@ -133,13 +138,23 @@ public actor VectorStore {
         return data
     }
 
-    private nonisolated static func loadFromDisk(fileURL: URL, dimension: Int) -> [String: [Float]] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [:] }
+    /// Returns (entries, wasCorrupt).
+    private nonisolated static func loadFromDisk(fileURL: URL, dimension: Int) -> ([String: [Float]], Bool) {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return ([:], false) }
         do {
             let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
-            return try deserializeStatic(data, dimension: dimension)
+            return try (deserializeStatic(data, dimension: dimension), false)
         } catch {
-            return [:]
+            Diagnostics.log(level: .error,
+                            category: .vectorIndex,
+                            name: "vectorStore.corruptFile",
+                            fields: [
+                                "path": .safeString(.metadata(fileURL.lastPathComponent)),
+                                "error": .safeString(.metadata(error.localizedDescription)),
+                            ])
+            // Remove corrupt file so next persist() writes a clean one
+            try? FileManager.default.removeItem(at: fileURL)
+            return ([:], true)
         }
     }
 
@@ -169,9 +184,12 @@ public actor VectorStore {
             let id = String(decoding: data[cursor ..< cursor + idLen], as: UTF8.self)
             cursor += idLen
 
-            let vector: [Float] = [Float](unsafeUninitializedCapacity: dimension) { buffer, count in
-                data.withUnsafeBytes { raw in
-                    let src = UnsafeRawBufferPointer(start: raw.baseAddress!.advanced(by: cursor), count: vectorByteSize)
+            let vector: [Float] = try [Float](unsafeUninitializedCapacity: dimension) { buffer, count in
+                try data.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else {
+                        throw VectorStoreError.corruptFile("Unexpected nil baseAddress")
+                    }
+                    let src = UnsafeRawBufferPointer(start: base.advanced(by: cursor), count: vectorByteSize)
                     buffer.withMemoryRebound(to: UInt8.self) { dest in
                         _ = src.copyBytes(to: dest)
                     }
