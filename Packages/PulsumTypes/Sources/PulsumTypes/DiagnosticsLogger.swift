@@ -508,7 +508,7 @@ public actor DiagnosticsLogger {
 
     nonisolated static func applySecurityAttributes(to url: URL) {
         #if os(iOS)
-        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUnlessOpen], ofItemAtPath: url.path)
         #endif
         var resourceValues = URLResourceValues()
         resourceValues.isExcludedFromBackup = true
