@@ -27,6 +27,7 @@
 		945EC8A12E8AD321001CCF2E /* PulsumML in Frameworks */ = {isa = PBXBuildFile; productRef = 0F767ADA6BE24721A5249B90 /* PulsumML */; };
 		94BC8DDA2F26A8540043ADE0 /* PulsumTypes in Frameworks */ = {isa = PBXBuildFile; productRef = E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */; };
 		F3A4B5C6D7E8090A1B2C3D4E /* PulsumTypes in Frameworks */ = {isa = PBXBuildFile; productRef = E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */; };
+		F3A4B5C6D7E8090A1B2C3D4F /* PulsumTypes in Frameworks */ = {isa = PBXBuildFile; productRef = E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,6 +129,7 @@
 				945EC89D2E8AD321001CCF2E /* PulsumUI in Frameworks */,
 				945EC8A12E8AD321001CCF2E /* PulsumML in Frameworks */,
 				945EC89F2E8AD321001CCF2E /* PulsumData in Frameworks */,
+				F3A4B5C6D7E8090A1B2C3D4F /* PulsumTypes in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,6 +225,7 @@
 				A53933ECCEA4440495B0FCB3 /* PulsumData */,
 				789E650BC257425BBE5CEDCB /* PulsumServices */,
 				0F767ADA6BE24721A5249B90 /* PulsumML */,
+				E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */,
 			);
 			productName = PulsumTests;
 			productReference = 941192922E8A01FF0078B278 /* PulsumTests.xctest */;
@@ -251,6 +254,7 @@
 				A53933ECCEA4440495B0FCB3 /* PulsumData */,
 				789E650BC257425BBE5CEDCB /* PulsumServices */,
 				0F767ADA6BE24721A5249B90 /* PulsumML */,
+				E2F3A4B5C6D7E8090A1B2C3D /* PulsumTypes */,
 			);
 			productName = PulsumUITests;
 			productReference = 9411929C2E8A01FF0078B278 /* PulsumUITests.xctest */;

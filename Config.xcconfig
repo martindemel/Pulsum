@@ -1,12 +1,9 @@
 // Pulsum Build Configuration
-// Secrets are never stored in this file. Use Keychain or environment variables on the build machine.
-// For local development, provide `PULSUM_COACH_API_KEY` via `launchctl setenv` or an .xcconfig that is not committed.
-
-
-
-
-
-
-
-
-
+//
+// API key management uses Keychain at runtime (see LLMGateway.swift).
+// No secrets are stored in this file or committed to the repository.
+//
+// This xcconfig is reserved for build-time configuration overrides.
+// For local development API keys, use:
+//   launchctl setenv PULSUM_COACH_API_KEY <your-key>
+// or create a personal .xcconfig (not committed) and include it here.
