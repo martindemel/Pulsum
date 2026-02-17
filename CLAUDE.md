@@ -10,10 +10,9 @@ PulsumTypes -> PulsumML + PulsumData -> PulsumServices -> PulsumAgents -> Pulsum
 ```
 
 ## Key Files
-- `master_fix_plan.md` — **Active remediation plan (USE THIS).** 99 deduplicated actionable fixes (12 CRIT, 18 HIGH, 24 MED, 20 LOW) with exact code changes, organized into 8 implementation batches.
-- `batch_execution_prompts.md` — Self-contained prompts for each batch. Copy-paste into a fresh Claude Code window.
-- `master_report.md` — Original audit with 112 raw findings (includes stubs, test gaps, architecture notes). Reference only — superseded by `master_fix_plan.md` for implementation.
-- `master_plan_FINAL.md` — Original architecture plan. 79 items across 4 phases (SwiftData migration, safety, concurrency, production).
+- `master_plan_FINAL.md` — **Active remediation plan (USE THIS).** 42 findings (0 CRIT, 4 HIGH, 18 MED, 20 LOW), 6 batches, 41 actionable items.
+- `batch_execution_prompts_v3.md` — Self-contained prompts for each batch. Copy-paste into a fresh Claude Code window.
+- `master_report.md` — Full technical analysis report (42 findings, health score 8.0/10). Reference for finding details.
 - `guidelines_report.md` — App Store compliance checks.
 
 ## Git Workflow
@@ -82,9 +81,19 @@ scripts/ci/check-privacy-manifests.sh
 - When adding or modifying Services, Models, or data parsing, add or update corresponding unit tests
 - Prefer Swift Testing framework for new tests
 
+## Scope Discipline
+When executing a **batch or plan-driven prompt** (from `batch_execution_prompts*.md`, `master_plan_FINAL.md`, or any structured remediation/execution plan), follow these rules strictly. During normal interactive sessions (research, debugging, feature work, exploration, ad-hoc requests), use full autonomy and initiative — these constraints do not apply.
+
+- **Only make changes explicitly listed in the prompt.** Do not make "bonus fixes", drive-by refactors, or adjacent improvements — no matter how obvious they seem.
+- **If you encounter something unexpected outside the prompt scope** (build warnings, suspicious code, missing files, dead code), **write it in your final summary as an "Observation"** — do NOT fix it. Files may have been intentionally deleted or structured a certain way, and "fixing" it without context can cause regressions.
+- **Never restore deleted files.** If a file is missing and something doesn't compile, report the error. Do not recreate files from memory or guesswork — the deletion was likely intentional.
+- **When in doubt about scope, report — don't act.** Describe what you see and let the developer decide.
+
 ## Do NOT
 - Use `@unchecked Sendable` on new code
 - Use Combine — use async/await
 - Add SPM dependencies without approval
 - Store `ModelContext` across `await` boundaries unless `@ModelActor`-owned
 - Modify `.xcdatamodeld` — it will be replaced by SwiftData
+- Make changes outside the scope of a batch/plan prompt (see Scope Discipline above) — applies during plan-driven execution only, not during normal interactive work
+- Restore or recreate deleted files without asking — they may have been intentionally removed

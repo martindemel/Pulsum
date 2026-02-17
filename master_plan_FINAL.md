@@ -1,7 +1,7 @@
-# Pulsum -- Master Remediation Plan (Post-Phase 0)
+# Pulsum — Master Remediation Plan (Post-V2 Remediation)
 
-**Status:** Ready to execute | **Progress:** 6 / 74 items | **Est. effort:** 3-4 weeks
-**Based on:** `master_report.md` (2026-02-14, 87 findings, health score 6.5/10)
+**Status:** Ready to execute | **Progress:** 0 / 42 items | **Est. effort:** 2-3 weeks
+**Based on:** `master_report.md` (2026-02-15, 42 findings, health score 8.0/10)
 
 ---
 
@@ -9,21 +9,26 @@
 
 **Before starting any work, read this entire file.** Then read `master_report.md` for finding details.
 
-### What's Already Done (Phase 0 -- Completed)
+### What's Already Done (V2 Remediation — Completed)
 
-Phase 0 architecture remediation is complete on `refactor/phase0-architecture` branch:
-- SwiftData migration (9 `@Model` classes, DTO snapshots, DataStack rewrite)
-- VectorStore actor replaces sharded VectorIndex
-- DataAgent decomposed into focused extensions
-- SettingsViewModel split into 3 ViewModels
-- FoundationModelsSafetyProvider returns `.caution` for guardrails
-- SafetyAgent two-wall classification
-- Crisis resources, medical disclaimers, AI content labeling
-- GDPR data deletion, MetricKit crash diagnostics
+The V2 remediation (commit 99b8409) resolved all critical issues from the previous audit (6.5/10 → 8.0/10):
+- **NaN corruption paths:** StateEstimator target guard, SafetyLocal cosine similarity NaN check, RobustStats MAD clamping
+- **Safety bypasses:** NaN embeddings no longer bypass safety classification
+- **Concurrency:** AgentOrchestrator no longer blocks main thread; RecRankerStateStore and JournalSessionState converted to actors; SentimentAgent has @MainActor annotation
+- **Foundation Models:** All three ML providers (Safety, Sentiment, TopicGate) converted from string interpolation to `@Generable` structured types
+- **Safety:** Locale-aware crisis resources for 12 regions; force unwraps eliminated in SafetyCardView and SettingsView
+- **ML:** Embedding dimension handling fixed; locale-aware language selection; PIIRedactor expanded and cached
+- **Privacy:** Settings text corrected to NSFileProtectionCompleteUnlessOpen
+- **Tests:** PIIRedactor, SentimentService fallback, DataAgent backfill, CoachAgent ranking — all test gaps filled
+- **Cleanup:** Non-compiling test deleted; various code cleanup
+
+### What Remains (This Plan)
+
+42 findings: 0 CRIT, 4 HIGH, 18 MED, 20 LOW — organized into 6 implementation batches.
 
 ### Critical Execution Warnings
 
-**1. Batch ordering matters.** Batch 1 (safety-critical NaN fixes) must be first -- it prevents data corruption and safety bypasses. Batch 2 (concurrency) is the largest effort and enables Batch 3-6. Do not skip ahead.
+**1. Batch ordering matters.** Batch 1 (localization) is the largest effort and addresses the primary App Store compliance gap. Batch 2 (security) and Batch 3 (data integrity) fix remaining high-priority issues. Batches 4-6 are independent and can be parallelized.
 
 **2. One item at a time.** Finish each item completely before moving to the next. Mark items done by changing `[ ]` to `[x]` and adding the date.
 
@@ -41,14 +46,15 @@ xcodebuild -scheme Pulsum \
 
 - **Prefer `actor` over `@unchecked Sendable` + locks.** If adding a lock forces `@unchecked Sendable`, convert to actor instead.
 - **`@ModelActor` for SwiftData contexts.** Do not store `ModelContext` across `await` boundaries unless `@ModelActor`-owned.
-- **`NSFileProtectionCompleteUnlessOpen`** (not Complete) -- HealthKit background delivery needs DB access while locked.
+- **`NSFileProtectionCompleteUnlessOpen`** (not Complete) — HealthKit background delivery needs DB access while locked.
 - **BYOK API key is accepted risk for v1.0.** Backend proxy in v1.1. See `master_plan_1_1_FUTURE.md`.
 - **Use `Diagnostics.log()`** from PulsumTypes for all logging (not `print()`).
 - **Use Swift Testing** for new tests, not XCTest.
+- **Use `String(localized:)` for all new user-facing strings.**
 
 | File | What It Contains | When to Read |
 |---|---|---|
-| `master_report.md` | 87 findings with full detail, evidence, suggested fixes | When implementing any item -- look up the finding ID |
+| `master_report.md` | 42 findings with full detail, evidence, suggested fixes | When implementing any item — look up the finding ID |
 | `guidelines_report.md` | App Store compliance checks | When implementing compliance work |
 | `master_plan_1_1_FUTURE.md` | v1.1 roadmap (backend proxy, StoreKit, etc.) | After completing this plan |
 
@@ -63,8 +69,8 @@ xcodebuild -scheme Pulsum \
 | **UI** | SwiftUI with `@Observable` (Observation framework) |
 | **Concurrency** | Swift Concurrency (async/await, actors). `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` (app target only) |
 | **Persistence** | SwiftData (`@Model`, `FetchDescriptor`, `#Predicate`) |
-| **Packages** | 6 SPM: PulsumTypes -> PulsumML + PulsumData -> PulsumServices -> PulsumAgents -> PulsumUI -> App |
-| **External deps** | Spline (spline-ios v0.2.48) -- 3D animation only |
+| **Packages** | 6 SPM: PulsumTypes → PulsumML + PulsumData → PulsumServices → PulsumAgents → PulsumUI → App |
+| **External deps** | Spline (spline-ios v0.2.48) — 3D animation only |
 | **Backend** | OpenAI GPT-5 Responses API (consent-gated, BYOK API key) |
 | **Frameworks** | HealthKit, Speech, Foundation Models, Core ML, Natural Language, Accelerate, MetricKit |
 | **Users** | Zero. Fresh install every test. No data migration risk. |
@@ -77,7 +83,7 @@ xcodebuild -scheme Pulsum \
 
 - **Read this entire file** at the start of every session.
 - Work on **ONE item at a time**.
-- **Mark items done** by changing `[ ]` to `[x]` and adding the date: `[x] *(2026-02-15)*`
+- **Mark items done** by changing `[ ]` to `[x]` and adding the date: `[x] *(2026-02-16)*`
 - Look up the **finding ID** in `master_report.md` for full detail before implementing each item.
 - Validate with build after each change.
 - Run `swiftformat .` after each change.
@@ -85,7 +91,7 @@ xcodebuild -scheme Pulsum \
 - Use Swift Concurrency (`async`/`await`, `actor`) instead of Combine.
 - Prefer `actor` for thread-safe mutable state over `@unchecked Sendable` + locks.
 - Use `@ModelActor` for any actor that owns a SwiftData `ModelContext`.
-- Reference the finding ID in commit messages (e.g., `fix: CRIT-01 -- NaN target guard in StateEstimator`).
+- Reference the finding ID in commit messages (e.g., `fix: HIGH-01 — complete localization for SettingsView`).
 - Use `String(localized:)` for all new user-facing strings.
 - Use `Diagnostics.log()` from PulsumTypes for logging.
 - Prefer Swift Testing framework for new unit tests.
@@ -98,9 +104,9 @@ xcodebuild -scheme Pulsum \
 - Do NOT add SPM dependencies without approval.
 - Do NOT use `@unchecked Sendable` on new code.
 - Do NOT use `fatalError()`, `preconditionFailure()`, or force unwraps (`!`).
-- Do NOT use `print()` -- use `Diagnostics.log()`.
-- Do NOT use Combine -- use async/await.
-- Do NOT store `ModelContext` as a long-lived property -- use `@ModelActor`.
+- Do NOT use `print()` — use `Diagnostics.log()`.
+- Do NOT use Combine — use async/await.
+- Do NOT store `ModelContext` as a long-lived property — use `@ModelActor`.
 
 ### Build & Verify
 
@@ -127,353 +133,230 @@ scripts/ci/check-privacy-manifests.sh
 
 ---
 
-## Architecture Decisions (Preserved from Phase 0)
+## Architecture Decisions (Preserved)
 
-| # | Decision | Choice | Reason |
+| # | Decision | Choice | Status |
 |---|---|---|---|
-| D1 | Persistence | **SwiftData** | Done. Zero users = zero migration risk. |
-| D2 | Vector Index | **VectorStore actor** | Done. Single flat dict + Accelerate search. |
-| D3 | Agents | **Keep 5, fix isolation** | Fix DI and threading, not structure. |
-| D4 | Concurrency | **Actor isolation** | Mechanical change. Prevents ML inference contending with UI. |
-| D5 | State observation | **@Observable + NotificationCenter** | Correct for cross-package events. |
-| D6 | DataAgent | **Decomposed into extensions** | Done. Focused files under 1,500 lines each (except Backfill). |
-| D7 | SettingsVM | **Split into 3 VMs** | Done. HealthSettingsVM, DiagnosticsVM, SettingsVM. |
-| D8 | Monetization | **BYOK optional** | On-device is primary. Backend proxy in v1.1. |
-| D9 | Packages | **Keep 6 as-is** | Correct dependency direction. |
-| D10 | Localization | **String(localized:) for all UI strings** | Required for App Store. |
+| D1 | Persistence | **SwiftData** | Done — 9 @Model classes, DTO snapshots |
+| D2 | Vector Index | **VectorStore actor** | Done — flat dict + Accelerate search |
+| D3 | Agents | **Keep 5, fix isolation** | Done — proper actor/MainActor annotations |
+| D4 | Concurrency | **Actor isolation** | Mostly done — 26 justified @unchecked Sendable remain |
+| D5 | State observation | **@Observable + NotificationCenter** | Done |
+| D6 | DataAgent | **Decomposed into extensions** | Done — Backfill still ~1,500 lines (MED-04) |
+| D7 | SettingsVM | **Split into 3 VMs** | Done — HealthSettingsVM, DiagnosticsVM, SettingsVM |
+| D8 | Monetization | **BYOK optional** | Done — backend proxy deferred to v1.1 |
+| D9 | Packages | **Keep 6 as-is** | Done — strict DAG maintained |
+| D10 | Localization | **String(localized:) for all UI strings** | Partial — 4/22 UI files done |
+| D11 | Foundation Models | **@Generable structured types** | Done — Safety, Sentiment, TopicGate |
+| D12 | Crisis resources | **Locale-aware (12 regions)** | Done — SafetyAgent → SafetyCardView |
 
 ---
 
-## Batch 1: Safety-Critical Fixes (5 items, ~1 day)
+## Batch 1: Localization & Compliance (8 items, ~4-5 days)
 
-**Goal:** Fix NaN corruption paths and safety bypasses. These are data-destroying or safety-defeating bugs.
+**Goal:** Complete localization across all user-facing UI, addressing the primary App Store compliance gap.
 
-- [x] **B1-01** | CRIT-01: Add NaN guard on `target` in `StateEstimator.update()` *(2026-02-15)*
-
-- [x] **B1-02** | CRIT-02: Add NaN guard in SafetyLocal cosine similarity + EmbeddingService NaN rejection *(2026-02-15)*
-
-- [x] **B1-03** | CRIT-04: Clamp MAD in `RobustStats.init` *(2026-02-15)*
-
-- [x] **B1-04** | CRIT-05: Fix PulsumServicesDependencyTests compilation *(2026-02-15 — stale test file deleted)*
-
-- [x] **B1-05** | HIGH-05: Add dispatch queue to RecRankerStateStore *(2026-02-15)*
-
----
-
-## Batch 2: Concurrency & Actor Isolation (8 items, ~3-4 days)
-
-**Goal:** Fix `@MainActor` on orchestrator, reduce `@unchecked Sendable` surface, fix ModelContext isolation.
-
-- [ ] **B2-01** | CRIT-03: Move AgentOrchestrator off `@MainActor`
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift`
-  **Change:** Remove `@MainActor` from `AgentOrchestrator`. Make it a plain class or actor. ViewModels call orchestrator methods via `await`. Agents that need `ModelContext` use `@ModelActor` or `@MainActor` independently.
-  **Impact:** This is the largest single change -- requires updating all call sites in PulsumUI ViewModels.
-
-- [ ] **B2-02** | HIGH-06: Fix LibraryImporter ModelContext across await
-  **File:** `Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift`
-  **Change:** Either convert to `@ModelActor` or restructure `ingestIfNeeded()` so that all `ModelContext` operations occur in a single non-async scope (collect async results first, then apply to context in one synchronous block).
-
-- [ ] **B2-03** | HIGH-07: Add explicit actor isolation to SentimentAgent
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift`
-  **Change:** Add `@MainActor` annotation to `SentimentAgent` class (matches `SentimentAgentProviding` protocol).
-
-- [ ] **B2-04** | HIGH-13: Replace JournalSessionState @unchecked Sendable
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/SentimentAgent.swift`
-  **Change:** Convert `JournalSessionState` to an `actor`. Replace `queue.async` fire-and-forget in `updateTranscript` with `await` call.
-
-- [ ] **B2-05** | MED-10: Add Sendable to response types
-  **Files:** `AgentOrchestrator.swift`, `CoachAgent.swift`, `SafetyAgent.swift`, `CheerAgent.swift`, `SentimentAgent.swift`
-  **Change:** Add `: Sendable` to `RecommendationResponse`, `CheerEvent`, `JournalCaptureResponse`. *(SafetyDecision and JournalResult already done — 2026-02-15)*
-
-- [ ] **B2-06** | MED-19: Add Sendable to provider protocols
-  **Files:** `TextEmbeddingProviding.swift`, `SentimentProviding.swift`
-  **Change:** Add `: Sendable` conformance.
-
-- [ ] **B2-07** | MED-16: Add lock protection to ModernSpeechBackend override
-  **File:** `Packages/PulsumServices/Sources/PulsumServices/SpeechService.swift`
-  **Change:** Protect `nonisolated(unsafe) static var availabilityOverride` with a lock (matching `BuildFlags._modernSpeechOverride` pattern).
-
-- [ ] **B2-08** | LOW-02: Add Sendable to DiagnosticsSpanToken
-  **File:** `Packages/PulsumTypes/Sources/PulsumTypes/DiagnosticsSpanToken.swift`
-  **Change:** Add `: Sendable` conformance.
-
----
-
-## Batch 3: ML Correctness (5 items, ~2 days)
-
-**Goal:** Fix embedding dimension issues, NaN propagation paths, and code duplication in ML layer.
-
-- [ ] **B3-01** | HIGH-01: Fix embedding dimension inconsistency
-  **File:** `Packages/PulsumML/Sources/PulsumML/Embedding/AFMTextEmbeddingProvider.swift`
-  **Change:** Prefer sentence embedding consistently. When sentence embedding is unavailable, log a warning and use word embedding with a distinct flag so downstream code knows the source. Do not mix vectors from different embedding types in the same cosine similarity comparison.
-
-- [ ] **B3-02** | HIGH-12: Add locale-aware embedding selection
-  **File:** `Packages/PulsumML/Sources/PulsumML/Embedding/AFMTextEmbeddingProvider.swift`
-  **Change:** Use `Locale.current.language.languageCode` to select embedding language. Fall back to `.english` when the user's language is not supported by NLEmbedding.
-
-- [ ] **B3-03** | HIGH-17: Add logging to SentimentService fallback chain
-  **File:** `Packages/PulsumML/Sources/PulsumML/SentimentService.swift`
-  **Change:** Log provider errors via `Diagnostics.log()` before falling to the next provider. Log a summary when all providers fail.
-
-- [ ] **B3-04** | MED-01: Extract shared cosine similarity utility
-  **Files:** `SafetyLocal.swift`, `EmbeddingTopicGateProvider.swift`, `AFMSentimentProvider.swift`
-  **Change:** Create `CosineSimilarity.swift` in PulsumML with a single `static func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float` and replace all 3 duplications.
-
-- [ ] **B3-05** | MED-15: Cache PIIRedactor regex patterns
-  **File:** `Packages/PulsumML/Sources/PulsumML/PIIRedactor.swift`
-  **Change:** Move `NSRegularExpression` compilation to static `let` properties instead of compiling per `redact()` call.
-
----
-
-## Batch 4: Safety & Privacy (6 items, ~2 days)
-
-**Goal:** Fix safety gaps, prompt injection, privacy declarations, crisis resources.
-
-- [ ] **B4-01** | HIGH-03: Pass locale-aware crisis resources to SafetyCardView
-  **Files:** `SafetyCardView.swift`, `SafetyAgent.swift`, `AgentOrchestrator.swift`
-  **Change:** `SafetyDecision` should include locale-aware crisis info from `SafetyAgent.crisisResources(for:)`. `SafetyCardView` renders the passed resources instead of hardcoded US numbers.
-
-- [ ] **B4-02** | HIGH-10: Expand PIIRedactor patterns
-  **File:** `Packages/PulsumML/Sources/PulsumML/PIIRedactor.swift`
-  **Change:** Add patterns for: date of birth (`\b\d{1,2}/\d{1,2}/\d{2,4}\b`), parenthesized phone area codes (`\(\d{3}\)\s*\d{3}[-.]?\d{4}`), medical record numbers. Make street address regex configurable.
-
-- [ ] **B4-03** | HIGH-11: Mitigate prompt injection in FM providers
-  **Files:** `FoundationModelsSentimentProvider.swift`, `FoundationModelsSafetyProvider.swift`, `FoundationModelsTopicGateProvider.swift`
-  **Change:** Wrap user text in a clearly delimited block: `"<user_input>\(text)</user_input>"` and instruct the system prompt to only process content within these tags. This is defense-in-depth, not a complete fix.
-
-- [ ] **B4-04** | HIGH-09: Fix misleading privacy description in Settings
+- [ ] **B1-01** | HIGH-01 (partial): Localize SettingsView
   **File:** `Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift`
-  **Change:** Line 487: Update "NSFileProtectionComplete" to "NSFileProtectionCompleteUnlessOpen (required for background health data sync)".
+  **Change:** Replace all hardcoded English strings with `String(localized:)`. Priority: medical disclaimer text, privacy policy descriptions, data handling explanations, health data descriptions. Use descriptive key names (e.g., `"settings.privacy.fileProtection"`, `"settings.medical.disclaimer"`).
 
-- [ ] **B4-05** | MED-17: Add privacy declarations for Keychain and NWPathMonitor
-  **File:** `Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy`
-  **Change:** Add accessed API types for Keychain usage if required by Apple's evolving privacy manifest requirements.
+- [ ] **B1-02** | HIGH-01 (partial): Localize PulseView
+  **File:** `Packages/PulsumUI/Sources/PulsumUI/PulseView.swift`
+  **Change:** Replace hardcoded English strings with `String(localized:)`. Includes: button labels, status messages, recording prompts.
 
-- [ ] **B4-06** | LOW-12: Add explicit NSPrivacyTracking key to PulsumData manifest
-  **File:** `Packages/PulsumData/Sources/PulsumData/PrivacyInfo.xcprivacy`
-  **Change:** Add `<key>NSPrivacyTracking</key><false/>` explicitly.
+- [ ] **B1-03** | HIGH-01 (partial): Localize ScoreBreakdownView
+  **File:** `Packages/PulsumUI/Sources/PulsumUI/ScoreBreakdownView.swift`
+  **Change:** Replace hardcoded metric descriptions, score interpretations, and section headers with `String(localized:)`.
+
+- [ ] **B1-04** | HIGH-01 (partial): Localize WellbeingStateCardView
+  **File:** `Packages/PulsumUI/Sources/PulsumUI/WellbeingStateCardView.swift`
+  **Change:** Replace hardcoded wellbeing state labels and descriptions with `String(localized:)`.
+
+- [ ] **B1-05** | HIGH-01 (partial): Localize PulsumRootView
+  **File:** `Packages/PulsumUI/Sources/PulsumUI/PulsumRootView.swift`
+  **Change:** Replace hardcoded navigation titles, button labels, and any user-facing text with `String(localized:)`.
+
+- [ ] **B1-06** | HIGH-01 (partial): Localize remaining UI files
+  **Files:** Any remaining PulsumUI source files with hardcoded user-facing strings (DiagnosticsViewModel error messages, HealthSettingsViewModel status text, etc.)
+  **Change:** Audit all remaining PulsumUI files and replace hardcoded user-facing strings with `String(localized:)`.
+
+- [ ] **B1-07** | MED-06: Populate Localizable.xcstrings
+  **File:** `Pulsum/Localizable.xcstrings`
+  **Change:** Build the project and verify that all `String(localized:)` keys are auto-extracted into the string catalog. If not, manually add entries. Ensure the catalog is the single source of truth for all localized strings.
+
+- [ ] **B1-08** | HIGH-01 (partial): Localize AgentOrchestrator user-facing messages
+  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift`
+  **Change:** Verify all `String(localized:)` calls at lines 695, 750 use proper keys. Check for any remaining hardcoded strings in user-facing error messages or fallback text.
 
 ---
 
-## Batch 5: Security & LLM (4 items, ~1 day)
+## Batch 2: Security & Documentation (3 items, ~1 day)
 
-**Goal:** Fix certificate pinning documentation, force unwraps, LLM validation issues.
+**Goal:** Fix security documentation issues and defense-in-depth gaps.
 
-- [ ] **B5-01** | HIGH-08: Fix certificate pinning documentation
+- [ ] **B2-01** | HIGH-02: Fix certificate pinning documentation in LLMGateway
   **File:** `Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift`
-  **Change:** Update comments on lines 948-951 to accurately describe behavior as "standard TLS trust evaluation" rather than "SPKI pinning". If actual pinning is desired, implement with hardcoded key hashes.
+  **Change:** Update comments describing `OpenAICertificatePinningDelegate` to accurately state "standard TLS trust evaluation with system CA validation" instead of "SPKI pinning against Let's Encrypt and DigiCert root CAs". If actual pinning is desired, implement with hardcoded public key hashes.
 
-- [ ] **B5-02** | HIGH-15: Eliminate force unwraps in production code
-  **Files:** `VectorStore.swift`, `SafetyCardView.swift`, `SettingsView.swift`
-  **Change:** Replace `baseAddress!` with `guard let baseAddress = buffer.baseAddress else { throw VectorStoreError.corruptFile }`. Replace URL force unwraps with `guard let url = URL(string: ...) else { return }`.
+- [ ] **B2-02** | MED-05: Add user input delimiters to FoundationModelsCoachGenerator
+  **File:** `Packages/PulsumServices/Sources/PulsumServices/FoundationModelsCoachGenerator.swift`
+  **Change:** Wrap user input in clear delimiters: `<user_message>\(userMessage)</user_message>` and instruct the system prompt to only process content within these tags. This is defense-in-depth for the one remaining provider using string interpolation.
 
-- [x] **B5-03** | HIGH-16: Fix potential unaligned memory access in VectorStore *(2026-02-15 — safe byte copy via unsafeUninitializedCapacity)*
-
-- [ ] **B5-04** | MED-24: Remove redundant validation in LLMGateway
-  **File:** `Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift`
-  **Change:** Remove the redundant double-check of `body["input"]` in `validateChatPayload` (lines 579-588).
+- [ ] **B2-03** | MED-13: Align DiagnosticsLogger file protection
+  **File:** `Packages/PulsumTypes/Sources/PulsumTypes/DiagnosticsLogger.swift`
+  **Change:** Change `NSFileProtectionComplete` to `NSFileProtectionCompleteUnlessOpen` on log files, matching the project standard required for HealthKit background delivery.
 
 ---
 
-## Batch 6: UI & Accessibility (7 items, ~2 days)
+## Batch 3: Data Integrity & Actor Conversion (3 items, ~2 days)
 
-**Goal:** Begin localization infrastructure, fix UI issues, improve accessibility.
+**Goal:** Fix data integrity issues and convert LibraryImporter to actor.
 
-- [ ] **B6-01** | HIGH-02 (partial): Set up localization infrastructure
-  **Files:** `Localizable.xcstrings`, all PulsumUI source files
-  **Change:** Replace the highest-priority hardcoded strings with `String(localized:)`: medical disclaimer, consent banner, onboarding text, error messages, safety card text. Do NOT attempt to localize everything at once -- focus on user-safety-critical strings first.
+- [ ] **B3-01** | HIGH-03: Surface VectorStore corrupt file errors
+  **File:** `Packages/PulsumData/Sources/PulsumData/VectorStore.swift`
+  **Change:** In `loadFromDisk()`, log corruption via `Diagnostics.log(.error, ...)` when the binary file cannot be parsed. Throw a `VectorStoreError.corruptFile` that callers can handle. In LibraryImporter, catch the error and invalidate the import checksum to trigger re-import on next launch.
 
-- [ ] **B6-02** | MED-03: Replace Foundation Models status string comparison
-  **File:** `Packages/PulsumUI/Sources/PulsumUI/CoachView.swift`
-  **Change:** Replace `foundationStatus != "Apple Intelligence is ready."` with a typed enum or boolean flag from the ViewModel.
+- [ ] **B3-02** | MED-02: Replace VectorStore force unwrap
+  **File:** `Packages/PulsumData/Sources/PulsumData/VectorStore.swift:174`
+  **Change:** Replace `raw.baseAddress!.advanced(by: cursor)` with `guard let base = raw.baseAddress else { throw VectorStoreError.corruptFile }; base.advanced(by: cursor)`.
 
-- [ ] **B6-03** | MED-08: Cancel all tasks in CoachViewModel deinit
-  **File:** `Packages/PulsumUI/Sources/PulsumUI/CoachViewModel.swift`
-  **Change:** Add `recommendationsTask?.cancel()`, `recommendationsDebounceTask?.cancel()`, `recommendationsSoftTimeoutTask?.cancel()` in `deinit`.
+- [ ] **B3-03** | MED-01: Convert LibraryImporter to actor
+  **File:** `Packages/PulsumData/Sources/PulsumData/LibraryImporter.swift`
+  **Change:** Convert from `@unchecked Sendable` class with `NSLock` to `actor`. Remove the lock and `_lastImportHadDeferredEmbeddings` backing field — use an actor-isolated property instead. Update all call sites to `await` LibraryImporter methods.
 
-- [ ] **B6-04** | MED-09: Replace hardcoded font sizes with Dynamic Type
+---
+
+## Batch 4: Accessibility (4 items, ~2 days)
+
+**Goal:** Improve accessibility compliance across UI layer.
+
+- [ ] **B4-01** | HIGH-04 (partial): Add accessibility labels to interactive elements
+  **Files:** All PulsumUI view files
+  **Change:** Audit all `Button`, `Toggle`, `TextField`, and interactive elements. Add `.accessibilityLabel()` to any element that doesn't have descriptive text visible to VoiceOver. Priority: SettingsView, PulseView, ScoreBreakdownView.
+
+- [ ] **B4-02** | HIGH-04 (partial): Add VoiceOver descriptions to data visualizations
+  **Files:** `ScoreBreakdownView.swift`, `WellbeingStateCardView.swift`
+  **Change:** Add `.accessibilityElement(children: .combine)` with descriptive labels to score displays and metric cards. VoiceOver users should hear the numeric score and its interpretation.
+
+- [ ] **B4-03** | LOW-01: Replace hardcoded font sizes with Dynamic Type
   **Files:** `CoachView.swift`, `PulsumRootView.swift`
-  **Change:** Replace `.font(.system(size: N))` with `.font(.headline)`, `.font(.subheadline)`, etc. for text elements. Decorative icon sizes can remain hardcoded.
+  **Change:** Replace `.font(.system(size: N))` with semantic fonts (`.headline`, `.subheadline`, `.body`, `.caption`). Decorative/icon sizes can remain hardcoded.
 
-- [ ] **B6-05** | MED-21: Extract shared wellbeing card component
-  **Files:** `PulsumRootView.swift`, `SettingsView.swift`
-  **Change:** Extract the duplicated wellbeing score card into a shared `WellbeingScoreCardView.swift` and use it in both locations.
-
-- [ ] **B6-06** | MED-12: Fix silent test passes in UI tests
-  **Files:** `Gate3_HealthAccessUITests.swift`, `SettingsAndCoachUITests.swift`
-  **Change:** Replace `guard openSettingsSheetOrSkip() else { return }` with `try XCTSkipUnless(openSettingsSheetOrSkip())` to make failures visible.
-
-- [ ] **B6-07** | MED-11: Add environment setup to PulsumUITestsLaunchTests
-  **File:** `PulsumUITests/PulsumUITestsLaunchTests.swift`
-  **Change:** Extend `PulsumUITestCase` instead of `XCTestCase` to inherit the stub environment, or add explicit environment variable setup.
+- [ ] **B4-04** | LOW-11: Add accessibility identifiers for UI test coverage
+  **File:** `Packages/PulsumUI/Sources/PulsumUI/SettingsView.swift`
+  **Change:** Add `.accessibilityIdentifier()` to any interactive elements that lack them, enabling comprehensive UI test coverage.
 
 ---
 
-## Batch 7: Test Coverage (12 items, ~3 days)
+## Batch 5: Build & Configuration Cleanup (10 items, ~1 day)
 
-**Goal:** Fill critical and high-priority test coverage gaps.
+**Goal:** Fix build configuration issues, clean up stale references.
 
-- [ ] **B7-01** | TC-01: Add PIIRedactor tests
-  **File:** Create `Packages/PulsumML/Tests/PulsumMLTests/PIIRedactorTests.swift`
-  **Tests:** Email redaction, phone number redaction (with/without area code parens), SSN redaction, mixed PII, clean text preservation, empty input.
+- [ ] **B5-01** | MED-07: Remove stale workspace reference
+  **File:** `Pulsum.xcodeproj/project.xcworkspace/contents.xcworkspacedata`
+  **Change:** Remove the `datagentsummary.md` file reference.
 
-- [ ] **B7-02** | TC-02: Add SentimentService fallback chain tests
-  **File:** Create `Packages/PulsumML/Tests/PulsumMLTests/SentimentServiceFallbackTests.swift`
-  **Tests:** Primary succeeds (fallback not called), primary fails -> fallback used, all providers fail -> error thrown.
+- [ ] **B5-02** | MED-11: Add PulsumTypes to PulsumTests dependencies
+  **File:** `Pulsum.xcodeproj/project.pbxproj`
+  **Change:** Add PulsumTypes to PulsumTests target's `packageProductDependencies`.
 
-- [ ] **B7-03** | TC-03: Add NaN target test for StateEstimator
-  **File:** `Packages/PulsumML/Tests/PulsumMLTests/WellbeingScorePipelineTests.swift`
-  **Test:** `test_update_nanTarget_weightsUnchanged` -- verify weights remain unchanged after update with NaN target.
+- [ ] **B5-03** | MED-12: Add PulsumTypes to PulsumUITests dependencies
+  **File:** `Pulsum.xcodeproj/project.pbxproj`
+  **Change:** Add PulsumTypes to PulsumUITests target's `packageProductDependencies`.
 
-- [ ] **B7-04** | TC-16: Add NaN embedding test for SafetyLocal
-  **File:** `Packages/PulsumML/Tests/PulsumMLTests/SafetyClassifierTests.swift`
-  **Test:** `test_nanEmbedding_returnsCaution` -- inject embedding provider that returns NaN vectors, verify crisis text returns `.caution` not `.safe`.
+- [ ] **B5-04** | MED-16: Clean up empty Config.xcconfig
+  **File:** `Config.xcconfig`
+  **Change:** Add a comment explaining the Keychain-based key management approach, or delete the file if it serves no purpose.
 
-- [ ] **B7-05** | TC-05: Add RecRanker adaptWeights/updateLearningRate tests
-  **File:** `Packages/PulsumML/Tests/PulsumMLTests/PackageEmbedTests.swift`
-  **Tests:** `test_adaptWeights_changesWeights`, `test_updateLearningRate_adjustsRate`.
+- [ ] **B5-05** | MED-17: Verify Swift version in pbxproj
+  **File:** `Pulsum.xcodeproj/project.pbxproj`
+  **Change:** Verify that `SWIFT_VERSION = 5.0` with `SWIFT_APPROACHABLE_CONCURRENCY = YES` is the correct Xcode 26 configuration for Swift 6.1 mode. If not, update to the correct value.
 
-- [ ] **B7-06** | TC-06: Add PulseViewModel tests
-  **File:** Create `Packages/PulsumUI/Tests/PulsumUITests/PulseViewModelTests.swift`
-  **Tests:** Voice journal start/stop lifecycle, audio level updates, recording state transitions.
+- [ ] **B5-06** | LOW-03: Fix build number script for shallow clones
+  **File:** `Pulsum.xcodeproj/project.pbxproj` (build phase)
+  **Change:** Add a fallback for shallow clones: `git rev-list HEAD --count 2>/dev/null || echo 0`.
 
-- [ ] **B7-07** | TC-07: Add SettingsViewModel consent tests
-  **File:** Create `Packages/PulsumUI/Tests/PulsumUITests/SettingsViewModelTests.swift`
-  **Tests:** Toggle consent on/off, consent signal propagation, API key save/test.
+- [ ] **B5-07** | LOW-05: Rename icon asset files
+  **File:** `Assets.xcassets/AppIcon.appiconset/Contents.json`
+  **Change:** Rename `iconnew 2.png` → `AppIcon-dark.png`, `iconnew 1.png` → `AppIcon-tinted.png`, `iconnew.png` → `AppIcon.png`. Update Contents.json references.
 
-- [ ] **B7-08** | TC-10: Add ConsentStore tests
-  **File:** Create `Packages/PulsumUI/Tests/PulsumUITests/ConsentStoreTests.swift`
-  **Tests:** Grant consent persistence, revoke consent persistence, consent history versioning.
+- [ ] **B5-08** | LOW-07: Verify code signing for CI/archive builds
+  **File:** `Pulsum.xcodeproj/project.pbxproj`
+  **Change:** Verify `CODE_SIGN_IDENTITY = "Apple Development"` works for archive builds. Add a note in CLAUDE.md if manual override is needed for App Store distribution.
 
-- [ ] **B7-09** | TC-13: Add AppViewModel startup tests
-  **File:** Create `Packages/PulsumUI/Tests/PulsumUITests/AppViewModelTests.swift`
-  **Tests:** Startup state transitions (idle -> loading -> ready), failure state, UITest mode skips heavy work.
+- [ ] **B5-09** | LOW-08: Verify RELEASE_LOG_AUDIT flag usage
+  **File:** `Pulsum.xcodeproj/project.pbxproj`
+  **Change:** Grep for `RELEASE_LOG_AUDIT` usage in source code. Verify all conditional compilation blocks behind this flag are production-safe. Document the flag's purpose.
 
-- [ ] **B7-10** | TC-17: Add HealthSettingsViewModel tests
-  **File:** `Packages/PulsumUI/Tests/PulsumUITests/SettingsViewModelHealthAccessTests.swift`
-  **Tests:** Partial health access display, full grant flow, unavailable banner, toast display.
-
-- [ ] **B7-11** | TC-18: Add VectorStore unaligned access test
-  **File:** `Packages/PulsumData/Tests/PulsumDataTests/VectorIndexTests.swift`
-  **Test:** Upsert entries with odd-length IDs (1, 3, 5 bytes), persist, reload, verify all entries intact.
-
-- [ ] **B7-12** | TC-20: Add SafetyCardView display test
-  **File:** Create `Packages/PulsumUI/Tests/PulsumUITests/SafetyCardViewTests.swift`
-  **Test:** Verify crisis card renders with correct phone numbers for current locale.
+- [ ] **B5-10** | LOW-15: Verify background modes in generated Info.plist
+  **File:** `Pulsum/Pulsum.entitlements`
+  **Change:** Build the project and inspect the generated Info.plist for `UIBackgroundModes`. Verify HealthKit background delivery works without an explicit `UIBackgroundModes` entry (iOS 26 may handle this via the entitlement alone).
 
 ---
 
-## Batch 8: Cleanup & Polish (11 items, ~1-2 days)
+## Batch 6: Architecture, Code Quality & Testing (14 items, ~4-5 days)
 
-**Goal:** Fix remaining medium and low-priority issues. Code cleanup.
+**Goal:** Reduce technical debt, improve architecture, fill remaining test gaps.
 
-- [ ] **B8-01** | HIGH-14: Refactor DataAgent+Backfill.swift duplication
+### Architecture & Code Quality
+
+- [ ] **B6-01** | MED-03: Simplify AgentOrchestrator isolation model
+  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/AgentOrchestrator.swift`
+  **Change:** Evaluate converting to `@MainActor final class` (removing `@unchecked Sendable`) since all methods are already `@MainActor`-annotated. If any methods need to run off main actor, split into a non-MainActor orchestration core + MainActor UI facade.
+
+- [ ] **B6-02** | MED-04: Refactor DataAgent+Backfill.swift duplication
   **File:** `Packages/PulsumAgents/Sources/PulsumAgents/DataAgent+Backfill.swift`
-  **Change:** Extract shared `fetchSamplesForType(type:window:timeout:)` and `processBootstrapBatch(types:window:timeout:)` methods to eliminate the triplicated bootstrap/retry/fallback switch-case blocks.
+  **Change:** Extract shared `fetchSamplesForType(type:window:timeout:)` and `processBootstrapBatch(types:window:timeout:)` methods. Target: reduce file from ~1,500 lines to under 1,000 by eliminating triplicated switch-case blocks.
 
-- [ ] **B8-02** | MED-02: Add bulk persist to VectorIndexManager
-  **File:** `Packages/PulsumData/Sources/PulsumData/VectorIndexManager.swift`
-  **Change:** Add `bulkUpsertMicroMoments(_:)` that calls `store.bulkUpsert()` followed by a single `store.persist()`.
+- [x] **B6-03** | MED-10 (partial): ~~Convert HealthKitService to actor~~ **NOT APPLICABLE**
+  **File:** `Packages/PulsumServices/Sources/PulsumServices/HealthKitService.swift`
+  **Decision:** The current `@unchecked Sendable` + `DispatchQueue` pattern is industry best practice for HealthKit's callback-based APIs. `HKHealthStore` is not Sendable, `observeSampleType` must return synchronously, and background delivery callbacks fire on arbitrary queues. Actor conversion would require `nonisolated(unsafe)`, break the synchronous API surface, and risk regressions with no user-visible benefit. Apple's own WWDC sample code uses this same pattern. **No change needed.**
 
-- [ ] **B8-03** | MED-04: Fix EvidenceScorer domain matching
-  **File:** `Packages/PulsumData/Sources/PulsumData/EvidenceScorer.swift`
-  **Change:** Remove dead `harvard.edu` from `mediumDomains`. Replace `.gov`/`.edu` with more specific domains if needed.
+- [ ] **B6-04** | MED-10 (partial): Convert SentimentService to actor
+  **File:** `Packages/PulsumML/Sources/PulsumML/Sentiment/SentimentService.swift`
+  **Change:** Convert from `@unchecked Sendable` (all `let` properties) to actor or add proper `Sendable` conformance since all properties are immutable.
 
-- [ ] **B8-04** | MED-05: Add date normalization guard
-  **Files:** `DailyMetrics.swift`, `FeatureVector.swift`
-  **Change:** Add a comment documenting the midnight-normalization requirement, or add a `willSet` that normalizes the date to start of day.
+- [ ] **B6-05** | MED-14: Add deep linking foundation
+  **Files:** `PulsumApp.swift`, `PulsumRootView.swift`
+  **Change:** Register a URL scheme (`pulsum://`) and add basic `onOpenURL` handler in PulsumRootView. Support at minimum: `pulsum://journal` (open voice journal), `pulsum://coach` (open coach). This enables future integration with Health app and Shortcuts.
 
-- [ ] **B8-05** | MED-13: Update CI simulator lists
-  **Files:** `scripts/ci/build-release.sh`, `scripts/ci/test-harness.sh`
-  **Change:** Update preferred simulator lists to include iPhone 17 Pro, iPhone 17 Pro Max, iPhone Air.
+### Testing
 
-- [ ] **B8-06** | MED-14: Add privacy manifest content expectations
-  **File:** `scripts/ci/check-privacy-manifests.sh`
-  **Change:** Add expected API types (at minimum `CA92.1` for UserDefaults) to the `REQUIRED` dict validation.
+- [ ] **B6-06** | MED-18: Expand app-level integration tests
+  **File:** `PulsumTests/PulsumTests.swift`
+  **Change:** Add tests for: app-level environment injection, `AppRuntimeConfig` flag behavior, animation disable logic. Target: at least 5 meaningful tests beyond the current 2.
 
-- [ ] **B8-07** | MED-18: Add snapshot extensions for UserPrefs and ConsentState
-  **File:** `Packages/PulsumData/Sources/PulsumData/Model/ModelSnapshots+Extensions.swift`
-  **Change:** Add `UserPrefs.snapshot` and `ConsentState.snapshot` extensions with corresponding `Sendable` types in PulsumTypes.
+- [ ] **B6-07** | LOW-02: Stabilize UI test infrastructure
+  **Files:** `PulsumUITests/PulsumUITestCase.swift`
+  **Change:** Document the multi-strategy settings sheet detection pattern. Add retry counts as configurable constants. Consider adding a `XCTContext.runActivity` wrapper for better test failure diagnostics.
 
-- [ ] **B8-08** | LOW-01: Remove unused LiquidGlassTabBar
-  **File:** `Packages/PulsumUI/Sources/PulsumUI/LiquidGlassComponents.swift`
-  **Change:** Remove `LiquidGlassTabBar` struct if confirmed unused (verify with grep first).
+- [ ] **B6-08** | LOW-09: Enforce integrity script tag check in CI
+  **File:** `scripts/ci/integrity.sh`
+  **Change:** Make the `gate0-done-2025-11-09` tag check enforced by default (not just informational). Add a `--lenient` flag for local development.
 
-- [ ] **B8-09** | LOW-06: Remove empty PulsumData.swift
-  **File:** `Packages/PulsumData/Sources/PulsumData/PulsumData.swift`
-  **Change:** Delete if the file contains only comments and no code.
+- [ ] **B6-09** | LOW-10: Decouple PulsumUI tests from app host
+  **File:** `Pulsum.xcodeproj/xcshareddata/xcschemes/PulsumUI.xcscheme`
+  **Change:** Evaluate running PulsumUI package tests via `swift test` instead of through the app host scheme. This would speed up test iteration.
 
-- [ ] **B8-10** | LOW-07: Consolidate TestCoreDataStack
-  **Change:** Consider creating a shared test support package or using a single `TestCoreDataStack.swift` via a test-only dependency, rather than duplicating across 3 test targets.
+- [ ] **B6-10** | LOW-12: Add explicit NSPrivacyTracking to package manifests
+  **Files:** Package-level PrivacyInfo.xcprivacy files
+  **Change:** Add `<key>NSPrivacyTracking</key><false/>` explicitly to all package privacy manifests.
 
-- [ ] **B8-11** | LOW-13: Remove dead code in AFMTextEmbeddingProvider
-  **File:** `Packages/PulsumML/Sources/PulsumML/Embedding/AFMTextEmbeddingProvider.swift`
-  **Change:** Remove the unused `availability` stored property.
+- [ ] **B6-11** | LOW-13: Remove Python dependency from CI scripts
+  **Files:** `scripts/ci/test-harness.sh`, `scripts/ci/build-release.sh`
+  **Change:** Replace Python simulator auto-detection with a pure shell implementation using `xcrun simctl list devices -j` and `plutil` or `jq`.
 
----
+- [ ] **B6-12** | LOW-14: Monitor Keychain/NWPathMonitor privacy requirements
+  **File:** `Packages/PulsumServices/Sources/PulsumServices/PrivacyInfo.xcprivacy`
+  **Change:** Add a comment noting that Keychain (Security/SecItem*) and NWPathMonitor (Network) are excluded from API declarations as of iOS 26. Add a TODO to check Apple's WWDC announcements for requirement changes.
 
-## Batch 9: High-18 & Degraded Mode Safety (4 items, ~1 day)
+- [ ] **B6-13** | LOW-19: Add RecRanker integration test with real VectorStore
+  **File:** Create `Packages/PulsumAgents/Tests/PulsumAgentsTests/RecRankerIntegrationTests.swift`
+  **Change:** Test the full pipeline: recommendation request → VectorStore search → RecRanker ranking → feedback update, using in-memory SwiftData containers and a real VectorStore actor.
 
-**Goal:** Improve safety behavior in degraded/error states.
-
-- [ ] **B9-01** | HIGH-18: Topic gate fail-closed in degraded mode
-  **File:** `Packages/PulsumML/Sources/PulsumML/TopicGate/EmbeddingTopicGateProvider.swift`
-  **Change:** In degraded mode, return `isOnTopic: false` (or `.unknown`) instead of `true`. The downstream code should handle unknown state by using the on-device fallback path rather than allowing arbitrary content.
-
-- [ ] **B9-02** | MED-06: Improve sparse data coverage fallback
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/CoachAgent+Coverage.swift`
-  **Change:** Instead of always returning `.soft` for sparse data, check if at least the topic matches a known wellbeing domain. Return `.fail` for clearly off-topic queries even with sparse data.
-
-- [ ] **B9-03** | MED-07: Replace localizedDescription check in background delivery error
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/DataAgent+Ingestion.swift`
-  **Change:** Check for specific error code or domain instead of substring matching on `localizedDescription`.
-
-- [ ] **B9-04** | MED-20: Fix ConsentStore revocation semantics
-  **File:** `Packages/PulsumUI/Sources/PulsumUI/AppViewModel.swift`
-  **Change:** In `persistConsentHistory`, only create a revocation record if `grantedAt` was non-nil.
-
----
-
-## Batch 10: @unchecked Sendable Reduction (6 items, ~2-3 days)
-
-**Goal:** Convert highest-risk `@unchecked Sendable` types to proper isolation.
-
-**Note:** This is the most invasive batch. Each conversion should be verified with a full build + test run. Prioritize types that are most likely to have real concurrency issues.
-
-- [ ] **B10-01** | Convert `EmbeddingService` to actor
-  **File:** `Packages/PulsumML/Sources/PulsumML/Embedding/EmbeddingService.swift`
-  **Change:** Convert from `final class @unchecked Sendable` with DispatchQueue to `actor`. This is the highest-traffic `@unchecked Sendable` type.
-
-- [ ] **B10-02** | Convert `SafetyLocal` to actor
-  **File:** `Packages/PulsumML/Sources/PulsumML/SafetyLocal.swift`
-  **Change:** Convert from `final class @unchecked Sendable` with `prototypeQueue` to `actor`.
-
-- [ ] **B10-03** | Convert `EstimatorStateStore` to actor
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/EstimatorStateStore.swift`
-  **Change:** Convert from `final class @unchecked Sendable` with `ioQueue` to `actor`.
-
-- [ ] **B10-04** | Convert `RecRankerStateStore` to actor
-  **File:** `Packages/PulsumAgents/Sources/PulsumAgents/RecRankerStateStore.swift`
-  **Change:** After B1-05 adds the dispatch queue, convert to actor for consistency.
-
-- [ ] **B10-05** | Convert `LLMGateway` in-memory key to actor-isolated state
-  **File:** `Packages/PulsumServices/Sources/PulsumServices/LLMGateway.swift`
-  **Change:** Extract in-memory API key state into a small `APIKeyCache` actor, removing the `NSLock` from `LLMGateway`.
-
-- [ ] **B10-06** | Audit remaining @unchecked Sendable types
-  **All packages**
-  **Change:** For each remaining `@unchecked Sendable` type, add a comment justifying why actor conversion is not feasible (e.g., NSObject subclass, Apple framework requirement). Types with DispatchQueue should be converted; types with immutable `let` properties should be properly `Sendable`.
-
----
-
-## Remaining Items (6 items, ~1 day)
-
-- [ ] **R-01** | MED-22: Replace Date() with ContinuousClock in RateLimiter
-- [ ] **R-02** | MED-23: Make FoundationModelsCoachGenerator topic parsing more robust
-- [ ] **R-03** | LOW-03: Rename `podcastrecommendations 2.json` to `podcastrecommendations.json`
-- [ ] **R-04** | LOW-05: Remove duplicate DataStackSecurityTests
-- [ ] **R-05** | LOW-08: Remove unused `coachAgent` parameter from `dominantTopic`
-- [ ] **R-06** | LOW-15: Add meaningful app target tests in PulsumTests.swift
+- [ ] **B6-14** | LOW-20: Add performance regression tests
+  **Files:** Create performance test files in relevant test targets
+  **Change:** Add `measure {}` blocks for: recommendation generation, safety classification, voice journal save pipeline. Establish baselines to catch regressions.
 
 ---
 
@@ -481,20 +364,44 @@ scripts/ci/check-privacy-manifests.sh
 
 | Batch | Items | Effort | Status |
 |---|---|---|---|
-| Batch 1: Safety-Critical | 5 | ~1 day | 5/5 done |
-| Batch 2: Concurrency | 8 | ~3-4 days | Not started |
-| Batch 3: ML Correctness | 5 | ~2 days | Not started |
-| Batch 4: Safety & Privacy | 6 | ~2 days | Not started |
-| Batch 5: Security & LLM | 4 | ~1 day | 1/4 done |
-| Batch 6: UI & Accessibility | 7 | ~2 days | Not started |
-| Batch 7: Test Coverage | 12 | ~3 days | Not started |
-| Batch 8: Cleanup & Polish | 11 | ~1-2 days | Not started |
-| Batch 9: Degraded Mode Safety | 4 | ~1 day | Not started |
-| Batch 10: @unchecked Sendable | 6 | ~2-3 days | Not started |
-| Remaining | 6 | ~1 day | Not started |
-| **Total** | **74** | **~3-4 weeks** | **6 / 74** |
+| Batch 1: Localization & Compliance | 8 | ~4-5 days | Not started |
+| Batch 2: Security & Documentation | 3 | ~1 day | Not started |
+| Batch 3: Data Integrity & Actor Conversion | 3 | ~2 days | Not started |
+| Batch 4: Accessibility | 4 | ~2 days | Not started |
+| Batch 5: Build & Config Cleanup | 10 | ~1 day | Not started |
+| Batch 6: Architecture, Quality & Testing | 14 (1 N/A) | ~4-5 days | Not started |
+| **Total** | **42 (1 N/A = 41 actionable)** | **~2-3 weeks** | **0 / 41** |
 
 ---
 
-*Plan generated 2026-02-14 based on full codebase analysis of 191 files.*
-*Updated 2026-02-15: Batch 1 complete (B1-01 CRIT-01, B1-02 CRIT-02, B1-03 CRIT-04, B1-04 CRIT-05, B1-05 HIGH-05). B5-03 (HIGH-16) done. B2-05 partial (SafetyDecision/JournalResult).*
+## Items Not Carried Forward
+
+The following items from the previous plan (`master_plan_FINAL_old.md`) are **resolved** and not included in this plan:
+
+| Previous ID | Resolution |
+|---|---|
+| B1-01 (CRIT-01) | NaN target guard added to StateEstimator |
+| B1-02 (CRIT-02) | NaN guard added to SafetyLocal cosine similarity |
+| B1-03 (CRIT-04) | MAD clamped to 1e-6 in RobustStats init |
+| B1-04 (CRIT-05) | Stale test file deleted |
+| B1-05 (HIGH-05) | RecRankerStateStore converted to actor |
+| B2-01 (CRIT-03) | AgentOrchestrator no longer blocks main thread |
+| B2-03 (HIGH-07) | SentimentAgent has @MainActor annotation |
+| B2-04 (HIGH-13) | JournalSessionState converted to actor |
+| B3-01 (HIGH-01) | Embedding dimension handling fixed |
+| B3-02 (HIGH-12) | Locale-aware embedding selection |
+| B3-05 (MED-15) | PIIRedactor regex cached at module load |
+| B4-01 (HIGH-03) | Locale-aware crisis resources passed to SafetyCardView |
+| B4-02 (HIGH-10) | PIIRedactor expanded to 8 patterns |
+| B4-03 (HIGH-11) | FM providers use @Generable (prompt injection mitigated) |
+| B4-04 (HIGH-09) | Privacy description corrected |
+| B5-02 (HIGH-15) | Force unwraps eliminated in SafetyCardView, SettingsView |
+| B5-03 (HIGH-16) | VectorStore unaligned memory fixed |
+| B7-01 (TC-01) | PIIRedactorTests.swift exists with comprehensive coverage |
+| B7-02 (TC-02) | SentimentServiceFallbackTests.swift exists |
+| B10-02 | SafetyLocal converted to actor |
+| B10-04 | RecRankerStateStore converted to actor |
+
+---
+
+*Plan generated 2026-02-15 based on full codebase analysis of 206 files. Previous health score: 6.5/10 → Current: 8.0/10.*
