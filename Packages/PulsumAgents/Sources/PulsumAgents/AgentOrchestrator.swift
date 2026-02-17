@@ -593,7 +593,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
                                                   contributions: snapshot.contributions,
                                                   wellbeingState: .ready(score: snapshot.wellbeingScore,
                                                                          contributions: snapshot.contributions),
-                                                  notice: "Recommendations are taking longer than expected. Try refreshing again soon.")
+                                                  notice: String(localized: "orchestrator.recommendations.timeout", defaultValue: "Recommendations are taking longer than expected. Try refreshing again soon."))
                 case .value(let cards):
                     let notice = await MainActor.run { self.coachAgent.recommendationNotice }
                     return RecommendationResponse(cards: cards,
@@ -605,12 +605,12 @@ public final class AgentOrchestrator: @unchecked Sendable {
                 }
             } catch {
                 if error is CancellationError { throw error }
-                let sanitized = "Unable to compute wellbeing right now."
+                let sanitized = String(localized: "orchestrator.recommendations.error", defaultValue: "Unable to compute wellbeing right now.")
                 return RecommendationResponse(cards: [],
                                               wellbeingScore: 0,
                                               contributions: [:],
                                               wellbeingState: .error(message: sanitized),
-                                              notice: "Personalized recommendations are limited on this device right now.")
+                                              notice: String(localized: "orchestrator.recommendations.limited", defaultValue: "Personalized recommendations are limited on this device right now."))
             }
         }
     }
@@ -692,7 +692,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
         guard let snapshot = try await dataAgent.latestFeatureVector(),
               !SnapshotPlaceholder.isPlaceholder(snapshot) else {
             logger.info("No feature vector snapshot available; returning warmup prompt.")
-            return "Let's take a moment to capture your pulse first."
+            return String(localized: "orchestrator.chat.warmup", defaultValue: "Let's take a moment to capture your pulse first.")
         }
 
         return await performChat(userInput: userInput,
@@ -747,10 +747,10 @@ public final class AgentOrchestrator: @unchecked Sendable {
             switch safety.classification {
             case .crisis:
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → safety", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-                return safety.crisisMessage ?? "If you're in immediate danger, please contact your local emergency number."
+                return safety.crisisMessage ?? String(localized: "orchestrator.safety.crisisFallback", defaultValue: "If you're in immediate danger, please contact your local emergency number.")
             case .caution:
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → safety", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-                return "Let's stay with grounding actions for a moment."
+                return String(localized: "orchestrator.safety.caution", defaultValue: "Let's stay with grounding actions for a moment.")
             case .safe:
                 break
             }
@@ -776,7 +776,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
             if !gateDecision.isOnTopic {
                 logger.notice("Topic gate blocked off-topic request. Returning redirect message.")
                 emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → redirect", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-                return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
+                return String(localized: "orchestrator.chat.redirect", defaultValue: "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations.")
             }
 
             // Step 2b: Deterministic intent → topSignal mapping (4-step override)
@@ -812,7 +812,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
             let nsError = error as NSError
             logger.error("Topic gate failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public). Failing closed.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=nil coverage=fail → redirect", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-            return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
+            return String(localized: "orchestrator.chat.redirect", defaultValue: "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations.")
         }
 
         // Embedding availability gate: if no on-device embeddings are available, fail closed and respond on-device.
@@ -854,7 +854,7 @@ public final class AgentOrchestrator: @unchecked Sendable {
             let nsError = error as NSError
             logger.error("Coverage evaluation failed. domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public). Falling back to redirect.")
             emitRouteDiagnostics(line: "ChatRoute consent=\(consentGranted) topic=\(intentTopic ?? "nil") coverage=unknown → redirect", decision: nil, top: nil, median: nil, count: nil, context: diagnosticsContext)
-            return "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
+            return String(localized: "orchestrator.chat.redirect", defaultValue: "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations.")
         }
 
         let decision = coverageResult.decision

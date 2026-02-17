@@ -50,7 +50,7 @@ struct SettingsScreen: View {
                                             Text("Use GPT-5 phrasing")
                                                 .font(.pulsumBody)
                                                 .foregroundStyle(Color.pulsumTextPrimary)
-                                            Text("Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime.")
+                                            Text(String(localized: "settings.cloud.dataHandling", defaultValue: "Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime."))
                                                 .font(.pulsumCaption)
                                                 .foregroundStyle(Color.pulsumTextSecondary)
                                                 .lineSpacing(2)
@@ -294,7 +294,7 @@ struct SettingsScreen: View {
                                         (!healthViewModel.canRequestHealthKitAccess && !AppRuntimeConfig.isUITesting))
                                     .accessibilityIdentifier("HealthAccessRequestButton")
 
-                                    Text("Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations.")
+                                    Text(String(localized: "settings.health.dataAccessExplanation", defaultValue: "Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations."))
                                         .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(3)
@@ -492,14 +492,14 @@ struct SettingsScreen: View {
                                         }
                                     }
 
-                                    Text("Pulsum stores all health data on-device with NSFileProtectionCompleteUnlessOpen. Data is encrypted at rest and accessible only while the device is unlocked or during authorized background health syncs. Journals are never uploaded.")
+                                    Text(String(localized: "settings.privacy.fileProtection", defaultValue: "Pulsum stores all health data on-device with NSFileProtectionCompleteUnlessOpen. Data is encrypted at rest and accessible only while the device is unlocked or during authorized background health syncs. Journals are never uploaded."))
                                         .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(3)
 
                                     Divider()
 
-                                    Text("This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment.")
+                                    Text(String(localized: "settings.medical.disclaimer", defaultValue: "This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment."))
                                         .font(.pulsumFootnote)
                                         .foregroundStyle(Color.pulsumTextSecondary)
                                         .lineSpacing(3)
@@ -664,7 +664,7 @@ struct SettingsScreen: View {
                 .padding(.horizontal, PulsumSpacing.lg)
 
             VStack(alignment: .leading, spacing: PulsumSpacing.md) {
-                Text("Delete all your data stored in Pulsum, including journals, health metrics, recommendations, and AI configuration.")
+                Text(String(localized: "settings.data.deleteDescription", defaultValue: "Delete all your data stored in Pulsum, including journals, health metrics, recommendations, and AI configuration."))
                     .font(.pulsumFootnote)
                     .foregroundStyle(Color.pulsumTextSecondary)
                     .lineSpacing(3)
@@ -717,7 +717,7 @@ struct SettingsScreen: View {
                 Task { await viewModel.deleteAllData() }
             }
         } message: {
-            Text("This will permanently delete all your journals, health metrics, recommendations, vector index, API keys, and preferences. This action cannot be undone.")
+            Text(String(localized: "settings.data.deleteConfirmation", defaultValue: "This will permanently delete all your journals, health metrics, recommendations, vector index, API keys, and preferences. This action cannot be undone."))
         }
     }
 
@@ -788,7 +788,7 @@ struct SettingsScreen: View {
             }
             .buttonStyle(.bordered)
 
-            Text("May include sensitive metadata (counts/dates). Does not include journal text or raw HealthKit samples.")
+            Text(String(localized: "settings.diagnostics.metadataNotice", defaultValue: "May include sensitive metadata (counts/dates). Does not include journal text or raw HealthKit samples."))
                 .font(.pulsumCaption2)
                 .foregroundStyle(Color.pulsumTextSecondary)
         }

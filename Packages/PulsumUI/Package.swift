@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "PulsumUI",
+    defaultLocalization: "en",
     platforms: [
         .iOS("26.0"),
         .macOS(.v15)
@@ -30,7 +31,8 @@ let package = Package(
             ],
             path: "Sources",
             resources: [
-                .process("PulsumUI/PrivacyInfo.xcprivacy")
+                .process("PulsumUI/PrivacyInfo.xcprivacy"),
+                .process("PulsumUI/Localizable.xcstrings")
             ]
         ),
         .testTarget(
