@@ -47,6 +47,7 @@ struct PulseView: View {
                                 .foregroundStyle(Color.pulsumTextSecondary)
                                 .symbolRenderingMode(.hierarchical)
                         }
+                        .accessibilityLabel("Close Pulse Check-In")
                     }
                 }
             #if os(iOS)
@@ -111,6 +112,7 @@ struct PulseView: View {
                         }
                         .font(.pulsumCaption)
                         .foregroundStyle(Color.pulsumTextSecondary)
+                        .accessibilityLabel("Clear transcript")
                     }
 
                     Text(transcript)
@@ -213,6 +215,8 @@ struct PulseView: View {
 
             Slider(value: value, in: 1 ... 7, step: 1)
                 .tint(Color.pulsumGreenSoft)
+                .accessibilityLabel(title)
+                .accessibilityValue("\(Int(value.wrappedValue.rounded())) of 7")
 
             Text(description)
                 .font(.pulsumCaption)

@@ -64,6 +64,7 @@ public struct ChatInputView: View {
                         .frame(width: 44, height: 44)
                 }
                 .glassEffect(.regular.tint(Color.gray.opacity(0.3)).interactive())
+                .accessibilityLabel("Dismiss keyboard")
                 .transition(.scale.combined(with: .opacity))
             }
         }

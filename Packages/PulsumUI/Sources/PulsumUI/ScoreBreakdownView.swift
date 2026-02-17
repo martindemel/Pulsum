@@ -78,6 +78,7 @@ struct ScoreBreakdownScreen: View {
                                 .foregroundStyle(Color.pulsumTextSecondary)
                                 .symbolRenderingMode(.hierarchical)
                         }
+                        .accessibilityLabel("Close Score Details")
                     }
                 }
             #if os(iOS)
@@ -157,6 +158,8 @@ private struct SummaryCard: View {
                 .lineSpacing(2)
         }
         .pulsumCardStyle()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Wellbeing score: \(breakdown.wellbeingScore.formatted(.number.precision(.fractionLength(2)))). \(summaryCopy(for: breakdown.wellbeingScore))")
     }
 
     private func scoreColor(_ value: Double) -> Color {
@@ -271,6 +274,8 @@ private struct MetricCard: View {
                 .lineSpacing(2)
         }
         .pulsumCardStyle(padding: PulsumSpacing.lg)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(detail.name): \(valueLine ?? "No data today"). Contribution: \(formatContribution(detail.contribution))")
     }
 
     private var valueLine: String? {

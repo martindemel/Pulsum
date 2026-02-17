@@ -99,6 +99,7 @@ struct SettingsScreen: View {
                                                 .font(.body)
                                             #endif
                                                 .foregroundStyle(Color.pulsumTextPrimary)
+                                                .accessibilityLabel("GPT-5 API Key")
                                                 .accessibilityIdentifier("CloudAPIKeyField")
                                         }
 
@@ -113,6 +114,7 @@ struct SettingsScreen: View {
                                             }
                                             .glassEffect(.regular.tint(Color.pulsumGreenSoft.opacity(0.6)).interactive())
                                             .disabled(viewModel.gptAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isTestingAPIKey)
+                                            .accessibilityIdentifier("settings.button.saveKey")
 
                                             Button {
                                                 Task { await viewModel.testCurrentAPIKey() }
@@ -131,6 +133,7 @@ struct SettingsScreen: View {
                                             }
                                             .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
                                             .disabled(viewModel.isTestingAPIKey)
+                                            .accessibilityLabel("Test API connection")
                                             .accessibilityIdentifier("CloudTestConnectionButton")
                                         }
 
@@ -318,12 +321,14 @@ struct SettingsScreen: View {
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                            .accessibilityIdentifier("settings.button.refreshHealthStatus")
                                             Button("Copy") {
                                                 copyToClipboard(healthViewModel.healthKitDebugSummary)
                                             }
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .glassEffect(.regular.tint(Color.pulsumTextSecondary.opacity(0.3)).interactive())
+                                            .accessibilityLabel("Copy health access status")
                                             .accessibilityIdentifier("HealthAccessCopyButton")
                                         }
                                     }
@@ -349,6 +354,7 @@ struct SettingsScreen: View {
                                             .font(.pulsumFootnote.weight(.semibold))
                                             .foregroundStyle(Color.pulsumTextPrimary)
                                             .glassEffect(.regular.tint(Color.pulsumBlueSoft.opacity(0.5)).interactive())
+                                            .accessibilityIdentifier("settings.button.refreshLog")
                                             Button("Copy Log") {
                                                 copyToClipboard(healthViewModel.debugLogSnapshot)
                                             }
@@ -743,24 +749,28 @@ struct SettingsScreen: View {
             }, set: { enabled in
                 diagnosticsViewModel.updateDiagnosticsEnabled(enabled)
             }))
+            .accessibilityIdentifier("settings.toggle.diagnostics")
 
             Toggle("Persist to disk", isOn: Binding(get: {
                 diagnosticsViewModel.diagnosticsConfig.persistToDisk
             }, set: { persist in
                 diagnosticsViewModel.updateDiagnosticsPersistence(persist)
             }))
+            .accessibilityIdentifier("settings.toggle.persistToDisk")
 
             Toggle("Mirror to OSLog", isOn: Binding(get: {
                 diagnosticsViewModel.diagnosticsConfig.mirrorToOSLog
             }, set: { mirror in
                 diagnosticsViewModel.updateDiagnosticsOSLog(mirror)
             }))
+            .accessibilityIdentifier("settings.toggle.mirrorOSLog")
 
             Toggle("Enable signposts", isOn: Binding(get: {
                 diagnosticsViewModel.diagnosticsConfig.enableSignposts
             }, set: { enable in
                 diagnosticsViewModel.updateDiagnosticsSignposts(enable)
             }))
+            .accessibilityIdentifier("settings.toggle.signposts")
 
             HStack(spacing: PulsumSpacing.md) {
                 Button {
@@ -773,10 +783,13 @@ struct SettingsScreen: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Export diagnostics report")
+                .accessibilityIdentifier("settings.button.exportDiagnostics")
 
                 if let url = diagnosticsViewModel.diagnosticsExportURL {
                     ShareLink("Share", item: url)
                         .buttonStyle(.bordered)
+                        .accessibilityIdentifier("settings.button.shareDiagnostics")
                 }
             }
 
@@ -787,6 +800,7 @@ struct SettingsScreen: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier("settings.button.clearDiagnostics")
 
             Text(String(localized: "settings.diagnostics.metadataNotice", defaultValue: "May include sensitive metadata (counts/dates). Does not include journal text or raw HealthKit samples."))
                 .font(.pulsumCaption2)
@@ -1370,6 +1384,8 @@ struct WellbeingScoreCard: View {
             x: PulsumShadow.medium.x,
             y: PulsumShadow.medium.y
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Wellbeing score: \(score.formatted(.number.precision(.fractionLength(2)))). \(interpretedScore). Tap for full breakdown.")
     }
 
     private var scoreColor: Color {
