@@ -46,6 +46,9 @@ public struct PulsumRootView: View {
             }
         }
         .task { viewModel.start() }
+        .onOpenURL { url in
+            handleDeepLink(url)
+        }
         .onChange(of: viewModel.startupState) { _, newValue in
             let label: String
             switch newValue {
@@ -61,6 +64,27 @@ public struct PulsumRootView: View {
                             fields: [
                                 "state": .safeString(.stage(label, allowed: ["idle", "loading", "ready", "failed", "blocked"]))
                             ])
+        }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "pulsum" else {
+            Diagnostics.log(level: .info,
+                            category: .ui,
+                            name: "ui.deepLink.unknownScheme",
+                            fields: ["scheme": .safeString(.metadata(url.scheme ?? "nil"))])
+            return
+        }
+        switch url.host {
+        case "journal":
+            viewModel.isPresentingPulse = true
+        case "coach":
+            viewModel.selectedTab = .coach
+        default:
+            Diagnostics.log(level: .info,
+                            category: .ui,
+                            name: "ui.deepLink.unknownPath",
+                            fields: ["host": .safeString(.metadata(url.host ?? "nil"))])
         }
     }
 

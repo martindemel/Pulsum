@@ -536,6 +536,7 @@
 				DEVELOPMENT_TEAM = X6FJFZCXY3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SupportingFiles-Info.plist";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";
@@ -580,6 +581,7 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SupportingFiles-Info.plist";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pulsum reads key wellness metrics like HRV and sleep to personalize your coaching.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pulsum references your recent trends to surface the most helpful guidance.";

@@ -641,136 +641,27 @@ extension DataAgent {
         var totalSamples = 0
         var processedTypeCount = 0
         for type in sorted {
-            let identifier = type.identifier
-            let batchSpan = Diagnostics.span(category: .backfill,
-                                             name: "data.backfill.batch",
-                                             fields: [
-                                                 "phase": .safeString(.stage(phase, allowed: ["warm-start", "full"])),
-                                                 "type": .safeString(.metadata(identifier)),
-                                                 "batch_start_day": .day(startDate),
-                                                 "batch_end_day": .day(endDate),
-                                                 "target_start_day": .day(targetStartDate),
-                                                 "mark_warm_start": .bool(markWarmStart)
-                                             ],
-                                             traceId: diagnosticsTraceId,
-                                             level: .info)
-            do {
-                switch identifier {
-                case HKQuantityTypeIdentifier.stepCount.rawValue:
-                    let totalsResult: HardTimeoutResult<[Date: Int]>
-                    do {
-                        totalsResult = try await withHardTimeout(seconds: backfillTimeoutSeconds) {
-                            try await self.safeFetchDailyStepTotals(startDate: startDate,
-                                                                    endDate: endDate,
-                                                                    context: "Backfill (\(phase)) \(identifier)")
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: nil)
-                        } else {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: error)
-                        }
-                        continue
-                    }
-                    switch totalsResult {
-                    case .timedOut:
-                        batchSpan.end(additionalFields: [
-                            "result": .safeString(.stage("timeout", allowed: ["timeout"])),
-                            "timeout_ms": .int(Int(backfillTimeoutSeconds * 1_000))
-                        ], error: nil)
-                    case .value(let totals):
-                        let processedDays = try await applyStepTotals(totals)
-                        touchedDays.formUnion(processedDays)
-                        totalSamples += totals.count
-                        batchSpan.end(additionalFields: [
-                            "raw_sample_count": .int(totals.count),
-                            "processed_days": .int(processedDays.count)
-                        ], error: nil)
-                    }
-                case HKQuantityTypeIdentifier.heartRate.rawValue:
-                    let statsResult: HardTimeoutResult<[Date: (avgBPM: Double, minBPM: Double?)]>
-                    do {
-                        statsResult = try await withHardTimeout(seconds: backfillTimeoutSeconds) {
-                            try await self.safeFetchNocturnalHeartRateStats(startDate: startDate,
-                                                                            endDate: endDate,
-                                                                            context: "Backfill (\(phase)) \(identifier)")
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: nil)
-                        } else {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: error)
-                        }
-                        continue
-                    }
+            let fetchResult = await fetchAndProcessBootstrapType(
+                type,
+                startDate: startDate,
+                endDate: endDate,
+                fetchTimeoutSeconds: backfillTimeoutSeconds,
+                heartRateTimeoutSeconds: backfillTimeoutSeconds,
+                contextPrefix: "Backfill (\(phase))",
+                batchSpanName: "data.backfill.batch",
+                extraBatchSpanFields: [
+                    "phase": .safeString(.stage(phase, allowed: ["warm-start", "full"])),
+                    "target_start_day": .day(targetStartDate),
+                    "mark_warm_start": .bool(markWarmStart)
+                ])
 
-                    switch statsResult {
-                    case .timedOut:
-                        batchSpan.end(additionalFields: [
-                            "result": .safeString(.stage("timeout", allowed: ["timeout"])),
-                            "timeout_ms": .int(Int(backfillTimeoutSeconds * 1_000))
-                        ], error: nil)
-                    case .value(let stats):
-                        let processedDays = try await applyNocturnalStats(stats)
-                        touchedDays.formUnion(processedDays)
-                        totalSamples += stats.count
-                        batchSpan.end(additionalFields: [
-                            "raw_sample_count": .int(stats.count),
-                            "processed_days": .int(processedDays.count)
-                        ], error: nil)
-                    }
-                default:
-                    let samplesResult: HardTimeoutResult<[HKSample]>
-                    do {
-                        samplesResult = try await withHardTimeout(seconds: backfillTimeoutSeconds) {
-                            try await self.healthKit.fetchSamples(for: type, startDate: startDate, endDate: endDate)
-                        }
-                    } catch {
-                        if isProtectedHealthDataInaccessible(error) {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: nil)
-                        } else {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: error)
-                        }
-                        continue
-                    }
+            touchedDays.formUnion(fetchResult.touchedDays)
+            totalSamples += fetchResult.sampleCount
 
-                    switch samplesResult {
-                    case .timedOut:
-                        batchSpan.end(additionalFields: [
-                            "result": .safeString(.stage("timeout", allowed: ["timeout"])),
-                            "timeout_ms": .int(Int(backfillTimeoutSeconds * 1_000))
-                        ], error: nil)
-                    case .value(let samples):
-                        var processed: (processedSamples: Int, days: Set<Date>) = (0, [])
-                        if !samples.isEmpty {
-                            processed = try await processBackfillSamples(samples, type: type)
-                            touchedDays.formUnion(processed.days)
-                            totalSamples += processed.processedSamples
-                            batchSpan.end(additionalFields: [
-                                "raw_sample_count": .int(samples.count),
-                                "processed_sample_count": .int(processed.processedSamples),
-                                "processed_days": .int(processed.days.count)
-                            ], error: nil)
-                        } else {
-                            batchSpan.end(additionalFields: [
-                                "skip_reason": .safeString(.stage("zero_samples", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                            ], error: nil)
-                        }
-                    }
-                }
-
+            // Record progress unless there was an error or cancellation.
+            // The safe* fetch wrappers convert protected-data errors into empty results
+            // (not thrown errors), so .empty here means "no data" — not a fetch failure.
+            if fetchResult.outcome != .error && fetchResult.outcome != .cancelled {
                 if markWarmStart {
                     backfillProgress.recordWarmStart(for: type.identifier, earliestDate: startDate, calendar: calendar)
                 } else {
@@ -780,17 +671,8 @@ extension DataAgent {
                                                           calendar: calendar)
                 }
                 persistBackfillProgress()
-            } catch {
-                if isProtectedHealthDataInaccessible(error) {
-                    batchSpan.end(additionalFields: [
-                        "skip_reason": .safeString(.stage("protected_data", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                    ], error: nil)
-                } else {
-                    batchSpan.end(additionalFields: [
-                        "skip_reason": .safeString(.stage("fetch_failed", allowed: ["zero_samples", "protected_data", "fetch_failed"]))
-                    ], error: error)
-                }
             }
+
             await monitor?.heartbeat(progressFields: [
                 "phase": .safeString(.stage(phase, allowed: ["warm-start", "full"])),
                 "processed_types": .int(processedTypeCount + 1)

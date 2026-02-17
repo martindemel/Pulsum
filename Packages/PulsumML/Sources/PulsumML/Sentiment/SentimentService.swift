@@ -59,6 +59,6 @@ public final class SentimentService {
     }
 }
 
-// SAFETY: All stored properties are immutable (`let`). `providers` is set once in init
-// and never mutated. SentimentProviding implementors are stateless or internally synchronized.
-extension SentimentService: @unchecked Sendable {}
+// Sendable: all stored properties are immutable let bindings.
+// `providers` is `[any SentimentProviding]` where SentimentProviding: Sendable.
+extension SentimentService: Sendable {}
