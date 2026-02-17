@@ -22,6 +22,7 @@ PulsumTypes -> PulsumML + PulsumData -> PulsumServices -> PulsumAgents -> Pulsum
 - Always build-verify before committing
 - Commit messages: imperative verb + descriptive phrase (e.g., "Fix VectorIndex hash sharding")
 - **Safe point**: Before executing any multi-file plan, commit current working state as a checkpoint so changes can be reverted cleanly
+- **Never use `git add -A` or `git add .`** — always stage specific files by name to avoid sweeping up untracked ghost files
 
 ## Build & Test
 ```bash

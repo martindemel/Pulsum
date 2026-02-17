@@ -1,5 +1,83 @@
 {
   "sourceLanguage" : "en",
-  "strings" : {},
+  "strings" : {
+    "orchestrator.chat.redirect" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Let's keep Pulsum focused on your wellbeing data. Ask me about stress, sleep, energy, or today's recommendations."
+          }
+        }
+      }
+    },
+    "orchestrator.chat.warmup" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Let's take a moment to capture your pulse first."
+          }
+        }
+      }
+    },
+    "orchestrator.recommendations.error" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unable to compute wellbeing right now."
+          }
+        }
+      }
+    },
+    "orchestrator.recommendations.limited" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Personalized recommendations are limited on this device right now."
+          }
+        }
+      }
+    },
+    "orchestrator.recommendations.timeout" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Recommendations are taking longer than expected. Try refreshing again soon."
+          }
+        }
+      }
+    },
+    "orchestrator.safety.caution" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Let's stay with grounding actions for a moment."
+          }
+        }
+      }
+    },
+    "orchestrator.safety.crisisFallback" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "If you're in immediate danger, please contact your local emergency number."
+          }
+        }
+      }
+    }
+  },
   "version" : "1.0"
 }

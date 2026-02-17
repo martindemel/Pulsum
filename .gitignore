@@ -48,6 +48,10 @@ Carthage/Build/
 *.log
 *.tmp
 
+# Core Data artifacts (project uses SwiftData now)
+*.xcdatamodeld/
+*.momd
+
 # Local config / secrets (track only template)
 ## CI needs this tracked: Config.xcconfig
 .env

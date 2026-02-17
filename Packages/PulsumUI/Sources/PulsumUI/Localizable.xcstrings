@@ -1,5 +1,628 @@
 {
   "sourceLanguage" : "en",
-  "strings" : {},
+  "strings" : {
+    "%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "%@: %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@ %3$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "• LIVE" : {
+
+    },
+    "0" : {
+
+    },
+    "1" : {
+
+    },
+    "988 Suicide & Crisis Lifeline" : {
+
+    },
+    "AI Models" : {
+
+    },
+    "Analyzing..." : {
+
+    },
+    "App debug log" : {
+
+    },
+    "Apple HealthKit" : {
+
+    },
+    "Apple Intelligence" : {
+
+    },
+    "Ask Pulsum anything about your recovery" : {
+
+    },
+    "Calculated nightly from your data" : {
+
+    },
+    "Calculating..." : {
+
+    },
+    "Call %@" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Cards are prioritized when they address the most urgent drags while reinforcing the current lifts. Updating your pulse inputs or new HealthKit data will reshuffle this analysis on the next sync." : {
+
+    },
+    "Check Again" : {
+
+    },
+    "Clear" : {
+
+    },
+    "Clear diagnostics" : {
+
+    },
+    "Close Settings" : {
+
+    },
+    "Cloud Processing" : {
+
+    },
+    "Cloud processing is off" : {
+
+    },
+    "coach.chat.aiGenerated" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "AI-generated"
+          }
+        }
+      }
+    },
+    "coach.disclaimer" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Responses are AI-generated and not medical advice."
+          }
+        }
+      }
+    },
+    "Complete your first Pulse check-in" : {
+
+    },
+    "consent.banner.body" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pulsum can optionally use GPT‑5 to phrase brief coaching text. If you allow cloud processing, Pulsum sends only minimized context (no journals, no raw health data, no identifiers). PII is redacted. You can turn this off anytime in Settings ▸ Cloud Processing."
+          }
+        }
+      }
+    },
+    "consent.banner.reviewSettings" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Review Settings"
+          }
+        }
+      }
+    },
+    "consent.banner.title" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cloud processing is optional"
+          }
+        }
+      }
+    },
+    "Copy" : {
+
+    },
+    "Copy Log" : {
+
+    },
+    "Coverage: %@" : {
+
+    },
+    "Data Management" : {
+
+    },
+    "Data notes" : {
+
+    },
+    "DEBUG" : {
+
+    },
+    "Delete All Data?" : {
+
+    },
+    "Delete All My Data" : {
+
+    },
+    "Delete Everything" : {
+
+    },
+    "Deleting..." : {
+
+    },
+    "Diagnostics" : {
+
+    },
+    "disclaimer.medical" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment."
+          }
+        }
+      }
+    },
+    "Dismiss cloud processing banner" : {
+
+    },
+    "Double tap to start recording" : {
+
+    },
+    "Double tap to stop recording" : {
+
+    },
+    "Enable Apple Intelligence in Settings" : {
+
+    },
+    "Enable diagnostics" : {
+
+    },
+    "Enable signposts" : {
+
+    },
+    "Export diagnostics report" : {
+
+    },
+    "Find a Helpline" : {
+
+    },
+    "GPT-5 API Key" : {
+
+    },
+    "Health access status" : {
+
+    },
+    "Health access: %@" : {
+
+    },
+    "Health Data Access" : {
+
+    },
+    "Health data is unavailable on this device." : {
+
+    },
+    "How are you feeling right now?" : {
+
+    },
+    "How recommendations use this" : {
+
+    },
+    "If you're in crisis, dial 911" : {
+
+    },
+    "Last cloud error: %@" : {
+
+    },
+    "Last routes" : {
+
+    },
+    "Mark complete" : {
+
+    },
+    "Mirror to OSLog" : {
+
+    },
+    "No data today" : {
+
+    },
+    "No metrics yet" : {
+
+    },
+    "No recent routing data" : {
+
+    },
+    "Off" : {
+
+    },
+    "On" : {
+
+    },
+    "onboarding.disclaimer.acknowledge" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "I understand and acknowledge this disclaimer"
+          }
+        }
+      }
+    },
+    "onboarding.getStarted" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Get Started"
+          }
+        }
+      }
+    },
+    "onboarding.healthKit.allow" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Health Data Access"
+          }
+        }
+      }
+    },
+    "onboarding.healthKit.skip" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skip for Now"
+          }
+        }
+      }
+    },
+    "onboarding.healthKit.title" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Connect Your Health Data"
+          }
+        }
+      }
+    },
+    "onboarding.ready.start" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Start Using Pulsum"
+          }
+        }
+      }
+    },
+    "onboarding.ready.subtitle" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Start your recovery journey with Pulsum. Record your daily Pulse, get personalized recommendations, and optimize your wellbeing."
+          }
+        }
+      }
+    },
+    "onboarding.ready.title" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "You're All Set!"
+          }
+        }
+      }
+    },
+    "onboarding.welcome.subtitle" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Your personal recovery companion that helps you optimize your wellbeing using science-backed insights."
+          }
+        }
+      }
+    },
+    "onboarding.welcome.title" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Welcome to Pulsum"
+          }
+        }
+      }
+    },
+    "Opens system Settings so you can turn on Apple Intelligence for GPT-5 routing." : {
+
+    },
+    "Persist to disk" : {
+
+    },
+    "Preparing Pulsum..." : {
+
+    },
+    "Privacy" : {
+
+    },
+    "Privacy policy" : {
+
+    },
+    "Processing your journal entry" : {
+
+    },
+    "Pulse" : {
+
+    },
+    "Pulse Check-In" : {
+
+    },
+    "Pulsum analyzes your Heart Rate Variability, Heart Rate, Sleep, and Activity to provide personalized recommendations." : {
+
+    },
+    "Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime." : {
+
+    },
+    "Record voice journal" : {
+
+    },
+    "Refresh Log" : {
+
+    },
+    "Refresh Status" : {
+
+    },
+    "Request Health Data Access" : {
+
+    },
+    "Requesting..." : {
+
+    },
+    "Retry" : {
+
+    },
+    "Review Settings" : {
+
+    },
+    "Safety" : {
+
+    },
+    "safety.card.dismiss" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "I'm safe"
+          }
+        }
+      }
+    },
+    "safety.card.title" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "We noticed something important"
+          }
+        }
+      }
+    },
+    "Save inputs" : {
+
+    },
+    "Save Key" : {
+
+    },
+    "Saving..." : {
+
+    },
+    "Score details" : {
+
+    },
+    "Send coach message" : {
+
+    },
+    "Session ID: %@" : {
+
+    },
+    "Settings" : {
+
+    },
+    "settings.cloud.dataHandling" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pulsum only sends minimized context (no journals, no identifiers, no raw health samples). Turn this off anytime."
+          }
+        }
+      }
+    },
+    "settings.data.deleteConfirmation" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This will permanently delete all your journals, health metrics, recommendations, vector index, API keys, and preferences. This action cannot be undone."
+          }
+        }
+      }
+    },
+    "settings.data.deleteDescription" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete all your data stored in Pulsum, including journals, health metrics, recommendations, and AI configuration."
+          }
+        }
+      }
+    },
+    "settings.diagnostics.metadataNotice" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "May include sensitive metadata (counts/dates). Does not include journal text or raw HealthKit samples."
+          }
+        }
+      }
+    },
+    "settings.health.dataAccessExplanation" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pulsum needs access to Heart Rate Variability, Heart Rate, Resting Heart Rate, Respiratory Rate, Steps, and Sleep data to provide personalized recovery recommendations."
+          }
+        }
+      }
+    },
+    "settings.medical.disclaimer" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This app does not provide medical advice. Always consult a healthcare professional before making decisions about your health or treatment."
+          }
+        }
+      }
+    },
+    "settings.privacy.fileProtection" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pulsum stores all health data on-device with NSFileProtectionCompleteUnlessOpen. Data is encrypted at rest and accessible only while the device is unlocked or during authorized background health syncs. Journals are never uploaded."
+          }
+        }
+      }
+    },
+    "Share" : {
+
+    },
+    "sk-..." : {
+
+    },
+    "Something went wrong" : {
+
+    },
+    "Stop recording" : {
+
+    },
+    "Storage Not Secured" : {
+
+    },
+    "Tap for the full breakdown, including objective recovery signals and your subjective check-in inputs." : {
+
+    },
+    "Tap to record" : {
+
+    },
+    "Test Connection" : {
+
+    },
+    "The Coach agent builds a retrieval query from the wellbeing score plus the strongest signals below, then ranks activities with the RecRanker model." : {
+
+    },
+    "The score is a weighted blend of physiological z-scores, subjective sliders, and journal sentiment. Each contribution shown below is the weight × today's normalized value." : {
+
+    },
+    "Today's picks" : {
+
+    },
+    "Today's wellbeing score" : {
+
+    },
+    "Top drivers" : {
+
+    },
+    "Transcript" : {
+
+    },
+    "Try again" : {
+
+    },
+    "Unable to load score details" : {
+
+    },
+    "Up to 30 seconds" : {
+
+    },
+    "Updated %@" : {
+
+    },
+    "Use GPT-5 phrasing" : {
+
+    },
+    "Voice journal" : {
+
+    },
+    "Warming up" : {
+
+    },
+    "We will show a full breakdown after Pulsum completes the first nightly sync." : {
+
+    },
+    "Wellbeing score" : {
+
+    },
+    "You're offline. Cloud features unavailable." : {
+
+    },
+    "Your score will appear here after your first nightly sync. Record a Pulse check-in to begin tracking your wellbeing." : {
+
+    }
+  },
   "version" : "1.0"
 }
